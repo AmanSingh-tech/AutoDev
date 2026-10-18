@@ -29,6 +29,20 @@
       "when": 1792347424521,
       "tag": "0003_byok_rls_partitions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792349421311,
+      "tag": "0004_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792349422973,
+      "tag": "0005_tasks_rls",
+      "breakpoints": true
     }
   ]
 }

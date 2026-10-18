@@ -13,7 +13,7 @@ export async function truncateAll(db: SystemDb) {
   await db.execute(sql`
     TRUNCATE users, github_tokens, orgs, org_members, teams, team_members, installations,
       repos, user_repo_access, repo_policies, notifications, audit_log,
-      llm_credentials, model_policies, budgets, token_usage CASCADE`);
+      llm_credentials, model_policies, budgets, token_usage, tasks, task_events CASCADE`);
   await db.execute(sql`TRUNCATE model_prices`);
   if (globalPrices.length) await db.insert(modelPrices).values(globalPrices);
 }

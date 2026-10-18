@@ -4,3 +4,4 @@ export * from './orgs';
 export * from './repos';
 export * from './audit';
 export * from './llm';
+export * from './tasks';

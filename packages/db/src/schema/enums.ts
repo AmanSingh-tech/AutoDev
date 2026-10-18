@@ -19,11 +19,38 @@ export const credentialStatus = pgEnum('credential_status', ['active', 'invalid'
 /** Section B adds more use cases (repo chat, prompt guide…). Postgres enums can be extended in place. */
 export const llmUseCase = pgEnum('llm_use_case', ['agent']);
 export const budgetScope = pgEnum('budget_scope', ['org', 'user']);
+export const taskStatus = pgEnum('task_status', [
+  'draft',
+  'queued',
+  'planning',
+  'awaiting_plan_approval',
+  'designing',
+  'awaiting_lld_approval',
+  'coding',
+  'waiting_for_builder',
+  'testing',
+  'fixing',
+  'needs_input',
+  'blocked_on_key',
+  'pushed',
+  'pr_open',
+  'resolved',
+  'rejected',
+  'failed',
+  'cancelled',
+]);
+export const taskPriority = pgEnum('task_priority', ['low', 'medium', 'high', 'urgent']);
+export const branchMode = pgEnum('branch_mode', ['new', 'existing']);
 
 export const ORG_ROLES = orgRole.enumValues;
 export type LlmProviderId = (typeof llmProvider.enumValues)[number];
 export type CredentialScope = (typeof credentialScope.enumValues)[number];
 export const LLM_USE_CASES = llmUseCase.enumValues;
+export const TASK_STATUSES = taskStatus.enumValues;
+export type TaskStatus = (typeof taskStatus.enumValues)[number];
+export const TASK_PRIORITIES = taskPriority.enumValues;
+export type TaskPriority = (typeof taskPriority.enumValues)[number];
+export const TASK_MODES = taskMode.enumValues;
 export type LlmUseCase = (typeof llmUseCase.enumValues)[number];
 export type OrgRole = (typeof ORG_ROLES)[number];
 export type TaskMode = (typeof taskMode.enumValues)[number];
