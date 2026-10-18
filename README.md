@@ -4,8 +4,8 @@ Multi-tenant B2B SaaS: developers hand coding tasks to an AI agent that plans, d
 tests on the developer's own machine, and opens a GitHub PR **as the developer**.
 
 **Status:** Section A, phases A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
-write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets) and A-3
-(task board).
+write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
+(task board) and A-4 (agent runtime, virtual workspace, Plan and LLD gates).
 
 ## Layout
 
@@ -21,7 +21,8 @@ packages/db           Drizzle schema, migrations, RLS, withOrg(), seed
 packages/github       Octokit clients, token vault, repo access cache, webhooks, login
 packages/ui           shadcn-style components + Tailwind preset
 packages/llm          Provider interface, Anthropic provider, LLM gateway (keys, metering, budgets)
-packages/{agent,protocol}   later phases
+packages/agent        Virtual workspace, tools, prompts, agent loop, orchestrator
+packages/protocol     later phases
 tools/mock-github     Fake GitHub for e2e tests
 tools/e2e             Playwright
 ```
@@ -105,5 +106,27 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   consumes it). Edits are allowed only in draft.
 - **Board:** six columns (Draft, Queued, In progress, Needs you, Pushed / PR, Done). Only drafts
   can be dragged, onto Queued. The board polls every 15 s until realtime events land (A-9).
+
+## Agent runtime (A-4)
+
+- **Worker** (`agent` queue, `AgentOrchestrator`): driven by task status, idempotent, and one worker
+  per task (Redis lock). `queued` pins the base SHA (head of the existing branch, or of the default
+  branch) and opens a workspace; then the phase for the status runs: planning → `submit_plan`,
+  designing → `submit_design`, coding → edits + `finish`.
+- **Virtual workspace:** the base SHA read through the GitHub API with the owner's token (trees
+  and blobs cached by content address), plus an overlay of edits in Postgres. There's no clone in
+  the cloud. `patch()` yields a `git apply`-able diff for the builder. `scope_path` limits reads,
+  edits, listing and search; `.github/workflows` and `.git` can't be touched.
+- **Gates:** plan and LLD are versioned, immutable markdown with required sections. Approve /
+  Request changes (the same conversation continues and writes v2) / Reject, audited. Coding may
+  only edit files the approved docs name; anything else needs an approved `ask_user` deviation.
+- **Pauses:** `ask_user` → `needs_input`; key failure → `blocked_on_key` (resumes automatically
+  when a usable key is added); provider outages retry with backoff. Each pause resumes the same
+  saved transcript (stored in the blob store), keeping thinking blocks verbatim.
+- **Prompting:** the rules, then the repo conventions (README / CONTRIBUTING / .autodev.yml as
+  `<repo_file>` data), both cached for 1h, then the task, the related task's summary and the
+  approved docs. Repo content is always treated as data.
+- **Builder hand-off:** `finish` / `request_local_test` move the task to `waiting_for_builder` with
+  the workspace revision. A-5 runs the tests and feeds the results back into the paused run.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).
