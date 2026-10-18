@@ -227,6 +227,12 @@ export class VirtualWorkspace {
     return parts.join('');
   }
 
+  /** A file at the base commit, ignoring the overlay (e.g. the base branch's .autodev.yml). Null if missing. */
+  async readBaseFile(input: string): Promise<string | null> {
+    const p = this.path(input, 'read');
+    return (await this.baseEntry(p)) ? this.readBase(p) : null;
+  }
+
   /** Base and current content of one changed file, for the diff view. */
   async fileVersions(input: string): Promise<{ before: string; after: string }> {
     const p = this.path(input, 'read');

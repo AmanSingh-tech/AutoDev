@@ -237,6 +237,9 @@ importers:
       '@autodev/llm':
         specifier: workspace:^
         version: link:../llm
+      '@autodev/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       diff:
         specifier: ^7.0.0
         version: 7.0.0
