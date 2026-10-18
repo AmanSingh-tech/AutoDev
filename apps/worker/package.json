@@ -1,0 +1,26 @@
+{
+  "name": "@autodev/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@autodev/config": "workspace:*",
+    "@autodev/db": "workspace:*",
+    "@autodev/github": "workspace:*",
+    "bullmq": "^5.34.6",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2"
+  }
+}
