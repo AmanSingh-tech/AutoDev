@@ -3,9 +3,10 @@
 Multi-tenant B2B SaaS: developers hand coding tasks to an AI agent that plans, designs, codes,
 tests on the developer's own machine, and opens a GitHub PR **as the developer**.
 
-**Status:** Section A, phases A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
+**Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
-(task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates) and A-5 (local builder).
+(task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
+A-6 (push, PR, stale branches, PR webhooks). Section B is not started.
 
 ## Layout
 
@@ -175,5 +176,25 @@ notes: Anything the agent should know (never executed).
 ```
 
 Without a `.autodev.yml` on the base branch, tests are skipped and the task says so.
+
+## Push and PR (A-6)
+
+- **Push** happens after the final test run passes (or is skipped for lack of `.autodev.yml`). It
+  uses the owner's own token after a **live** permission check, through the Git Data API (no clone).
+  The branch is `autodev/<KEY>-<slug>`, or the existing branch for follow-up work; the default
+  branch is never a target. File modes are kept, and the push never forces. If the branch moved
+  upstream, the commit goes on top unless the same files changed, in which case the task fails
+  with a clear reason and **Retry push**.
+- **PR** (PRs live only on GitHub): opened against the default branch when
+  `create_pr_on_completion` is on, otherwise via **Create PR** (as the clicking user). New commits
+  to a branch with an open PR update it and append an "AutoDev update" section. The description has
+  Summary, Task (link + acceptance criteria), Approved Plan, Approved LLD, Changes (one line per file),
+  Testing (builder, image, commands, result) and AI usage (models, tokens, cost, approvers).
+- **Stale branches** (nightly, 02:00 UTC): pushed without a PR for more than `stale_branch_days`
+  (default 3) → open the PR as the owner (`created_by = stale_job`) or notify the owner once, per
+  the org's `stale_branch_action`.
+- **Webhooks** (`pull_request`): a merge marks the task **Resolved**; close/reopen/synchronize
+  keep the mirror in sync; a PR opened by hand on a pushed task's branch is linked to it.
+- Pushes, PRs and merges are in the audit log. There's no AI code review in this version.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

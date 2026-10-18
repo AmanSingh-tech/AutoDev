@@ -14,5 +14,5 @@
     "metadata": "read",
     "members": "read"
   },
-  "default_events": ["member", "membership", "organization", "repository", "team", "team_add"]
+  "default_events": ["member", "membership", "organization", "pull_request", "repository", "team", "team_add"]
 }

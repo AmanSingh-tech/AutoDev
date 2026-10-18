@@ -28,8 +28,8 @@ GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App*
 There's deliberately **no Workflows permission**, so AutoDev can't change `.github/workflows/*`.
 GitHub rejects such pushes, and the agent is told not to try.
 
-**Subscribe to events:** Member, Membership, Organization, Repository, Team, Team add.
-Installation events are always sent. Pull request events are added in phase A-6.
+**Subscribe to events:** Member, Membership, Organization, Pull request, Repository, Team,
+Team add. Installation events are always sent.
 
 ## 2. Fill in `.env`
 

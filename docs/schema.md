@@ -61,7 +61,16 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 
 ## PRs (A-6)
 
-pull_requests (created_by user | agent_on_completion | stale_job).
+| Table | | Notes |
+|---|---|---|
+| ✅ pull_requests | task, repo, github_pr_id, number, url, head/base branch, head_sha, state open/closed/merged, created_by user/agent_on_completion/stale_job, merged_at | System-written; webhooks keep it in sync |
+
+Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale_notified_at`.
+
+## Section A tables still to come
+
+None: every Section A table exists. Section B (repo chat, prompt guide, sync, leaderboard, group
+agent, billing, SSO) adds its own.
 
 ## Cross-cutting
 
