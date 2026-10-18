@@ -21,6 +21,15 @@
   --input: 214 32% 91%;
   --ring: 222 47% 11%;
   --radius: 0.5rem;
+
+  /* Data viz (validated against this surface): one blue accent, its lighter step as the meter
+     track, and the fixed status colors, which always come with an icon and label. */
+  --viz-accent: #2a78d6;
+  --viz-track: #cde2fb;
+  --viz-grid: #e1e0d9;
+  --viz-baseline: #c3c2b7;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +50,11 @@
     --border: 217 33% 20%;
     --input: 217 33% 20%;
     --ring: 213 27% 84%;
+
+    --viz-accent: #3987e5;
+    --viz-track: #184f95;
+    --viz-grid: #2c2c2a;
+    --viz-baseline: #383835;
   }
 }
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 
 type Org = RouterOutputs['orgs']['current'];
-type Form = Pick<Org, 'defaultTaskMode' | 'staleBranchDays' | 'staleBranchAction' | 'maxFixCycles' | 'taskKeyPrefix'> & {
+type Form = Pick<Org, 'defaultTaskMode' | 'staleBranchDays' | 'staleBranchAction' | 'maxFixCycles' | 'taskKeyPrefix' | 'allowUserKeys'> & {
   // A DB check constraint guarantees the default role is never owner.
   defaultMemberRole: 'admin' | 'developer' | 'viewer';
 };
@@ -42,7 +42,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <h1 className="text-xl font-semibold">General</h1>
       {readOnly && <Alert>Only admins can change these settings.</Alert>}
       <Card>
         <CardHeader>
@@ -80,6 +80,10 @@ export default function SettingsPage() {
                   <option value="admin">admin</option>
                 </NativeSelect>
               </Field>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.allowUserKeys} onChange={(e) => set('allowUserKeys', e.target.checked)} />
+                Let members add their own personal AI key
+              </label>
               <Field label="Max automatic fix cycles after failing tests" id="cycles">
                 <Input id="cycles" type="number" min={0} max={10} value={form.maxFixCycles} onChange={(e) => set('maxFixCycles', Number(e.target.value))} />
               </Field>

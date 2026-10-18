@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { NotificationsBell } from '@/components/notifications-bell';
 import { setCurrentOrgId, trpc, type RouterOutputs } from '@/lib/trpc';
 
 type Membership = RouterOutputs['me']['get']['orgs'][number];
@@ -19,6 +20,7 @@ export function useOrg(): Membership {
 const NAV = [
   { href: 'repos', label: 'Repositories' },
   { href: 'members', label: 'Members' },
+  { href: 'usage', label: 'Usage' },
   { href: 'settings', label: 'Settings' },
 ];
 
@@ -79,7 +81,10 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
                 );
               })}
             </nav>
-            <div className="ml-auto">{signOut}</div>
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationsBell slug={slug} />
+              {signOut}
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>

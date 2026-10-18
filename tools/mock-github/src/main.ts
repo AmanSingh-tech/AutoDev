@@ -1,6 +1,7 @@
 /**
- * A tiny stand-in for github.com + api.github.com, used by Playwright.
- * OAuth signs you in as MOCK_GITHUB_LOGIN (default demo-dev), or as `?login_as=` on the authorize URL.
+ * A tiny stand-in for github.com + api.github.com (and Anthropic's /v1/models), used by Playwright.
+ * OAuth signs you in as MOCK_GITHUB_LOGIN (default demo-dev). Visit /_login-as?login=demo-owner first
+ * to pick someone else (a cookie on the mock's origin).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { INSTALLATION_ID, ORG, reposFor, USERS, type Login } from './data';
@@ -31,8 +32,22 @@ createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
   const path = url.pathname;
 
+  if (path === '/_login-as') {
+    const login = url.searchParams.get('login') ?? DEFAULT_LOGIN;
+    res.writeHead(200, { 'set-cookie': `mock_login=${encodeURIComponent(login)}; Path=/; SameSite=Lax`, 'content-type': 'text/plain' });
+    return res.end(`next sign-in will be ${login}`);
+  }
+
+  // Anthropic key validation: keys starting with sk-ant-good are accepted.
+  if (path === '/anthropic/v1/models') {
+    return req.headers['x-api-key']?.toString().startsWith('sk-ant-good')
+      ? json(res, 200, { data: [{ id: 'claude-opus-5-5', type: 'model' }], has_more: false })
+      : json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
+  }
+
   if (path === '/login/oauth/authorize') {
-    const login = (url.searchParams.get('login_as') ?? DEFAULT_LOGIN) as Login;
+    const cookie = /(?:^|;\s*)mock_login=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
+    const login = (url.searchParams.get('login_as') ?? (cookie ? decodeURIComponent(cookie) : DEFAULT_LOGIN)) as Login;
     const code = `code_${Math.random().toString(36).slice(2)}`;
     codes.set(code, login);
     const back = new URL(url.searchParams.get('redirect_uri')!);

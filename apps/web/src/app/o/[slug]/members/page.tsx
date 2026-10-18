@@ -35,6 +35,9 @@ export default function MembersPage() {
   const refreshAll = () => Promise.all([utils.members.list.invalidate(), utils.teams.list.invalidate()]);
 
   const setRole = trpc.members.setRole.useMutation({ onSuccess: refreshAll, onError });
+  const setPrimary = trpc.members.setPrimaryTeam.useMutation({ onSuccess: refreshAll, onError });
+  const teamsQ = trpc.teams.list.useQuery();
+  const teamsOf = (userId: string) => (teamsQ.data ?? []).filter((t) => t.members.some((m) => m.userId === userId));
   const remove = trpc.members.remove.useMutation({ onSuccess: refreshAll, onError });
 
   /** What this viewer may assign, mirroring the server rules (the server enforces them). */
@@ -58,6 +61,7 @@ export default function MembersPage() {
             <TR>
               <TH>Member</TH>
               <TH>Role</TH>
+              <TH>Primary team</TH>
               {canManage && <TH className="text-right">Actions</TH>}
             </TR>
           </THead>
@@ -93,6 +97,27 @@ export default function MembersPage() {
                       </NativeSelect>
                     ) : (
                       m.role
+                    )}
+                  </TD>
+                  <TD>
+                    {canManage && teamsOf(m.userId).length > 1 ? (
+                      <NativeSelect
+                        aria-label={`Primary team for ${m.githubLogin}`}
+                        className="w-40"
+                        value={m.primaryTeamId ?? ''}
+                        onChange={(e) => setPrimary.mutate({ userId: m.userId, teamId: e.target.value || null })}
+                      >
+                        <option value="">None (org key)</option>
+                        {teamsOf(m.userId).map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {teamsOf(m.userId).find((t) => t.id === m.primaryTeamId)?.name ?? (teamsOf(m.userId).length === 1 ? teamsOf(m.userId)[0]!.name : '—')}
+                      </span>
                     )}
                   </TD>
                   {canManage && (
@@ -146,7 +171,9 @@ function Teams({
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Teams</h2>
-        <p className="text-sm text-muted-foreground">Teams can have their own LLM key and budget (coming in the next phase).</p>
+        <p className="text-sm text-muted-foreground">
+          A team can have its own AI key. For someone in several teams with keys, their primary team’s key is used.
+        </p>
       </div>
       {canManage && (
         <form

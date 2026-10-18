@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('a developer signs in with GitHub and sees only repos they can push to', async ({ page }) => {
+  await page.goto('http://localhost:4010/_login-as?login=demo-dev');
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
@@ -19,6 +20,7 @@ test('a developer signs in with GitHub and sees only repos they can push to', as
 });
 
 test('a developer can view settings but not change them', async ({ page }) => {
+  await page.goto('http://localhost:4010/_login-as?login=demo-dev');
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
   await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });

@@ -12,6 +12,7 @@ const githubEnv = {
   GITHUB_APP_CLIENT_SECRET: 'e2e-secret',
   GITHUB_APP_PRIVATE_KEY: 'unused-in-e2e',
   GITHUB_WEBHOOK_SECRET: 'e2e-webhook-secret-123',
+  ANTHROPIC_BASE_URL: `${MOCK}/anthropic`,
   LOG_LEVEL: 'warn',
 };
 
