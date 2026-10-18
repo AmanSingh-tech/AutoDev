@@ -35,7 +35,7 @@ cp .env.example .env
 #   openssl rand -base64 48   -> AUTH_SECRET
 # then the GITHUB_* values (see docs/github-app.md)
 
-docker compose up -d          # Postgres 16 + pgvector on :5433, Redis on :6379
+docker compose up -d          # (or docker-compose) Postgres 16 + pgvector on :5433, Redis on :6379
 pnpm install
 pnpm db:migrate
 pnpm db:seed                  # optional demo org "acme-demo"
