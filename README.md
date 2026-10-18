@@ -4,7 +4,8 @@ Multi-tenant B2B SaaS: developers hand coding tasks to an AI agent that plans, d
 tests on the developer's own machine, and opens a GitHub PR **as the developer**.
 
 **Status:** Section A, phases A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
-write-access repo list) and A-2 (bring-your-own LLM key, model policies, metering, budgets).
+write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets) and A-3
+(task board).
 
 ## Layout
 
@@ -88,5 +89,21 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   runs already going continue within their task cap.
 - **Prices:** global Anthropic rates seeded by migration; admins add per-org overrides
   (effective-dated). Models without a price are metered as `priced = false`, not guessed.
+
+## Task board (A-3)
+
+- **Keys** like `AD-142` are numbered per org (gap-free, minted under a row lock). The prefix is
+  set in Settings, and existing tasks keep their key if it changes.
+- **Creating a task** requires push access to the repo and a non-viewer role. The workflow is the
+  repo's locked mode if set, else the chosen one, else the repo default, else the org default.
+  Existing-branch tasks are checked against GitHub with the user's token, and the agent starts
+  from that branch's head. New branches are named `autodev/<KEY>-<slug>`. `scope_path` must be a
+  folder inside the repo. A related task (same org) feeds its summary to the agent for follow-ups.
+- **Statuses** follow one state machine (`packages/db/src/task-machine.ts`). Every change is a
+  compare-and-set plus an append-only `task_events` row. Starting a task is refused up front when
+  the owner has no working LLM key or hit a hard budget; otherwise an `agent` job is queued (A-4
+  consumes it). Edits are allowed only in draft.
+- **Board:** six columns (Draft, Queued, In progress, Needs you, Pushed / PR, Done). Only drafts
+  can be dragged, onto Queued. The board polls every 15 s until realtime events land (A-9).
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

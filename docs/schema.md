@@ -40,8 +40,12 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 
 ## Tasks and agent (A-3, A-4)
 
-tasks (key AD-142, 18 statuses, mode, scope_path, branch_mode, target_branch, related_task_id,
-create_pr_on_completion), task_events (append-only), task_documents (plan|lld, version, status,
+| Table | | Notes |
+|---|---|---|
+| ✅ tasks | UQ(org_id,number), UQ(org_id,key), title, description_md, acceptance_criteria_md, priority, status (18), mode, scope_path, branch_mode, target_branch, work_branch, base_sha, related_task_id, extra_context, create_pr_on_completion, owner_id, summary_md, token_cap_override | Checks: existing ⇔ target_branch, relative scope_path, related task in same org (trigger). Never deleted (cancelled instead) |
+| ✅ task_events | type, from_status, to_status, actor, payload | Append-only |
+
+Later in A-4: task_documents (plan|lld, version, status,
 reviewer, comment), task_questions, agent_runs, agent_steps, workspaces, workspace_files.
 
 ## Builder and PRs (A-5, A-6)
