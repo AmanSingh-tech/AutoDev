@@ -39,7 +39,16 @@ export const toolSchemas = {
   submit_plan: z.object({ markdown: z.string().min(1).max(60_000) }).strict(),
   submit_design: z.object({ markdown: z.string().min(1).max(100_000) }).strict(),
   request_local_test: z.object({ reason: z.string().max(1000).optional() }).strict(),
-  finish: z.object({ summary: z.string().min(1).max(10_000).describe('What changed and why, for the PR and for follow-up tasks') }).strict(),
+  finish: z
+    .object({
+      summary: z.string().min(1).max(10_000).describe('What changed and why, for the PR and for follow-up tasks'),
+      files: z
+        .array(z.object({ path: z.string().max(500), note: z.string().max(300) }).strict())
+        .max(200)
+        .optional()
+        .describe('One short line per changed file, for the PR description'),
+    })
+    .strict(),
 } as const;
 
 export type ToolName = keyof typeof toolSchemas;

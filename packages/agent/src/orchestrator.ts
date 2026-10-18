@@ -17,6 +17,7 @@ import { getBranchHead, userOctokit, type GitHubConfig, type KvCache, type Token
 import { KeyFailure, LlmBlocked, LlmError, type LlmGateway, type Message } from '@autodev/llm';
 import type { BlobStore } from './blob-store';
 import type { BuilderJob, BuilderJobs } from './builder-jobs';
+import { PublishError, type Publisher } from './publisher';
 import { isAllowedByDesign, mentionedPaths } from './documents';
 import { runLoop, type Outcome, type ToolResult } from './loop';
 import { PgOverlayStore } from './overlay';
@@ -58,6 +59,8 @@ export interface OrchestratorDeps {
   blobs: BlobStore;
   /** Test runs on developers' builders (A-5). Without it, coding stops at waiting_for_builder. */
   builderJobs?: BuilderJobs;
+  /** Push + PR after the final tests pass (A-6). Without it, the task waits in "testing". */
+  publisher?: Publisher;
   maxTurns?: number;
 }
 
@@ -263,7 +266,7 @@ export class AgentOrchestrator {
         const final = outcome.type === 'finished';
         const [ws] = await sys.select({ revision: workspaces.revision }).from(workspaces).where(eq(workspaces.taskId, task.id));
         await sys.transaction(async (tx) => {
-          if (final) await tx.update(tasks).set({ summaryMd: outcome.summary }).where(eq(tasks.id, task.id));
+          if (outcome.type === 'finished') await tx.update(tasks).set({ summaryMd: outcome.summary, changeNotes: outcome.files }).where(eq(tasks.id, task.id));
           await transitionTask(tx, task, 'waiting_for_builder', agent, { final, revision: ws?.revision ?? 0, reason: outcome.type === 'test_requested' ? outcome.reason : null });
         });
         // The builder's test results answer this tool call.
@@ -326,9 +329,11 @@ export class AgentOrchestrator {
     if (ok && job.final) {
       await sys.update(agentRuns).set({ status: 'succeeded', endedAt: new Date(), state: {} }).where(eq(agentRuns.id, run.id));
       await this.recordTests(task, job);
-      // Pushing and opening the PR happen in A-6; the task waits in "testing" with a passed run.
-      await this.notifyOwner(task, 'test.result', `Tests ${job.status === 'skipped' ? 'skipped' : 'passed'} for ${task.key}`, job.status === 'skipped' ? 'No .autodev.yml on the base branch, so no tests were run.' : 'The change is ready to push.');
-      return job.status === 'skipped' ? 'tests:skipped' : 'tests:passed';
+      if (!this.deps.publisher) {
+        await this.notifyOwner(task, 'test.result', `Tests ${job.status === 'skipped' ? 'skipped' : 'passed'} for ${task.key}`, job.status === 'skipped' ? 'No .autodev.yml on the base branch, so no tests were run.' : 'The change is ready to push.');
+        return job.status === 'skipped' ? 'tests:skipped' : 'tests:passed';
+      }
+      return this.publish(task);
     }
 
     if (!ok && job.final && job.fixCycle >= (await builderJobs.maxFixCycles(task.orgId))) {
@@ -342,6 +347,23 @@ export class AgentOrchestrator {
     const next = !ok && job.final ? 'fixing' : 'coding';
     const { task: resumed } = await transitionTask(sys, task, next, agent, { jobId: job.id, status: job.status });
     return this.runPhase(resumed, next === 'fixing' ? 'fix' : 'code', lockKey);
+  }
+
+  /** Push and open/update the PR. Push problems fail the task with a reason; the push can be retried. */
+  async publish(task: Task): Promise<string> {
+    try {
+      const res = await this.deps.publisher!.publish(task.id);
+      return res.prUrl ? 'published:pr' : 'published:branch';
+    } catch (e) {
+      if (!(e instanceof PublishError)) throw e;
+      const [cur] = await this.deps.sys.select().from(tasks).where(eq(tasks.id, task.id));
+      if (cur && (cur.status === 'testing' || cur.status === 'pushed')) {
+        if (cur.status === 'testing') await transitionTask(this.deps.sys, cur, 'failed', agent, { reason: 'push_failed', kind: e.reason, message: e.message });
+        else await this.deps.sys.insert(schema.taskEvents).values({ orgId: cur.orgId, taskId: cur.id, actorType: 'agent', type: 'pr.failed', payload: { kind: e.reason, message: e.message } });
+      }
+      await this.notifyOwner(task, 'push.failed', `Couldn't push ${task.key}`, e.message);
+      return `push_failed:${e.reason}`;
+    }
   }
 
   private async recordTests(task: Task, job: BuilderJob) {

@@ -9,7 +9,7 @@ export type ToolResult = Extract<ContentBlock, { type: 'tool_result' }>;
 export type Outcome =
   | { type: 'submitted'; kind: 'plan' | 'lld'; markdown: string; toolUseId: string }
   | { type: 'question'; toolUseId: string; question: string; kind: 'question' | 'deviation'; paths: string[] }
-  | { type: 'finished'; summary: string; toolUseId: string }
+  | { type: 'finished'; summary: string; files: { path: string; note: string }[]; toolUseId: string }
   | { type: 'test_requested'; reason: string | null; toolUseId: string }
   | { type: 'cancelled' }
   | { type: 'failed'; reason: string };
@@ -156,7 +156,7 @@ async function execute(deps: LoopDeps, call: Extract<ContentBlock, { type: 'tool
         return { pause: { type: 'test_requested', reason: (input.reason as string | undefined) ?? null, toolUseId: call.id } };
       case 'finish':
         if (!(await ws.changes()).length) return { result: err(call.id, "You haven't changed any files. Make the change first, or ask_user if nothing needs to change.") };
-        return { pause: { type: 'finished', summary: input.summary as string, toolUseId: call.id } };
+        return { pause: { type: 'finished', summary: input.summary as string, files: (input.files as { path: string; note: string }[] | undefined) ?? [], toolUseId: call.id } };
     }
   } catch (e) {
     if (e instanceof WorkspaceError) return { result: err(call.id, e.message) };
