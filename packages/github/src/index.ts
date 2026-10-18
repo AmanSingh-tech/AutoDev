@@ -9,3 +9,4 @@ export * from './vault';
 export * from './webhook';
 export * from './login';
 export * from './sync';
+export * from './branches';
