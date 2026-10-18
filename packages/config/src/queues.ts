@@ -5,6 +5,7 @@ export const QUEUES = {
   repoSync: 'repo-sync',
   agent: 'agent',
   keyValidation: 'key-validation',
+  staleBranch: 'stale-branch',
   /** Housekeeping (token_usage partitions). Not in the original queue list; small and separate. */
   maintenance: 'maintenance',
 } as const;

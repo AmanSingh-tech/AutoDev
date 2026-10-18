@@ -261,9 +261,6 @@ importers:
       '@autodev/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@autodev/crypto':
-        specifier: workspace:*
-        version: link:../../packages/crypto
       '@autodev/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -286,9 +283,15 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      '@autodev/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
+      msw:
+        specifier: ^2.7.0
+        version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.30)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)

@@ -14,7 +14,6 @@
     "@autodev/agent": "workspace:*",
     "@autodev/config": "workspace:*",
     "@autodev/db": "workspace:*",
-    "@autodev/crypto": "workspace:*",
     "@autodev/github": "workspace:*",
     "@autodev/llm": "workspace:*",
     "bullmq": "^5.34.6",
@@ -23,7 +22,9 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@autodev/crypto": "workspace:*",
     "dotenv-cli": "^8.0.0",
+    "msw": "^2.7.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2"
   }

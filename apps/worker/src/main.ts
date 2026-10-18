@@ -1,4 +1,4 @@
-import { AgentOrchestrator, BuilderJobs, PgBlobStore, publishBus } from '@autodev/agent';
+import { AgentOrchestrator, BuilderJobs, PgBlobStore, Publisher, publishBus } from '@autodev/agent';
 import { agentJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
@@ -10,6 +10,7 @@ import pino from 'pino';
 import { createKeyValidationProcessor } from './key-validation';
 import { createMaintenanceProcessor } from './maintenance';
 import { createRepoSyncProcessor } from './repo-sync';
+import { sweepStaleBranches } from './stale-branch';
 
 const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv));
 const log = pino({ level: env.LOG_LEVEL });
@@ -36,24 +37,28 @@ const builderJobs = new BuilderJobs({
   bus: publishBus((c, m) => connection.publish(c, m)),
   enqueueAgent: (data, jobId) => agentQueue.add('run', data, { jobId }),
 });
+const vault = new TokenVault(sys.db, kms, cfg);
+const publisher = new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL });
 const orchestrator = new AgentOrchestrator({
   sys: sys.db,
   gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
-  vault: new TokenVault(sys.db, kms, cfg),
+  vault,
   cfg,
   cache,
   blobs,
   builderJobs,
+  publisher,
 });
 
 // Daily schedules (UTC). upsertJobScheduler is idempotent across restarts and replicas.
 const keyValidation = new Queue(QUEUES.keyValidation, { connection });
 const maintenance = new Queue(QUEUES.maintenance, { connection });
+const staleBranch = new Queue(QUEUES.staleBranch, { connection });
 await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 * * *', tz: 'UTC' }, { name: 'revalidate-all' });
+await staleBranch.upsertJobScheduler('nightly-stale-branches', { pattern: '0 2 * * *', tz: 'UTC' }, { name: 'sweep' });
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 
-// The stale-branch worker arrives in A-6.
 const agentWorker = new Worker(QUEUES.agent, (job) => orchestrator.process(agentJob.parse(job.data)), {
   connection,
   concurrency: 4,
@@ -72,6 +77,7 @@ const workers = [
   new Worker(QUEUES.repoSync, createRepoSyncProcessor({ sys: sys.db, cfg }), { connection, concurrency: 5 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
   new Worker(QUEUES.maintenance, createMaintenanceProcessor(sys.db), { connection, concurrency: 1 }),
+  new Worker(QUEUES.staleBranch, () => sweepStaleBranches({ sys: sys.db, publisher }), { connection, concurrency: 1 }),
 ];
 
 for (const w of workers) {
@@ -82,7 +88,7 @@ log.info({ queues: workers.map((w) => w.name) }, 'worker started');
 
 const shutdown = async () => {
   await Promise.all(workers.map((w) => w.close()));
-  await Promise.all([keyValidation.close(), maintenance.close(), agentQueue.close()]);
+  await Promise.all([keyValidation.close(), maintenance.close(), staleBranch.close(), agentQueue.close()]);
   await Promise.all([sys.close(), app.close()]);
   connection.disconnect();
   process.exit(0);
