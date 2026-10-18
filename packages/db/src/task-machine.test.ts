@@ -9,9 +9,9 @@ describe('task state machine', () => {
     for (const s of TASK_STATUSES) expect(STATUS_LABEL[s]).toBeTruthy();
   });
 
-  it('lets terminal statuses go nowhere, except retrying a failed task', () => {
+  it('lets terminal statuses go nowhere, except retrying a failed task (from the queue, or just its push)', () => {
     for (const s of TERMINAL_STATUSES) {
-      for (const to of TASK_STATUSES) expect(canTransition(s, to)).toBe(s === 'failed' && to === 'queued');
+      for (const to of TASK_STATUSES) expect(canTransition(s, to)).toBe(s === 'failed' && (to === 'queued' || to === 'testing'));
     }
   });
 
