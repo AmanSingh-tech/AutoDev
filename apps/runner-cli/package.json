@@ -1,12 +1,31 @@
 {
   "name": "@autodev/runner-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "autodev": "./dist/cli.js"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "dev": "tsx src/cli.ts",
+    "build": "tsup",
+    "build:binary": "node scripts/build-sea.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@autodev/protocol": "workspace:^",
+    "dockerode": "^4.0.2",
+    "simple-git": "^3.27.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.33",
+    "@types/ws": "^8.5.13",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2"
   }
 }
