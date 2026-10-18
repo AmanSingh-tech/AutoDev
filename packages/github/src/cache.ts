@@ -2,6 +2,8 @@
 export interface KvCache {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttlSeconds: number): Promise<void>;
+  /** SET NX EX. Resolves true if this call created the key. */
+  setIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean>;
   del(key: string): Promise<void>;
   incr(key: string): Promise<number>;
 }
@@ -21,6 +23,12 @@ export class MemoryCache implements KvCache {
 
   async set(key: string, value: string, ttlSeconds: number) {
     this.store.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+  }
+
+  async setIfAbsent(key: string, value: string, ttlSeconds: number) {
+    if ((await this.get(key)) !== null) return false;
+    await this.set(key, value, ttlSeconds);
+    return true;
   }
 
   async del(key: string) {
