@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@autodev/config": "workspace:^",
+    "@autodev/crypto": "workspace:^",
     "@autodev/db": "workspace:^",
     "@autodev/github": "workspace:^",
     "@autodev/llm": "workspace:^",

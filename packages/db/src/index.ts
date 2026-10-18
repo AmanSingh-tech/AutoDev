@@ -5,3 +5,4 @@ export { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, ne,
 export * from './ops/orgs';
 export * from './task-machine';
 export { alias } from 'drizzle-orm/pg-core';
+export * from './ops/tasks';

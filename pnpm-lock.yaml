@@ -207,6 +207,9 @@ importers:
       '@autodev/config':
         specifier: workspace:^
         version: link:../config
+      '@autodev/crypto':
+        specifier: workspace:^
+        version: link:../crypto
       '@autodev/db':
         specifier: workspace:^
         version: link:../db
