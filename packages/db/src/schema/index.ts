@@ -5,3 +5,4 @@ export * from './repos';
 export * from './audit';
 export * from './llm';
 export * from './tasks';
+export * from './agent';

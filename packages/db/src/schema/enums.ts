@@ -41,6 +41,13 @@ export const taskStatus = pgEnum('task_status', [
 ]);
 export const taskPriority = pgEnum('task_priority', ['low', 'medium', 'high', 'urgent']);
 export const branchMode = pgEnum('branch_mode', ['new', 'existing']);
+export const documentKind = pgEnum('document_kind', ['plan', 'lld']);
+export const documentStatus = pgEnum('document_status', ['pending_review', 'approved', 'changes_requested', 'rejected', 'superseded']);
+export const questionKind = pgEnum('question_kind', ['question', 'deviation']);
+export const agentPhase = pgEnum('agent_phase', ['plan', 'lld', 'code', 'fix']);
+export const agentRunStatus = pgEnum('agent_run_status', ['running', 'paused', 'succeeded', 'failed', 'cancelled']);
+export const agentStepKind = pgEnum('agent_step_kind', ['llm_call', 'tool_call', 'message']);
+export const workspaceFileOp = pgEnum('workspace_file_op', ['create', 'modify', 'delete']);
 
 export const ORG_ROLES = orgRole.enumValues;
 export type LlmProviderId = (typeof llmProvider.enumValues)[number];
@@ -51,6 +58,8 @@ export type TaskStatus = (typeof taskStatus.enumValues)[number];
 export const TASK_PRIORITIES = taskPriority.enumValues;
 export type TaskPriority = (typeof taskPriority.enumValues)[number];
 export const TASK_MODES = taskMode.enumValues;
+export type DocumentKind = (typeof documentKind.enumValues)[number];
+export type AgentPhase = (typeof agentPhase.enumValues)[number];
 export type LlmUseCase = (typeof llmUseCase.enumValues)[number];
 export type OrgRole = (typeof ORG_ROLES)[number];
 export type TaskMode = (typeof taskMode.enumValues)[number];
