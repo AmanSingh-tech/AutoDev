@@ -5,7 +5,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 
 **Status:** Section A, phases A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
-(task board) and A-4 (agent runtime, virtual workspace, Plan and LLD gates).
+(task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates) and A-5 (local builder).
 
 ## Layout
 
@@ -13,8 +13,8 @@ write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, 
 apps/web              Next.js 15 (App Router, Tailwind, shadcn/ui, TanStack Query, tRPC client)
 apps/api              Fastify: tRPC for the web app, REST for webhooks / GitHub setup (and the builder later)
 apps/worker           BullMQ workers (repo-sync now; agent, stale-branch, key-validation later)
-apps/builder-gateway  WebSocket gateway for local builders (A-5)
-apps/runner-cli       autodev-runner CLI (A-5)
+apps/builder-gateway  WebSocket gateway for local builders (presence, offers, logs)
+apps/runner-cli       autodev-runner CLI: runs test jobs on a developer's machine
 packages/config       Zod env schemas, queue contracts
 packages/crypto       AES-256-GCM envelope encryption, KMS-wrapped data keys
 packages/db           Drizzle schema, migrations, RLS, withOrg(), seed
@@ -22,7 +22,7 @@ packages/github       Octokit clients, token vault, repo access cache, webhooks,
 packages/ui           shadcn-style components + Tailwind preset
 packages/llm          Provider interface, Anthropic provider, LLM gateway (keys, metering, budgets)
 packages/agent        Virtual workspace, tools, prompts, agent loop, orchestrator
-packages/protocol     later phases
+packages/protocol     Builder ⇄ gateway messages and the .autodev.yml schema (Zod)
 tools/mock-github     Fake GitHub for e2e tests
 tools/e2e             Playwright
 ```
@@ -42,7 +42,7 @@ docker compose up -d          # (or docker-compose) Postgres 16 + pgvector on :5
 pnpm install
 pnpm db:migrate
 pnpm db:seed                  # optional demo org "acme-demo"
-pnpm dev                      # web :3000, api :4000, worker
+pnpm dev                      # web :3000, api :4000, worker, builder gateway :4100
 ```
 
 MinIO is opt-in (`docker compose --profile s3 up -d`). Its public images are no longer pullable
@@ -128,5 +128,52 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   approved docs. Repo content is always treated as data.
 - **Builder hand-off:** `finish` / `request_local_test` move the task to `waiting_for_builder` with
   the workspace revision. A-5 runs the tests and feeds the results back into the paused run.
+
+## Local builder (A-5)
+
+Tests run on the developer's own machine, never in the cloud:
+
+```bash
+pnpm --filter @autodev/runner-cli build
+node apps/runner-cli/dist/cli.js login --api http://localhost:4000   # approve the code in the dashboard
+node apps/runner-cli/dist/cli.js bind ~/src/my-repo                  # optional: reuse an existing clone
+node apps/runner-cli/dist/cli.js start                               # Docker by default; --no-docker to opt out
+```
+
+- **Pairing:** OAuth device flow. The CLI receives a token exactly once, and only its sha256 is
+  stored. Builders connect *out* over WebSocket (no inbound ports), send a heartbeat every 20 s,
+  and count as offline after 60 s of silence. Revoking a builder disconnects it at its next heartbeat.
+- **Jobs run automatically.** When the agent calls `finish` (or `request_local_test`), the patch
+  and the **base branch's** `.autodev.yml` are snapshotted into a job and offered to the owner's
+  online builder (bound clone first), or to a shared team builder (Docker only). Offline builders
+  get a "Waiting for your builder" notice, and queued jobs go out as soon as a builder connects.
+  One job runs per builder at a time.
+- **Safety:** the first run per repo needs the builder owner's approval of the exact commands. A
+  patch that edits `.autodev.yml` needs the task owner's consent, and the patched config is never
+  run. Each job uses a temporary `git worktree` (the developer's checkout isn't touched), checks
+  the patch sha256, runs only `setup` / `build` / `test`, and deletes the worktree afterwards.
+- **Docker mode** (default): a fresh container per command, the worktree at `/workspace`, the host
+  user ID, 2 CPUs / 4 GB, no capabilities, **no network except during setup**, and
+  `timeout_min` ≤ 30. Shell mode passes a minimal environment (none of the developer's secrets).
+- **Test-fix loop:** a failure after `finish` resumes the same coding conversation with the
+  failing tests and a log tail (as data), up to the org's max fix cycles (default 3). A pass ends
+  the run; pushing is A-6. Logs stream live to the task page.
+- **Single binary:** `pnpm --filter @autodev/runner-cli build:binary` (Node SEA) needs **Node 20+**.
+  Run it on macOS, Linux and Windows (e.g. a CI matrix). On Node 18, use `dist/cli.js`.
+
+`.autodev.yml` (read from the base branch only):
+
+```yaml
+setup: pnpm install --frozen-lockfile   # the only step with network
+build: pnpm build                       # optional
+test:
+  - pnpm lint
+  - pnpm test
+timeout_min: 15                         # max 30
+docker_image: node:22-bookworm          # default
+notes: Anything the agent should know (never executed).
+```
+
+Without a `.autodev.yml` on the base branch, tests are skipped and the task says so.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

@@ -51,9 +51,17 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 | ✅ workspaces / workspace_files | base_sha, base_ref, revision; path, op, base_blob_sha, content (1 MB cap) | System-written |
 | ✅ blobs | key, content (transcripts) | System role only; moves to S3 later |
 
-## Builder and PRs (A-5, A-6)
+## Builder (A-5)
 
-builders, builder_repo_bindings, builder_jobs, pull_requests (created_by user | agent_on_completion | stale_job).
+| Table | | Notes |
+|---|---|---|
+| ✅ builders | owner, name, kind personal/team, allow_shared, token_hash (sha256), os/arch/cli_version, docker_available, limits, last_seen_at, revoked_at | The app role can't read token_hash |
+| ✅ builder_repo_bindings | PK(builder_id, repo_id), local_path, first_run_confirmed_at | |
+| ✅ builder_jobs | task, run, base_sha, workspace_revision, patch_key + sha256, config_snapshot (base branch), config_changed, consent, docker, final, fix_cycle, status, result, failed_tests, log_tail, log_key | System-written |
+
+## PRs (A-6)
+
+pull_requests (created_by user | agent_on_completion | stale_job).
 
 ## Cross-cutting
 
