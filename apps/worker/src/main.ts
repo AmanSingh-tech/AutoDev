@@ -1,8 +1,9 @@
-import { coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
+import { AgentOrchestrator, PgBlobStore } from '@autodev/agent';
+import { agentJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
-import { githubConfigFromEnv } from '@autodev/github';
-import { createProviderRegistry, CredentialService } from '@autodev/llm';
+import { githubConfigFromEnv, TokenVault, type KvCache } from '@autodev/github';
+import { createProviderRegistry, CredentialService, LlmGateway } from '@autodev/llm';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import pino from 'pino';
@@ -17,7 +18,23 @@ const sys = createSystemDb(env.DATABASE_URL_SYSTEM);
 const app = createAppDb(env.DATABASE_URL, 2);
 const cfg = githubConfigFromEnv(env);
 const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
-const credentials = new CredentialService({ app: app.db, sys: sys.db, kms: createKeyWrapper(env), providers });
+const kms = createKeyWrapper(env);
+const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
+const cache: KvCache = {
+  get: (k) => connection.get(k),
+  set: async (k, v, ttl) => void (await connection.set(k, v, 'EX', ttl)),
+  setIfAbsent: async (k, v, ttl) => (await connection.set(k, v, 'EX', ttl, 'NX')) === 'OK',
+  del: async (k) => void (await connection.del(k)),
+  incr: (k) => connection.incr(k),
+};
+const orchestrator = new AgentOrchestrator({
+  sys: sys.db,
+  gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
+  vault: new TokenVault(sys.db, kms, cfg),
+  cfg,
+  cache,
+  blobs: new PgBlobStore(sys.db),
+});
 
 // Daily schedules (UTC). upsertJobScheduler is idempotent across restarts and replicas.
 const keyValidation = new Queue(QUEUES.keyValidation, { connection });
@@ -26,8 +43,22 @@ await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 *
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 
-// Section A adds the agent and stale-branch workers in later phases.
+// The stale-branch worker arrives in A-6.
+const agentWorker = new Worker(QUEUES.agent, (job) => orchestrator.process(agentJob.parse(job.data)), {
+  connection,
+  concurrency: 4,
+  // Agent turns can take minutes; the orchestrator refreshes its own task lock.
+  lockDuration: 10 * 60_000,
+});
+agentWorker.on('failed', async (job, err) => {
+  if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+    const data = agentJob.safeParse(job.data);
+    if (data.success) await orchestrator.failTask(data.data.orgId, data.data.taskId, `The agent kept failing: ${err.message}`).catch((e) => log.error({ err: e }, 'failTask'));
+  }
+});
+
 const workers = [
+  agentWorker,
   new Worker(QUEUES.repoSync, createRepoSyncProcessor({ sys: sys.db, cfg }), { connection, concurrency: 5 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
   new Worker(QUEUES.maintenance, createMaintenanceProcessor(sys.db), { connection, concurrency: 1 }),

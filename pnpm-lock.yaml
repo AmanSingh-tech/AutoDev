@@ -29,6 +29,9 @@ importers:
       '@auth/core':
         specifier: ^0.37.4
         version: 0.37.4
+      '@autodev/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@autodev/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -164,6 +167,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@autodev/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@autodev/config':
         specifier: workspace:*
         version: link:../../packages/config

@@ -1,4 +1,4 @@
-import { InvalidTransition, recordTaskEvent, TaskConflict, transitionTask, type Actor, type TaskStatus, type Tx } from '@autodev/db';
+import { InvalidTransition, recordTaskEvent, TaskConflict, transitionTask, type Actor, type SystemDb, type TaskStatus, type Tx } from '@autodev/db';
 import { TRPCError } from '@trpc/server';
 
 export type { Actor };
@@ -16,7 +16,7 @@ export function normalizeScopePath(input: string | null | undefined): string | n
 }
 
 /** transitionTask with domain errors mapped to tRPC codes. */
-export async function transition(tx: Tx, task: { id: string; orgId: string; status: TaskStatus }, to: TaskStatus, actor: Actor, payload: Record<string, unknown> = {}) {
+export async function transition(tx: Tx | SystemDb, task: { id: string; orgId: string; status: TaskStatus }, to: TaskStatus, actor: Actor, payload: Record<string, unknown> = {}) {
   try {
     return await transitionTask(tx, task, to, actor, payload);
   } catch (e) {

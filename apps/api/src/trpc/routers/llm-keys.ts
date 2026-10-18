@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, schema } from '@autodev/db';
 import { credentialMetaColumns, KeyRejected } from '@autodev/llm';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { resumeBlockedTasks } from '../../services/agent-control';
 import { orgProcedure, roleAtLeast, router } from '../trpc';
 
 const { llmCredentials, orgs, teams, users } = schema;
@@ -59,7 +60,7 @@ export const llmKeysRouter = router({
       if (!team) throw new TRPCError({ code: 'NOT_FOUND', message: 'Team not found' });
     }
     try {
-      return await ctx.deps.credentials.create({
+      const created = await ctx.deps.credentials.create({
         orgId: ctx.orgId,
         actorUserId: ctx.userId,
         scope: input.scope,
@@ -71,6 +72,9 @@ export const llmKeysRouter = router({
         ip: ctx.ip,
         userAgent: ctx.userAgent,
       });
+      // Tasks paused on a broken key pick up right away.
+      await resumeBlockedTasks(ctx.deps, ctx.orgId, ctx.userId);
+      return created;
     } catch (e) {
       if (e instanceof KeyRejected) throw new TRPCError({ code: 'BAD_REQUEST', message: e.message });
       throw e;

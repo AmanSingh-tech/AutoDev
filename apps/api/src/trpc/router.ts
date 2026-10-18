@@ -1,3 +1,4 @@
+import { agentRouter } from './routers/agent';
 import { budgetsRouter } from './routers/budgets';
 import { llmKeysRouter } from './routers/llm-keys';
 import { meRouter } from './routers/me';
@@ -25,6 +26,7 @@ export const appRouter = router({
   usage: usageRouter,
   notifications: notificationsRouter,
   tasks: tasksRouter,
+  agent: agentRouter,
 });
 
 export type AppRouter = typeof appRouter;

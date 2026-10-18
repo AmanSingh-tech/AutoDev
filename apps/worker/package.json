@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@autodev/agent": "workspace:*",
     "@autodev/config": "workspace:*",
     "@autodev/db": "workspace:*",
     "@autodev/crypto": "workspace:*",

@@ -43,7 +43,8 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
   });
   const agent = new Queue<AgentJob>(QUEUES.agent, {
     connection: redis,
-    defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 1 },
+    // Retries cover provider outages; each retry resumes the run from its saved transcript.
+    defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } },
   });
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
