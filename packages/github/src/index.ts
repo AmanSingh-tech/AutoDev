@@ -11,3 +11,4 @@ export * from './login';
 export * from './sync';
 export * from './branches';
 export * from './contents';
+export * from './git-write';

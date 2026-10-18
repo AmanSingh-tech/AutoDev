@@ -5,6 +5,8 @@ export interface TreeEntry {
   type: 'blob' | 'tree';
   sha: string;
   size?: number;
+  /** File mode at the base commit (100644, 100755, 120000…), kept when the file is rewritten. */
+  mode?: string;
 }
 
 /** The full recursive tree at a commit. GitHub truncates very large trees (about 100k entries / 7 MB). */
@@ -14,7 +16,7 @@ export async function getTree(gh: Octokit, owner: string, repo: string, sha: str
     truncated: data.truncated,
     entries: data.tree
       .filter((e) => (e.type === 'blob' || e.type === 'tree') && e.path && e.sha)
-      .map((e) => ({ path: e.path!, type: e.type as 'blob' | 'tree', sha: e.sha!, ...(e.size !== undefined ? { size: e.size } : {}) })),
+      .map((e) => ({ path: e.path!, type: e.type as 'blob' | 'tree', sha: e.sha!, ...(e.size !== undefined ? { size: e.size } : {}), ...(e.mode ? { mode: e.mode } : {}) })),
   };
 }
 
