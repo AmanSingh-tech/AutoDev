@@ -180,7 +180,7 @@ describe('task lifecycle', () => {
     const detail = await as(dev).tasks.get({ key: t.key });
     expect(detail.status).toBe('cancelled');
     expect(detail.completedAt).not.toBeNull();
-    expect(detail.can).toEqual({ edit: false, start: false, unqueue: false, cancel: false });
+    expect(detail.can).toEqual({ edit: false, start: false, unqueue: false, cancel: false, createPr: false, retryPush: false });
     expect(detail.events.map((e) => [e.type, e.toStatus])).toEqual([
       ['status_changed', 'cancelled'],
       ['created', null],

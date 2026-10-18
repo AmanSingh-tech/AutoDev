@@ -41,6 +41,24 @@ export class PublishError extends Error {
 export class Publisher {
   constructor(private readonly deps: { sys: SystemDb; vault: TokenVault; cfg: GitHubConfig; cache: KvCache; webUrl: string }) {}
 
+  /**
+   * publish(), with user-fixable failures recorded instead of thrown: a task in testing fails with
+   * reason push_failed (retryable); a pushed task keeps its status and gets a pr.failed event.
+   */
+  async publishOrFail(taskId: string): Promise<string> {
+    try {
+      const res = await this.publish(taskId);
+      return res.prUrl ? 'published:pr' : 'published:branch';
+    } catch (e) {
+      if (!(e instanceof PublishError)) throw e;
+      const cur = await this.task(taskId);
+      if (cur.status === 'testing') await transitionTask(this.deps.sys, cur, 'failed', { type: 'agent', userId: null }, { reason: 'push_failed', kind: e.reason, message: e.message });
+      else await this.deps.sys.insert(taskEvents).values({ orgId: cur.orgId, taskId: cur.id, actorType: 'agent', type: 'pr.failed', payload: { kind: e.reason, message: e.message } });
+      await this.notify(cur, 'push.failed', `Couldn't push ${cur.key}`, e.message);
+      return `push_failed:${e.reason}`;
+    }
+  }
+
   /** testing → pushed (→ pr_open). Throws PublishError for anything the user has to fix. */
   async publish(taskId: string): Promise<{ commitSha: string; prUrl: string | null }> {
     const { sys } = this.deps;

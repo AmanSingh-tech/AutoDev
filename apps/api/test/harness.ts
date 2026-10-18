@@ -2,7 +2,7 @@ import type { AgentJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
-import { BuilderJobs, MemoryBlobStore } from '@autodev/agent';
+import { BuilderJobs, MemoryBlobStore, Publisher } from '@autodev/agent';
 import type { GatewayMessage } from '@autodev/protocol';
 import { AnthropicProvider, CredentialService, LlmGateway, staticRegistry } from '@autodev/llm';
 import { setupServer } from 'msw/node';
@@ -70,6 +70,7 @@ export function createTestDeps() {
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
     blobs,
     builderJobs,
+    publisher: new Publisher({ sys: sys.db, vault, cfg: testCfg, cache, webUrl: WEB_URL }),
     liveLogs: async () => 'live log so far\n',
   };
   return { deps, jobs, agentJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close()]) };

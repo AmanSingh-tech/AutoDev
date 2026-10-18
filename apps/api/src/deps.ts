@@ -8,7 +8,7 @@ import {
   type GitHubConfig,
   type KvCache,
 } from '@autodev/github';
-import { BuilderJobs, liveLogsKey, PgBlobStore, publishBus, type BlobStore } from '@autodev/agent';
+import { BuilderJobs, liveLogsKey, PgBlobStore, Publisher, publishBus, type BlobStore } from '@autodev/agent';
 import { createProviderRegistry, CredentialService, LlmGateway, type ProviderRegistry } from '@autodev/llm';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -30,6 +30,7 @@ export interface Deps {
   gateway: LlmGateway;
   blobs: BlobStore;
   builderJobs: BuilderJobs;
+  publisher: Publisher;
   /** Log lines streamed so far for a running builder job (Redis). */
   liveLogs: (jobId: string) => Promise<string>;
 }
@@ -75,6 +76,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       bus: publishBus((c, m) => redis.publish(c, m)),
       enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
     }),
+    publisher: new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL }),
     liveLogs: async (jobId) =>
       (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {

@@ -17,7 +17,7 @@ import { getBranchHead, userOctokit, type GitHubConfig, type KvCache, type Token
 import { KeyFailure, LlmBlocked, LlmError, type LlmGateway, type Message } from '@autodev/llm';
 import type { BlobStore } from './blob-store';
 import type { BuilderJob, BuilderJobs } from './builder-jobs';
-import { PublishError, type Publisher } from './publisher';
+import type { Publisher } from './publisher';
 import { isAllowedByDesign, mentionedPaths } from './documents';
 import { runLoop, type Outcome, type ToolResult } from './loop';
 import { PgOverlayStore } from './overlay';
@@ -350,20 +350,8 @@ export class AgentOrchestrator {
   }
 
   /** Push and open/update the PR. Push problems fail the task with a reason; the push can be retried. */
-  async publish(task: Task): Promise<string> {
-    try {
-      const res = await this.deps.publisher!.publish(task.id);
-      return res.prUrl ? 'published:pr' : 'published:branch';
-    } catch (e) {
-      if (!(e instanceof PublishError)) throw e;
-      const [cur] = await this.deps.sys.select().from(tasks).where(eq(tasks.id, task.id));
-      if (cur && (cur.status === 'testing' || cur.status === 'pushed')) {
-        if (cur.status === 'testing') await transitionTask(this.deps.sys, cur, 'failed', agent, { reason: 'push_failed', kind: e.reason, message: e.message });
-        else await this.deps.sys.insert(schema.taskEvents).values({ orgId: cur.orgId, taskId: cur.id, actorType: 'agent', type: 'pr.failed', payload: { kind: e.reason, message: e.message } });
-      }
-      await this.notifyOwner(task, 'push.failed', `Couldn't push ${task.key}`, e.message);
-      return `push_failed:${e.reason}`;
-    }
+  publish(task: Task): Promise<string> {
+    return this.deps.publisher!.publishOrFail(task.id);
   }
 
   private async recordTests(task: Task, job: BuilderJob) {

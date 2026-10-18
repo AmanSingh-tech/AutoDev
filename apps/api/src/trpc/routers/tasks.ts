@@ -23,7 +23,7 @@ import type { Deps } from '../../deps';
 import { normalizeScopePath, recordEvent, transition } from '../../services/tasks';
 import { orgProcedure, requireRole, roleAtLeast, router } from '../trpc';
 
-const { orgs, repoPolicies, repos, taskEvents, tasks, users } = schema;
+const { orgs, pullRequests, repoPolicies, repos, taskEvents, tasks, users } = schema;
 
 const fields = z.object({
   title: z.string().trim().min(1).max(200),
@@ -68,10 +68,12 @@ async function resolveMode(tx: Tx, orgId: string, repoId: string, requested: Tas
   return org!.m;
 }
 
-async function validateBranch(ctx: Ctx, repo: { owner: string; name: string }, branchMode: 'new' | 'existing', targetBranch: string | null | undefined) {
+async function validateBranch(ctx: Ctx, repo: { owner: string; name: string; defaultBranch: string }, branchMode: 'new' | 'existing', targetBranch: string | null | undefined) {
   if (branchMode === 'new') return null;
   const name = targetBranch?.trim();
   if (!name || !isValidBranchName(name)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose an existing branch' });
+  // Work always lands through a PR, so the default branch itself is never a target.
+  if (name === repo.defaultBranch) throw new TRPCError({ code: 'BAD_REQUEST', message: `AutoDev doesn't push to ${name} directly. Pick a feature branch, or start a new branch.` });
   const found = await ctx.deps.vault.withToken(ctx.userId, (token) => getBranch(userOctokit(ctx.deps.cfg, token), repo.owner, repo.name, name));
   if (!found) throw new TRPCError({ code: 'BAD_REQUEST', message: `Branch "${name}" doesn't exist on GitHub` });
   return name;
@@ -186,12 +188,22 @@ export const tasksRouter = router({
         .orderBy(desc(taskEvents.createdAt))
         .limit(100);
       const manage = canManage(ctx, t);
+      const prs = await tx
+        .select({ number: pullRequests.number, url: pullRequests.url, state: pullRequests.state, baseBranch: pullRequests.baseBranch, createdBy: pullRequests.createdBy, mergedAt: pullRequests.mergedAt, createdAt: pullRequests.createdAt })
+        .from(pullRequests)
+        .where(eq(pullRequests.taskId, t.id))
+        .orderBy(desc(pullRequests.createdAt));
+      const lastFail = events.find((e) => e.toStatus === 'failed');
       return {
         ...t,
         ...extra!,
         related: related ?? null,
         events,
+        pullRequests: prs,
+        failure: t.status === 'failed' && lastFail ? (lastFail.payload as { reason?: string; message?: string; kind?: string }) : null,
         can: {
+          createPr: manage && t.status === 'pushed' && !prs.some((p) => p.state === 'open'),
+          retryPush: manage && t.status === 'failed' && (lastFail?.payload as { reason?: string } | undefined)?.reason === 'push_failed',
           edit: manage && t.status === 'draft',
           start: manage && (t.status === 'draft' || t.status === 'failed'),
           unqueue: manage && t.status === 'queued',

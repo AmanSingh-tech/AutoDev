@@ -1,4 +1,4 @@
-import { GitHubRepoReader, PgOverlayStore, VirtualWorkspace, WorkspaceError } from '@autodev/agent';
+import { GitHubRepoReader, PgOverlayStore, PublishError, VirtualWorkspace, WorkspaceError } from '@autodev/agent';
 import { and, asc, desc, eq, isNull, schema, type DocumentKind } from '@autodev/db';
 import { userOctokit } from '@autodev/github';
 import { TRPCError } from '@trpc/server';
@@ -212,6 +212,38 @@ export const agentRouter = router({
         await enqueueAgent(ctx.deps, ctx.orgId, t.id, res.eventId);
       }
       return { ok: true };
+    }),
+
+  /** The "Create PR" button, for tasks pushed with create_pr_on_completion off. Opened as the clicking user. */
+  createPr: requireRole('developer')
+    .input(keyInput)
+    .mutation(async ({ ctx, input }) => {
+      const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, input.key));
+      if (t.ownerId !== ctx.userId && !roleAtLeast(ctx.role, 'admin')) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the task owner or an admin can open its PR' });
+      if (t.status !== 'pushed') throw new TRPCError({ code: 'BAD_REQUEST', message: 'The task has nothing pushed without a PR' });
+      try {
+        return await ctx.deps.publisher.openOrUpdatePr(t.id, { actorUserId: ctx.userId, createdBy: 'user' });
+      } catch (e) {
+        if (e instanceof PublishError) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: e.message });
+        throw e;
+      }
+    }),
+
+  /** After a failed push (permissions, branch protection, conflict, expired session): try just the push again. */
+  retryPush: requireRole('developer')
+    .input(keyInput)
+    .mutation(async ({ ctx, input }) => {
+      const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, input.key));
+      if (t.ownerId !== ctx.userId && !roleAtLeast(ctx.role, 'admin')) throw new TRPCError({ code: 'FORBIDDEN' });
+      const [last] = await ctx.inOrg((tx) =>
+        tx.select({ payload: schema.taskEvents.payload }).from(schema.taskEvents).where(and(eq(schema.taskEvents.taskId, t.id), eq(schema.taskEvents.toStatus, 'failed'))).orderBy(desc(schema.taskEvents.createdAt)).limit(1),
+      );
+      if (t.status !== 'failed' || (last?.payload as { reason?: string } | undefined)?.reason !== 'push_failed') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only a failed push can be retried' });
+      }
+      await ctx.inOrg((tx) => transition(tx, t, 'testing', { type: 'user', userId: ctx.userId }, { reason: 'retry_push' }));
+      const result = await ctx.deps.publisher.publishOrFail(t.id);
+      return { result };
     }),
 
   /** Files the agent changed so far. */
