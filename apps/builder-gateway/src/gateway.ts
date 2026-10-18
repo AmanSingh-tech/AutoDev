@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
-import { busyKey, presenceKey, type BlobStore, type BuilderJobs } from '@autodev/agent';
+import { builderChannel, busyKey, liveLogsKey, presenceKey, publishBus, type BlobStore, type BuilderJobs } from '@autodev/agent';
 import { eq, schema, type SystemDb } from '@autodev/db';
 import type { KvCache } from '@autodev/github';
 import { HEARTBEAT_INTERVAL_MS, OFFLINE_AFTER_MS, parseBuilderMessage, parseGatewayMessage, PROTOCOL_VERSION, type BuilderMessage, type GatewayMessage } from '@autodev/protocol';
@@ -10,8 +10,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 
 const { builders } = schema;
 
-export const channelOf = (builderId: string) => `builder:${builderId}`;
-const logsKey = (jobId: string) => `job:logs:${jobId}`;
+export const channelOf = builderChannel;
+const logsKey = liveLogsKey;
 export const OFFER_TIMEOUT_MS = 30_000;
 const MAX_LOG_ENTRIES = 20_000;
 
@@ -121,10 +121,13 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
         if (!msg.runningJobId) await deps.jobs.dispatchFor(conn.builderId);
         return;
       }
-      case 'heartbeat':
+      case 'heartbeat': {
+        // Re-checked every heartbeat, so revoking a builder disconnects it within 20 s.
+        const [row] = await deps.sys.update(builders).set({ lastSeenAt: new Date() }).where(eq(builders.id, conn.builderId)).returning({ revokedAt: builders.revokedAt });
+        if (!row || row.revokedAt) return void conn.ws.close(4001, 'builder revoked');
         await markSeen(conn);
-        await deps.sys.update(builders).set({ lastSeenAt: new Date() }).where(eq(builders.id, conn.builderId));
         return;
+      }
       case 'job.accept':
         clearOfferTimer(conn, msg.jobId);
         await deps.jobs.accepted(conn.builderId, msg.jobId);
@@ -201,6 +204,4 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
 }
 
 /** What the API's dispatcher (and the worker) use to reach a builder through whichever gateway holds it. */
-export const redisBus = (redis: Redis) => ({
-  send: async (builderId: string, msg: GatewayMessage) => void (await redis.publish(channelOf(builderId), JSON.stringify(msg))),
-});
+export const redisBus = (redis: Redis) => publishBus((c, m) => redis.publish(c, m));

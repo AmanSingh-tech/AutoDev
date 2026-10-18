@@ -47,6 +47,9 @@ importers:
       '@autodev/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@autodev/protocol':
+        specifier: workspace:^
+        version: link:../../packages/protocol
       '@fastify/cookie':
         specifier: ^9.4.0
         version: 9.4.0

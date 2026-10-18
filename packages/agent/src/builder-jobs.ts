@@ -19,6 +19,14 @@ export interface BuilderBus {
   send(builderId: string, msg: GatewayMessage): Promise<void>;
 }
 
+export const builderChannel = (builderId: string) => `builder:${builderId}`;
+export const liveLogsKey = (jobId: string) => `job:logs:${jobId}`;
+
+/** A BuilderBus over any Redis-like publish (ioredis `publish`). */
+export const publishBus = (publish: (channel: string, message: string) => Promise<unknown>): BuilderBus => ({
+  send: async (builderId, msg) => void (await publish(builderChannel(builderId), JSON.stringify(msg))),
+});
+
 const DEFAULT_LIMITS = { cpus: 2, memoryMb: 4096, networkInSetupOnly: true };
 const builderActor = { type: 'builder' as const, userId: null };
 

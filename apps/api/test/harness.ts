@@ -2,6 +2,8 @@ import type { AgentJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
+import { BuilderJobs, MemoryBlobStore } from '@autodev/agent';
+import type { GatewayMessage } from '@autodev/protocol';
 import { AnthropicProvider, CredentialService, LlmGateway, staticRegistry } from '@autodev/llm';
 import { setupServer } from 'msw/node';
 import type { Deps } from '../src/deps';
@@ -44,8 +46,17 @@ export function createTestDeps() {
       agentJobs.push({ name, data, jobId: opts?.jobId });
     },
   };
+  const blobs = new MemoryBlobStore();
+  const sentToBuilders: { builderId: string; msg: GatewayMessage }[] = [];
+  const builderJobs = new BuilderJobs({
+    sys: sys.db,
+    cache,
+    blobs,
+    bus: { send: async (builderId, msg) => void sentToBuilders.push({ builderId, msg }) },
+    enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
+  });
   const deps: Deps = {
-    env: { WEB_URL, AUTH_SECRET, NODE_ENV: 'test' },
+    env: { WEB_URL, AUTH_SECRET, NODE_ENV: 'test', BUILDER_GATEWAY_URL: 'ws://gateway.test/builder' },
     app: app.db,
     sys: sys.db,
     kms: testKms,
@@ -57,8 +68,11 @@ export function createTestDeps() {
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
+    blobs,
+    builderJobs,
+    liveLogs: async () => 'live log so far\n',
   };
-  return { deps, jobs, agentJobs, close: () => Promise.all([app.close(), sys.close()]) };
+  return { deps, jobs, agentJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close()]) };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

@@ -306,11 +306,14 @@ export const tasksRouter = router({
 
   cancel: requireRole('developer')
     .input(keyInput.extend({ reason: z.string().max(500).optional() }))
-    .mutation(({ ctx, input }) =>
-      ctx.inOrg(async (tx) => {
+    .mutation(async ({ ctx, input }) => {
+      const task = await ctx.inOrg(async (tx) => {
         const t = await loadTask(tx, ctx.orgId, input.key);
         if (!canManage(ctx, t)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the task owner or an admin can cancel it' });
         return (await transition(tx, t, 'cancelled', { type: 'user', userId: ctx.userId }, input.reason ? { reason: input.reason } : {})).task;
-      }),
-    ),
+      });
+      // Stop any test run on a builder.
+      await ctx.deps.builderJobs.cancelForTask(task.id);
+      return task;
+    }),
 });

@@ -3,6 +3,7 @@ import { fastifyTRPCPlugin, type FastifyTRPCPluginOptions } from '@trpc/server/a
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { readSession } from './auth/session';
 import type { Deps } from './deps';
+import { builderRoutes } from './routes/builder';
 import { githubSetupRoutes } from './routes/github-setup';
 import { webhookRoutes } from './routes/webhooks';
 import { appRouter, type AppRouter } from './trpc/router';
@@ -28,6 +29,7 @@ export async function buildServer(deps: Deps, opts: FastifyServerOptions = {}) {
 
   await app.register(webhookRoutes, { deps });
   await app.register(githubSetupRoutes, { deps });
+  await app.register(builderRoutes, { deps });
   await app.register(fastifyTRPCPlugin, {
     prefix: '/trpc',
     trpcOptions: {

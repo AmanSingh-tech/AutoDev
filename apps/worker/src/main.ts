@@ -1,4 +1,4 @@
-import { AgentOrchestrator, PgBlobStore } from '@autodev/agent';
+import { AgentOrchestrator, BuilderJobs, PgBlobStore, publishBus } from '@autodev/agent';
 import { agentJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
@@ -27,13 +27,23 @@ const cache: KvCache = {
   del: async (k) => void (await connection.del(k)),
   incr: (k) => connection.incr(k),
 };
+const blobs = new PgBlobStore(sys.db);
+const agentQueue = new Queue(QUEUES.agent, { connection, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } } });
+const builderJobs = new BuilderJobs({
+  sys: sys.db,
+  cache,
+  blobs,
+  bus: publishBus((c, m) => connection.publish(c, m)),
+  enqueueAgent: (data, jobId) => agentQueue.add('run', data, { jobId }),
+});
 const orchestrator = new AgentOrchestrator({
   sys: sys.db,
   gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
   vault: new TokenVault(sys.db, kms, cfg),
   cfg,
   cache,
-  blobs: new PgBlobStore(sys.db),
+  blobs,
+  builderJobs,
 });
 
 // Daily schedules (UTC). upsertJobScheduler is idempotent across restarts and replicas.
@@ -72,7 +82,7 @@ log.info({ queues: workers.map((w) => w.name) }, 'worker started');
 
 const shutdown = async () => {
   await Promise.all(workers.map((w) => w.close()));
-  await Promise.all([keyValidation.close(), maintenance.close()]);
+  await Promise.all([keyValidation.close(), maintenance.close(), agentQueue.close()]);
   await Promise.all([sys.close(), app.close()]);
   connection.disconnect();
   process.exit(0);

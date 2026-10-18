@@ -8,6 +8,7 @@ import {
   type GitHubConfig,
   type KvCache,
 } from '@autodev/github';
+import { BuilderJobs, liveLogsKey, PgBlobStore, publishBus, type BlobStore } from '@autodev/agent';
 import { createProviderRegistry, CredentialService, LlmGateway, type ProviderRegistry } from '@autodev/llm';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -15,7 +16,7 @@ import type { ApiEnv } from './env';
 import { redisCache } from './redis-cache';
 
 export interface Deps {
-  env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV'>;
+  env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV' | 'BUILDER_GATEWAY_URL'>;
   app: AppDb;
   sys: SystemDb;
   kms: KeyWrapper;
@@ -27,6 +28,10 @@ export interface Deps {
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
+  blobs: BlobStore;
+  builderJobs: BuilderJobs;
+  /** Log lines streamed so far for a running builder job (Redis). */
+  liveLogs: (jobId: string) => Promise<string>;
 }
 
 export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
@@ -46,6 +51,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     // Retries cover provider outages; each retry resumes the run from its saved transcript.
     defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } },
   });
+  const blobs = new PgBlobStore(sys.db);
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
@@ -61,6 +67,16 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
+    blobs,
+    builderJobs: new BuilderJobs({
+      sys: sys.db,
+      cache,
+      blobs,
+      bus: publishBus((c, m) => redis.publish(c, m)),
+      enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
+    }),
+    liveLogs: async (jobId) =>
+      (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {
       await Promise.all([repoSync.close(), agent.close()]);
       await Promise.all([app.close(), sys.close()]);

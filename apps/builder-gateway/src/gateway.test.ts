@@ -177,6 +177,16 @@ describe('builder gateway', () => {
     expect(await quiet.closed()).toBe(1006); // terminated after the offline window
   });
 
+  it('disconnects a revoked builder on its next heartbeat', async () => {
+    const b = connect();
+    await b.opened();
+    b.send(hello);
+    await b.next('hello');
+    await sys.db.update(schema.builders).set({ revokedAt: new Date() });
+    b.send({ type: 'heartbeat', ts: Date.now() });
+    expect(await b.closed()).toBe(4001);
+  });
+
   it("ignores logs and results for a job that isn't this builder's", async () => {
     await queuedJob();
     const b = connect();

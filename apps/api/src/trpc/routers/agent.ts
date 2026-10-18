@@ -7,7 +7,7 @@ import { enqueueAgent, resumeStatusOf } from '../../services/agent-control';
 import { transition } from '../../services/tasks';
 import { orgProcedure, requireRole, roleAtLeast, router } from '../trpc';
 
-const { agentRuns, agentSteps, repos, taskDocuments, taskQuestions, tasks, users, workspaceFiles, workspaces } = schema;
+const { agentRuns, agentSteps, builderJobs, builders, repos, taskDocuments, taskQuestions, tasks, users, workspaceFiles, workspaces } = schema;
 
 const keyInput = z.object({ key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}-\d+$/) });
 
@@ -140,6 +140,79 @@ export const agentRouter = router({
       return { runs, steps };
     }),
   ),
+
+  /** Test runs on builders for this task, newest first. */
+  testJobs: orgProcedure.input(keyInput).query(({ ctx, input }) =>
+    ctx.inOrg(async (tx) => {
+      const t = await loadTask(tx, ctx.orgId, input.key);
+      return tx
+        .select({
+          id: builderJobs.id,
+          status: builderJobs.status,
+          consent: builderJobs.consent,
+          configChanged: builderJobs.configChanged,
+          config: builderJobs.configSnapshot,
+          configError: builderJobs.configError,
+          final: builderJobs.final,
+          fixCycle: builderJobs.fixCycle,
+          builderName: builders.name,
+          docker: builderJobs.docker,
+          exitCode: builderJobs.exitCode,
+          failedStep: builderJobs.failedStep,
+          failedTests: builderJobs.failedTests,
+          durationMs: builderJobs.durationMs,
+          error: builderJobs.error,
+          queuedAt: builderJobs.queuedAt,
+          startedAt: builderJobs.startedAt,
+          finishedAt: builderJobs.finishedAt,
+        })
+        .from(builderJobs)
+        .leftJoin(builders, eq(builders.id, builderJobs.builderId))
+        .where(eq(builderJobs.taskId, t.id))
+        .orderBy(desc(builderJobs.queuedAt));
+    }),
+  ),
+
+  /** Live while running (streamed through Redis), then the saved log. */
+  jobLog: orgProcedure.input(z.object({ jobId: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const [job] = await ctx.inOrg((tx) => tx.select({ status: builderJobs.status, logKey: builderJobs.logKey }).from(builderJobs).where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.id, input.jobId))));
+    if (!job) throw new TRPCError({ code: 'NOT_FOUND' });
+    const text = job.logKey ? ((await ctx.deps.blobs.get(job.logKey))?.toString('utf8') ?? '') : await ctx.deps.liveLogs(input.jobId);
+    const MAX = 2 * 1024 * 1024;
+    return { status: job.status, text: text.length > MAX ? `[showing the last 2 MB]\n${text.slice(-MAX)}` : text, live: !job.logKey };
+  }),
+
+  /** The patch edits .autodev.yml: the owner allows or refuses running it. */
+  consent: requireRole('developer')
+    .input(keyInput.extend({ jobId: z.string().uuid(), allow: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, input.key));
+      if (t.ownerId !== ctx.userId && !roleAtLeast(ctx.role, 'admin')) throw new TRPCError({ code: 'FORBIDDEN' });
+      const [job] = await ctx.deps.sys
+        .update(builderJobs)
+        .set(
+          input.allow
+            ? { consent: 'granted' }
+            : {
+                consent: 'denied',
+                status: 'failed',
+                failedStep: 'system',
+                finishedAt: new Date(),
+                logTail: 'The task owner did not allow running tests with a modified .autodev.yml. Revert your changes to .autodev.yml (it is not part of this task) and finish again.',
+              },
+        )
+        .where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.id, input.jobId), eq(builderJobs.taskId, t.id), eq(builderJobs.consent, 'pending')))
+        .returning();
+      if (!job) throw new TRPCError({ code: 'CONFLICT', message: 'Nothing is waiting for consent' });
+      await ctx.inOrg((tx) => ctx.audit(tx, { action: input.allow ? 'builder_job.consent_granted' : 'builder_job.consent_denied', targetType: 'builder_job', targetId: job.id, metadata: { task: t.key } }));
+      if (input.allow) await ctx.deps.builderJobs.dispatch(job.id);
+      else {
+        // Hand the refusal to the agent like a failed run.
+        const res = await ctx.inOrg((tx) => transition(tx, t, 'testing', { type: 'user', userId: ctx.userId }, { jobId: job.id, consent: 'denied' }));
+        await enqueueAgent(ctx.deps, ctx.orgId, t.id, res.eventId);
+      }
+      return { ok: true };
+    }),
 
   /** Files the agent changed so far. */
   changes: orgProcedure.input(keyInput).query(({ ctx, input }) =>
