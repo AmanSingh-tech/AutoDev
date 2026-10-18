@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "db:generate": "pnpm --filter @autodev/db generate",
     "db:migrate": "pnpm --filter @autodev/db migrate",
-    "db:seed": "pnpm --filter @autodev/db seed"
+    "db:seed": "pnpm --filter @autodev/db seed",
+    "e2e": "pnpm --filter @autodev/e2e e2e"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
