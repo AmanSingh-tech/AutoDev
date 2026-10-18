@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { createSystemDb } from './client';
 import { insertOrgWithOwner } from './ops/orgs';
 import { uuidv7 } from 'uuidv7';
-import { budgets, installations, orgMembers, orgs, repos, tokenUsage, userRepoAccess, users } from './schema';
+import { budgets, installations, orgMembers, orgs, repos, tasks, taskEvents, tokenUsage, userRepoAccess, users } from './schema';
+import type { TaskStatus } from './schema/enums';
 import type { OrgRole, RepoPermission } from './schema/enums';
 
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
@@ -38,6 +39,7 @@ async function main() {
     const existing = await db.select().from(orgs).where(eq(orgs.slug, 'acme-demo'));
     if (existing.length) {
       await seedUsage(db, existing[0]!.id);
+      await seedTasks(db, existing[0]!.id);
       console.log('demo org already seeded');
       return;
     }
@@ -116,6 +118,7 @@ async function main() {
     });
     const [org] = await db.select().from(orgs).where(eq(orgs.slug, 'acme-demo'));
     await seedUsage(db, org!.id);
+    await seedTasks(db, org!.id);
     console.log('seeded demo org acme-demo');
   } finally {
     await close();
@@ -163,6 +166,52 @@ async function seedUsage(db: ReturnType<typeof createSystemDb>['db'], orgId: str
   }
   if (rows.length) await db.insert(tokenUsage).values(rows);
   await db.insert(budgets).values({ orgId, scope: 'org', limitUsd: '25.00', softPct: 80 }).onConflictDoNothing();
+}
+
+/** A few tasks across the board's columns on acme-demo/api, so the board isn't empty. */
+async function seedTasks(db: ReturnType<typeof createSystemDb>['db'], orgId: string) {
+  const any = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.orgId, orgId)).limit(1);
+  if (any.length) return;
+  const [repo] = await db.select().from(repos).where(eq(repos.fullName, 'acme-demo/api'));
+  const [owner] = await db.select().from(users).where(eq(users.githubLogin, 'demo-owner'));
+  const [admin] = await db.select().from(users).where(eq(users.githubLogin, 'demo-admin'));
+  const demo: { title: string; status: TaskStatus; priority: 'low' | 'medium' | 'high' | 'urgent'; who: string }[] = [
+    { title: 'Add rate limiting to the public API', status: 'draft', priority: 'high', who: owner!.id },
+    { title: 'Document the webhook retry policy', status: 'draft', priority: 'low', who: admin!.id },
+    { title: 'Return 404 instead of 500 for unknown orgs', status: 'awaiting_plan_approval', priority: 'medium', who: owner!.id },
+    { title: 'Migrate session store to Redis', status: 'coding', priority: 'urgent', who: admin!.id },
+    { title: 'Paginate the audit log endpoint', status: 'pr_open', priority: 'medium', who: owner!.id },
+    { title: 'Remove the legacy v1 auth routes', status: 'resolved', priority: 'low', who: admin!.id },
+  ];
+  await db.transaction(async (tx) => {
+    for (const [i, d] of demo.entries()) {
+      const n = i + 1;
+      const key = `AD-${n}`;
+      const slug = d.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/-+$/, '');
+      const [t] = await tx
+        .insert(tasks)
+        .values({
+          orgId,
+          repoId: repo!.id,
+          number: n,
+          key,
+          title: d.title,
+          descriptionMd: 'Seeded demo task.',
+          acceptanceCriteriaMd: '- Behaves as described\n- Tests cover the change',
+          priority: d.priority,
+          status: d.status,
+          mode: 'plan_lld',
+          branchMode: 'new',
+          workBranch: `autodev/${key}-${slug}`,
+          ownerId: d.who,
+          createdBy: d.who,
+          completedAt: d.status === 'resolved' ? new Date() : null,
+        })
+        .returning();
+      await tx.insert(taskEvents).values({ orgId, taskId: t!.id, actorType: 'user', actorUserId: d.who, type: 'created' });
+    }
+    await tx.update(orgs).set({ taskSeq: demo.length }).where(eq(orgs.id, orgId));
+  });
 }
 
 await main();

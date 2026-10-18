@@ -102,6 +102,13 @@ createServer(async (req, res) => {
   if (api === `/user/memberships/orgs/${ORG.login}`) {
     return json(res, 200, { state: 'active', role: user.orgRole });
   }
+  const branches = api.match(/^\/repos\/([^/]+)\/([^/]+)\/branches(?:\/(.+))?$/);
+  if (branches) {
+    const all = ['main', 'develop', 'feature/sso-login'].map((name) => ({ name, commit: { sha: `sha-${name}` }, protected: name === 'main' }));
+    if (!branches[3]) return json(res, 200, all);
+    const b = all.find((x) => x.name === decodeURIComponent(branches[3]!));
+    return b ? json(res, 200, b) : json(res, 404, { message: 'Branch not found' });
+  }
   const repo = api.match(/^\/repos\/([^/]+)\/([^/]+)$/);
   if (repo) {
     const r = reposFor(login).find((x) => x.full_name === `${repo[1]}/${repo[2]}`);

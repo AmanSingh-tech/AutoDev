@@ -18,6 +18,7 @@ export function useOrg(): Membership {
 }
 
 const NAV = [
+  { href: 'tasks', label: 'Tasks' },
   { href: 'repos', label: 'Repositories' },
   { href: 'members', label: 'Members' },
   { href: 'usage', label: 'Usage' },
@@ -57,7 +58,7 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
     <OrgContext.Provider value={org}>
       <div className="min-h-screen">
         <header className="border-b">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
             <Link href="/orgs" className="font-semibold">
               AutoDev
             </Link>
@@ -87,7 +88,7 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
       </div>
     </OrgContext.Provider>
   );

@@ -1,11 +1,13 @@
 'use client';
 
 import { Alert, Badge, Button, Table, TBody, TD, TH, THead, TR } from '@autodev/ui';
-import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 
 export default function ReposPage() {
   const welcome = useSearchParams().get('welcome');
+  const { slug } = useParams<{ slug: string }>();
   const utils = trpc.useUtils();
   const repos = trpc.repos.list.useQuery();
   const refresh = trpc.repos.refresh.useMutation({
@@ -50,7 +52,11 @@ export default function ReposPage() {
           <TBody>
             {repos.data.map((r) => (
               <TR key={r.id}>
-                <TD className="font-medium">{r.fullName}</TD>
+                <TD className="font-medium">
+                  <Link href={`/o/${slug}/repos/${r.name}`} className="hover:underline">
+                    {r.fullName}
+                  </Link>
+                </TD>
                 <TD className="font-mono text-xs">{r.defaultBranch}</TD>
                 <TD>
                   <Badge variant="outline">{r.permission}</Badge>
