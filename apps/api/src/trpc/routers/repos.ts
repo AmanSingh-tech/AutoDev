@@ -1,6 +1,6 @@
 import { and, eq, isNull, schema } from '@autodev/db';
 import { installUrl } from '@autodev/github';
-import { orgProcedure, router } from '../trpc';
+import { authedProcedure, orgProcedure, router } from '../trpc';
 
 const { installations } = schema;
 
@@ -31,6 +31,6 @@ export const installationsRouter = router({
 });
 
 export const githubRouter = router({
-  /** Where to send someone who wants to install the App on a GitHub org. */
-  installUrl: orgProcedure.query(({ ctx }) => ({ url: installUrl(ctx.deps.cfg) })),
+  /** Where to send someone who wants to install the App on a GitHub org (works before they have one). */
+  installUrl: authedProcedure.query(({ ctx }) => ({ url: installUrl(ctx.deps.cfg) })),
 });
