@@ -5,6 +5,7 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { anthropicMessages } from './anthropic';
+import { branchFiles, handleGitWrite, pulls } from './git-write';
 import { blob as repoBlob, headSha, tree as repoTree } from './repo';
 import { INSTALLATION_ID, ORG, reposFor, USERS, type Login } from './data';
 
@@ -53,6 +54,11 @@ createServer(async (req, res) => {
     return anthropicMessages(raw, res);
   }
 
+  if (path === '/_mock/pulls') {
+    const branch = url.searchParams.get('branch');
+    return json(res, 200, { pulls, files: branch ? branchFiles(branch) : null });
+  }
+
   if (path === '/login/oauth/authorize') {
     const cookie = /(?:^|;\s*)mock_login=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
     const login = (url.searchParams.get('login_as') ?? (cookie ? decodeURIComponent(cookie) : DEFAULT_LOGIN)) as Login;
@@ -85,6 +91,12 @@ createServer(async (req, res) => {
   if (!login) return json(res, 401, { message: 'Bad credentials' });
   const user = USERS[login];
   const api = path.slice('/api'.length);
+
+  if (req.method !== 'GET' || /\/git\/(ref|commits)\/|\/compare\/|\/pulls/.test(api)) {
+    const body = req.method === 'GET' ? null : ((await readBody(req)) as Record<string, unknown>);
+    const out = handleGitWrite(req.method ?? 'GET', api, body, login);
+    if (out) return json(res, out.status, out.body);
+  }
 
   if (api === '/user') {
     return json(res, 200, { id: user.id, login: user.login, name: user.name, email: null, avatar_url: null });

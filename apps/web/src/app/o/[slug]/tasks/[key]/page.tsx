@@ -62,7 +62,17 @@ export default function TaskPage() {
               <span className="block text-xs text-muted-foreground">{t.branchMode === 'new' ? `new, from ${t.repo.defaultBranch}` : 'existing branch'}</span>
             </Meta>
             <Meta label="Folder">{t.scopePath ? <span className="font-mono text-xs">{t.scopePath}</span> : 'Whole repository'}</Meta>
-            <Meta label="Pull request">{t.createPrOnCompletion ? 'Opened automatically' : 'Created manually'}</Meta>
+            <Meta label="Pull request">
+              {t.pullRequests[0] ? (
+                <a href={t.pullRequests[0].url} target="_blank" rel="noopener noreferrer" className="underline">
+                  #{t.pullRequests[0].number} ({t.pullRequests[0].state})
+                </a>
+              ) : t.createPrOnCompletion ? (
+                'Opened when tests pass'
+              ) : (
+                'Created with the Create PR button'
+              )}
+            </Meta>
             {t.related && (
               <Meta label="Related task">
                 <Link href={`/o/${slug}/tasks/${t.related.key}`} className="hover:underline">
@@ -213,6 +223,13 @@ function Timeline({ task: t }: { task: Task }) {
 
 const EVENT_LABEL: Record<string, string> = {
   'tests.passed': 'reported that the tests passed',
+  'branch.pushed': 'pushed the change',
+  'pr.opened': 'opened the pull request',
+  'pr.updated': 'updated the pull request',
+  'pr.merged': 'saw the pull request merged',
+  'pr.closed': 'saw the pull request closed',
+  'pr.reopened': 'saw the pull request reopened',
+  'pr.failed': 'could not open the pull request',
 };
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (

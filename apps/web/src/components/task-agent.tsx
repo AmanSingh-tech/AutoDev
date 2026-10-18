@@ -38,6 +38,8 @@ export function AttentionPanel({ task: t }: { task: Task }) {
   if (t.status === 'blocked_on_key') return <BlockedPanel task={t} />;
   if (t.status === 'waiting_for_builder') return <WaitingForBuilder task={t} />;
   if (t.status === 'testing') return <TestingPanel task={t} />;
+  if (t.status === 'pushed' || t.status === 'pr_open' || t.status === 'resolved') return <PrPanel task={t} />;
+  if (t.status === 'failed' && t.failure) return <FailurePanel task={t} />;
   if (['planning', 'designing', 'coding', 'fixing'].includes(t.status)) return <Alert>The agent is working on this task. This page refreshes on its own.</Alert>;
   return null;
 }
@@ -327,6 +329,65 @@ function summarize(input: unknown) {
   return String(o.path ?? o.pattern ?? o.question ?? o.reason ?? o.summary ?? '').slice(0, 160);
 }
 
+/** Where the change is on GitHub: the PR (open, merged, closed), or the branch with a Create PR button. */
+function PrPanel({ task: t }: { task: Task }) {
+  const refresh = useRefresh(t.key);
+  const create = trpc.agent.createPr.useMutation({ onSuccess: refresh });
+  const pr = t.pullRequests[0];
+  if (pr) {
+    const label = pr.state === 'merged' ? 'merged' : pr.state === 'closed' ? 'closed without merging' : 'open';
+    return (
+      <Alert className="flex flex-wrap items-center justify-between gap-3">
+        <span>
+          <span aria-hidden>{pr.state === 'merged' ? '✓ ' : ''}</span>
+          Pull request #{pr.number} is {label}
+          {pr.state === 'merged' ? ', so this task is resolved.' : pr.state === 'open' ? ` against ${pr.baseBranch}.` : '.'}
+        </span>
+        <Button asChild size="sm" variant={pr.state === 'open' ? 'default' : 'outline'}>
+          <a href={pr.url} target="_blank" rel="noopener noreferrer">
+            Open PR #{pr.number} on GitHub
+          </a>
+        </Button>
+      </Alert>
+    );
+  }
+  return (
+    <Alert className="space-y-2">
+      <p>
+        <span aria-hidden>✓ </span>Pushed to <span className="font-mono">{t.workBranch}</span>
+        {t.lastPushedSha && <span className="font-mono text-muted-foreground"> ({t.lastPushedSha.slice(0, 7)})</span>}. No pull request yet.
+      </p>
+      {t.can.createPr && (
+        <Button size="sm" onClick={() => create.mutate({ key: t.key })} disabled={create.isPending}>
+          {create.isPending ? 'Opening…' : 'Create PR'}
+        </Button>
+      )}
+      {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
+    </Alert>
+  );
+}
+
+function FailurePanel({ task: t }: { task: Task }) {
+  const refresh = useRefresh(t.key);
+  const retry = trpc.agent.retryPush.useMutation({ onSuccess: refresh });
+  const f = t.failure!;
+  return (
+    <Alert tone="destructive" className="space-y-2">
+      <p>
+        <span aria-hidden>⛔ </span>
+        {f.reason === 'push_failed' ? 'The change passed its tests but couldn’t be pushed: ' : 'The task failed: '}
+        {f.message ?? f.reason ?? 'unknown reason'}
+      </p>
+      {t.can.retryPush && (
+        <Button size="sm" variant="outline" onClick={() => retry.mutate({ key: t.key })} disabled={retry.isPending}>
+          {retry.isPending ? 'Pushing…' : 'Retry push'}
+        </Button>
+      )}
+      {retry.error && <p className="text-sm">{retry.error.message}</p>}
+    </Alert>
+  );
+}
+
 function TestingPanel({ task: t }: { task: Task }) {
   const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
   const last = jobs.data?.[0];
@@ -334,7 +395,7 @@ function TestingPanel({ task: t }: { task: Task }) {
     return (
       <Alert>
         <span aria-hidden>✓ </span>
-        {last.status === 'passed' ? 'Tests passed on your builder.' : 'No .autodev.yml on the base branch, so no tests were run.'} The change is ready to push.
+        {last.status === 'passed' ? 'Tests passed on your builder.' : 'No .autodev.yml on the base branch, so no tests were run.'} Pushing the change…
       </Alert>
     );
   }
