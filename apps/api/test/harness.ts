@@ -1,4 +1,4 @@
-import type { JobQueue, RepoSyncJob } from '@autodev/config';
+import type { AgentJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
@@ -38,6 +38,12 @@ export function createTestDeps() {
   };
   const providers = staticRegistry([new AnthropicProvider({ baseURL: ANTHROPIC, maxRetries: 0 })]);
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms: testKms, providers });
+  const agentJobs: { name: string; data: AgentJob; jobId?: string }[] = [];
+  const agent: JobQueue<AgentJob> = {
+    add: async (name, data, opts) => {
+      agentJobs.push({ name, data, jobId: opts?.jobId });
+    },
+  };
   const deps: Deps = {
     env: { WEB_URL, AUTH_SECRET, NODE_ENV: 'test' },
     app: app.db,
@@ -47,12 +53,12 @@ export function createTestDeps() {
     vault,
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg: testCfg }),
-    queues: { repoSync },
+    queues: { repoSync, agent },
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
   };
-  return { deps, jobs, close: () => Promise.all([app.close(), sys.close()]) };
+  return { deps, jobs, agentJobs, close: () => Promise.all([app.close(), sys.close()]) };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

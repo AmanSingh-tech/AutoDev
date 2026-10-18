@@ -1,4 +1,4 @@
-import { QUEUES, type JobQueue, type RepoSyncJob } from '@autodev/config';
+import { QUEUES, type AgentJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
 import { createKeyWrapper, type KeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb, type AppDb, type SystemDb } from '@autodev/db';
 import {
@@ -23,7 +23,7 @@ export interface Deps {
   vault: TokenVault;
   cache: KvCache;
   repoAccess: RepoAccessService;
-  queues: { repoSync: JobQueue<RepoSyncJob> };
+  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob> };
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
@@ -41,6 +41,10 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     connection: redis,
     defaultJobOptions: { removeOnComplete: true, removeOnFail: 500, attempts: 5, backoff: { type: 'exponential', delay: 5000 } },
   });
+  const agent = new Queue<AgentJob>(QUEUES.agent, {
+    connection: redis,
+    defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 1 },
+  });
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
@@ -52,12 +56,12 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     vault,
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg }),
-    queues: { repoSync: repoSync as unknown as JobQueue<RepoSyncJob> },
+    queues: { repoSync: repoSync as unknown as JobQueue<RepoSyncJob>, agent: agent as unknown as JobQueue<AgentJob> },
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
     close: async () => {
-      await repoSync.close();
+      await Promise.all([repoSync.close(), agent.close()]);
       await Promise.all([app.close(), sys.close()]);
       redis.disconnect();
     },
