@@ -3,3 +3,7 @@ export * from './overlay';
 export * from './paths';
 export * from './repo-reader';
 export * from './workspace';
+export * from './documents';
+export * from './loop';
+export * from './prompts';
+export * from './tools';

@@ -36,6 +36,8 @@ export const agentRuns = pgTable(
     costUsd: numeric('cost_usd', { precision: 14, scale: 6 }).notNull().default('0'),
     /** Tool call the run is paused on (ask_user), answered on resume. */
     pendingToolUseId: text('pending_tool_use_id'),
+    /** Loop state that must survive a pause: tool results waiting on the paused call, extra allowed paths. */
+    state: jsonb('state').$type<Record<string, unknown>>().notNull().default({}),
     /** Status to return to after blocked_on_key / needs_input. */
     resumeStatus: taskStatus('resume_status'),
     error: text('error'),
@@ -101,7 +103,11 @@ export const taskQuestions = pgTable(
       .references(() => agentRuns.id, { onDelete: 'cascade' }),
     kind: questionKind('kind').notNull(),
     questionMd: text('question_md').notNull(),
+    /** Deviation requests: the files outside the approved design the agent wants to change. */
+    paths: text('paths').array().notNull().default(sql`'{}'::text[]`),
     answerMd: text('answer_md'),
+    /** Deviation requests: whether the reviewer allowed them. */
+    approved: boolean('approved'),
     answeredBy: uuid('answered_by').references(() => users.id, { onDelete: 'set null' }),
     answeredAt: tsz('answered_at'),
     createdAt: createdAt(),

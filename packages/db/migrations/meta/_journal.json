@@ -57,6 +57,13 @@
       "when": 1792350563272,
       "tag": "0007_agent_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792350838693,
+      "tag": "0008_agent_state",
+      "breakpoints": true
     }
   ]
 }
