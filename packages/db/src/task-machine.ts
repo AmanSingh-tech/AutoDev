@@ -13,7 +13,8 @@ const TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   awaiting_lld_approval: ['designing', 'coding', 'rejected', 'cancelled'],
   coding: ['waiting_for_builder', 'testing', 'needs_input', 'blocked_on_key', 'failed', 'cancelled'],
   waiting_for_builder: ['testing', 'cancelled'],
-  testing: ['fixing', 'pushed', 'failed', 'cancelled'],
+  // coding: results of a mid-coding test run go back to the agent. waiting_for_builder: the builder dropped.
+  testing: ['fixing', 'coding', 'waiting_for_builder', 'pushed', 'failed', 'cancelled'],
   fixing: ['waiting_for_builder', 'testing', 'needs_input', 'blocked_on_key', 'failed', 'cancelled'],
   needs_input: ['planning', 'designing', 'coding', 'fixing', 'cancelled'],
   blocked_on_key: ['planning', 'designing', 'coding', 'fixing', 'cancelled'],
