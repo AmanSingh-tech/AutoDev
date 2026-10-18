@@ -51,6 +51,8 @@ export const workspaceFileOp = pgEnum('workspace_file_op', ['create', 'modify', 
 export const builderKind = pgEnum('builder_kind', ['personal', 'team']);
 export const builderJobStatus = pgEnum('builder_job_status', ['queued', 'offered', 'running', 'passed', 'failed', 'timed_out', 'error', 'skipped', 'cancelled']);
 export const jobConsent = pgEnum('job_consent', ['not_needed', 'pending', 'granted', 'denied']);
+export const prState = pgEnum('pr_state', ['open', 'closed', 'merged']);
+export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job']);
 
 export const ORG_ROLES = orgRole.enumValues;
 export type LlmProviderId = (typeof llmProvider.enumValues)[number];

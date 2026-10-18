@@ -44,6 +44,12 @@ export const tasks = pgTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     /** Written by the agent's finish(summary). Fed to follow-up tasks that link this one. */
     summaryMd: text('summary_md'),
+    /** One line per changed file, from the agent's finish call (for the PR's Changes section). */
+    changeNotes: jsonb('change_notes').$type<{ path: string; note: string }[]>().notNull().default([]),
+    lastPushedSha: text('last_pushed_sha'),
+    lastPushedAt: tsz('last_pushed_at'),
+    /** The stale-branch job notifies the owner once per pushed state. */
+    staleNotifiedAt: tsz('stale_notified_at'),
     tokenCapOverride: bigint('token_cap_override', { mode: 'number' }),
     completedAt: tsz('completed_at'),
     createdAt: createdAt(),

@@ -22,8 +22,8 @@ const TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   pr_open: ['resolved', 'cancelled'],
   resolved: [],
   rejected: [],
-  // A failed task can be retried from the queue.
-  failed: ['queued'],
+  // A failed task can be retried from the queue, or (after a failed push) retry just the push.
+  failed: ['queued', 'testing'],
   cancelled: [],
 };
 
