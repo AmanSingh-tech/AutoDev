@@ -3,8 +3,8 @@
 Multi-tenant B2B SaaS: developers hand coding tasks to an AI agent that plans, designs, codes,
 tests on the developer's own machine, and opens a GitHub PR **as the developer**.
 
-**Status:** Section A, phase A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
-write-access repo list).
+**Status:** Section A, phases A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
+write-access repo list) and A-2 (bring-your-own LLM key, model policies, metering, budgets).
 
 ## Layout
 
@@ -19,7 +19,8 @@ packages/crypto       AES-256-GCM envelope encryption, KMS-wrapped data keys
 packages/db           Drizzle schema, migrations, RLS, withOrg(), seed
 packages/github       Octokit clients, token vault, repo access cache, webhooks, login
 packages/ui           shadcn-style components + Tailwind preset
-packages/{llm,agent,protocol}   later phases
+packages/llm          Provider interface, Anthropic provider, LLM gateway (keys, metering, budgets)
+packages/{agent,protocol}   later phases
 tools/mock-github     Fake GitHub for e2e tests
 tools/e2e             Playwright
 ```
@@ -68,5 +69,24 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   Webhooks only invalidate caches; they never grant access.
 - **Audit:** `audit_log` is append-only (grants plus a trigger). Sign-ins, role and settings
   changes, and installations are recorded.
+
+## BYOK and metering (A-2)
+
+- **Keys:** org, team or personal. The most specific key wins (personal, then team, then org;
+  for someone in several teams with keys, their primary team). Keys are encrypted with the org's
+  data key, checked with a free `models.list` call before saving, re-checked daily, and
+  write-only (only the last 4 characters are shown). The app DB role can't even SELECT the
+  ciphertext; only the gateway (system role) decrypts, in memory, for one call. Rotation
+  supersedes the old key in one transaction, and calls already running finish on the old key.
+- **Gateway** (`packages/llm`): the only way code reaches an LLM. It applies the model policy
+  (default `claude-opus-5-5`, effort `high`), the per-task token cap (it also clamps
+  `max_tokens`), and server-side refusal fallback. It meters every call from the provider's
+  usage fields (one row per model, cost frozen at write time). An auth, permission or billing
+  failure marks the key invalid, notifies admins, and raises `KeyFailure` (A-4: `blocked_on_key`).
+- **Budgets:** monthly (UTC) org and per-user limits. Admins are notified once at the soft
+  threshold and once at the limit. A hard limit blocks new runs (`assertRunAllowed`), while
+  runs already going continue within their task cap.
+- **Prices:** global Anthropic rates seeded by migration; admins add per-org overrides
+  (effective-dated). Models without a price are metered as `priced = false`, not guessed.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

@@ -28,10 +28,15 @@ unset context returns no rows.
 
 ## BYOK and metering (A-2)
 
-llm_credentials (scope org/team/user, provider, secret_enc, last4, status, rotated_from_id),
-model_policies (use_case, model, max_tokens_per_task), model_prices (org_id NULL = global),
-budgets (org/user, limit_usd, soft_pct, hard_block), token_usage (**monthly partitions**, cost
-frozen at write time).
+| Table | | Notes |
+|---|---|---|
+| ✅ llm_credentials | scope org/team/user, provider, label, secret_enc, last4, config, status (active/invalid/superseded/revoked), last_validated_at, last_error, rotated_from_id | One active per slot; app role can't SELECT secret_enc |
+| ✅ model_policies | UQ(org_id,use_case), provider, model, max_tokens_per_task, max_output_tokens, effort | |
+| ✅ model_prices | org_id NULL = global; input/output/cache_write_5m/cache_write_1h/cache_read per MTok; effective_from/to | Global rows read-only to orgs |
+| ✅ budgets | scope org/user, limit_usd, soft_pct, hard_block, last_soft/hard_alert_month | |
+| ✅ token_usage | **monthly partitions** + default; tokens by class, cost_usd frozen, priced flag | Written by the system role only; partitions not directly readable |
+
+Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 
 ## Tasks and agent (A-3, A-4)
 
