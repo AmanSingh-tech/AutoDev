@@ -1,2 +1,1 @@
-// WebSocket gateway for local builders. Filled in phase A-5.
-export {};
+export { channelOf, createGateway, hashToken, redisBus } from './gateway';

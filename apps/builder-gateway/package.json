@@ -3,10 +3,33 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- tsx watch src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@autodev/agent": "workspace:^",
+    "@autodev/config": "workspace:^",
+    "@autodev/db": "workspace:^",
+    "@autodev/github": "workspace:^",
+    "@autodev/protocol": "workspace:^",
+    "bullmq": "^5.34.6",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "dotenv-cli": "^8.0.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "uuidv7": "^1.0.2"
+  },
   "exports": {
     ".": "./src/index.ts"
-  },
-  "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
   }
 }
