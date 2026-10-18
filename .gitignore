@@ -9,3 +9,4 @@ coverage/
 *.pem
 playwright-report/
 test-results/
+apps/web/tsconfig.tsbuildinfo
