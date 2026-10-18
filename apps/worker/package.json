@@ -13,7 +13,9 @@
   "dependencies": {
     "@autodev/config": "workspace:*",
     "@autodev/db": "workspace:*",
+    "@autodev/crypto": "workspace:*",
     "@autodev/github": "workspace:*",
+    "@autodev/llm": "workspace:*",
     "bullmq": "^5.34.6",
     "ioredis": "^5.4.2",
     "pino": "^9.6.0",

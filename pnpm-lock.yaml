@@ -167,12 +167,18 @@ importers:
       '@autodev/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@autodev/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@autodev/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@autodev/github':
         specifier: workspace:*
         version: link:../../packages/github
+      '@autodev/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       bullmq:
         specifier: ^5.34.6
         version: 5.81.5
