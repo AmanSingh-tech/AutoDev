@@ -44,9 +44,12 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 |---|---|---|
 | ✅ tasks | UQ(org_id,number), UQ(org_id,key), title, description_md, acceptance_criteria_md, priority, status (18), mode, scope_path, branch_mode, target_branch, work_branch, base_sha, related_task_id, extra_context, create_pr_on_completion, owner_id, summary_md, token_cap_override | Checks: existing ⇔ target_branch, relative scope_path, related task in same org (trigger). Never deleted (cancelled instead) |
 | ✅ task_events | type, from_status, to_status, actor, payload | Append-only |
-
-Later in A-4: task_documents (plan|lld, version, status,
-reviewer, comment), task_questions, agent_runs, agent_steps, workspaces, workspace_files.
+| ✅ task_documents | kind plan/lld, version, content_md (immutable), status, reviewer, comment | One pending per kind |
+| ✅ task_questions | kind question/deviation, paths, answer, approved | One open per task |
+| ✅ agent_runs | phase, status, transcript_key, state, resume_status, token and cost totals | System-written |
+| ✅ agent_steps | seq, kind, tool_name, input/output (truncated), is_error | System-written |
+| ✅ workspaces / workspace_files | base_sha, base_ref, revision; path, op, base_blob_sha, content (1 MB cap) | System-written |
+| ✅ blobs | key, content (transcripts) | System role only; moves to S3 later |
 
 ## Builder and PRs (A-5, A-6)
 
