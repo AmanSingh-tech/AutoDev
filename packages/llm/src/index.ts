@@ -3,3 +3,8 @@ export * from './pricing';
 export * from './registry';
 export * from './types';
 export { AnthropicProvider, toLlmError, usageEntries } from './providers/anthropic';
+export * from './budgets';
+export * from './credentials';
+export * from './defaults';
+export * from './gateway';
+export * from './notify';

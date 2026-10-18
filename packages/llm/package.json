@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
-    "@autodev/db": "workspace:^"
+    "@autodev/crypto": "workspace:^",
+    "uuidv7": "^1.0.2"
   },
   "devDependencies": {
+    "@autodev/db": "workspace:^",
     "msw": "^2.7.0"
   }
 }
