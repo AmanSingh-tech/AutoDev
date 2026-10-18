@@ -13,8 +13,17 @@ export const repoPermission = pgEnum('repo_permission', [
   'pull',
 ]);
 export const actorType = pgEnum('actor_type', ['user', 'agent', 'system', 'builder']);
+export const llmProvider = pgEnum('llm_provider', ['anthropic', 'openai', 'azure_openai', 'bedrock']);
+export const credentialScope = pgEnum('credential_scope', ['org', 'team', 'user']);
+export const credentialStatus = pgEnum('credential_status', ['active', 'invalid', 'superseded', 'revoked']);
+/** Section B adds more use cases (repo chat, prompt guide…). Postgres enums can be extended in place. */
+export const llmUseCase = pgEnum('llm_use_case', ['agent']);
+export const budgetScope = pgEnum('budget_scope', ['org', 'user']);
 
 export const ORG_ROLES = orgRole.enumValues;
+export type LlmProviderId = (typeof llmProvider.enumValues)[number];
+export type CredentialScope = (typeof credentialScope.enumValues)[number];
+export type LlmUseCase = (typeof llmUseCase.enumValues)[number];
 export type OrgRole = (typeof ORG_ROLES)[number];
 export type TaskMode = (typeof taskMode.enumValues)[number];
 export type RepoPermission = (typeof repoPermission.enumValues)[number];

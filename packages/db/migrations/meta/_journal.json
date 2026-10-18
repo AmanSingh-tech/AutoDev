@@ -15,6 +15,20 @@
       "when": 1792342088479,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792347423057,
+      "tag": "0002_byok_metering",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792347424521,
+      "tag": "0003_byok_rls_partitions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,16 +1,21 @@
 import { randomBytes } from 'node:crypto';
 import { LocalMasterKeyWrapper } from '@autodev/crypto';
-import { sql } from 'drizzle-orm';
+import { isNull, sql } from 'drizzle-orm';
 import type { SystemDb } from '../src/client';
 import { insertOrgWithOwner } from '../src/ops/orgs';
-import { installations, repos, users } from '../src/schema';
+import { installations, modelPrices, repos, users } from '../src/schema';
 
 export const testKms = new LocalMasterKeyWrapper(randomBytes(32).toString('base64'), 'test');
 
 export async function truncateAll(db: SystemDb) {
+  // TRUNCATE … CASCADE also empties model_prices (it references orgs), so keep the global seed.
+  const globalPrices = await db.select().from(modelPrices).where(isNull(modelPrices.orgId));
   await db.execute(sql`
     TRUNCATE users, github_tokens, orgs, org_members, teams, team_members, installations,
-      repos, user_repo_access, repo_policies, notifications, audit_log CASCADE`);
+      repos, user_repo_access, repo_policies, notifications, audit_log,
+      llm_credentials, model_policies, budgets, token_usage CASCADE`);
+  await db.execute(sql`TRUNCATE model_prices`);
+  if (globalPrices.length) await db.insert(modelPrices).values(globalPrices);
 }
 
 let seq = 1000;

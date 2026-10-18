@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -36,6 +37,8 @@ export const orgs = pgTable(
     taskKeyPrefix: text('task_key_prefix').notNull().default('AD'),
     /** Per-org task counter. Incremented with UPDATE … RETURNING to mint task keys like AD-142. */
     taskSeq: integer('task_seq').notNull().default(0),
+    /** Whether members may add their own LLM key (the user scope). */
+    allowUserKeys: boolean('allow_user_keys').notNull().default(true),
     /** Room for future (Section B) settings, so they don't each need a column. */
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
@@ -60,6 +63,8 @@ export const orgMembers = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     role: orgRole('role').notNull(),
     status: memberStatus('status').notNull().default('active'),
+    /** The team whose LLM key applies when a member is in several teams that each have one. */
+    primaryTeamId: uuid('primary_team_id'),
     joinedAt: createdAt(),
     updatedAt: updatedAt(),
   },
