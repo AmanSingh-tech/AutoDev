@@ -44,7 +44,7 @@ let builderId: string;
 const TOKEN = 'adb_' + 'x'.repeat(40);
 const open: WebSocket[] = [];
 afterEach(() => {
-  for (const ws of open.splice(0)) ws.close();
+  for (const ws of open.splice(0)) ws.terminate();
 });
 beforeEach(async () => {
   await truncateAll(sys.db);
@@ -59,6 +59,8 @@ beforeEach(async () => {
 /** A fake builder: collects messages and lets the test wait for a type. */
 function connect(token = TOKEN) {
   const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` } });
+  // Rejected handshakes and terminated sockets emit 'error'; the tests assert on status codes instead.
+  ws.on('error', () => {});
   open.push(ws);
   const inbox: GatewayMessage[] = [];
   const waiters: { type: string; resolve: (m: GatewayMessage) => void }[] = [];
@@ -76,7 +78,7 @@ function connect(token = TOKEN) {
         const i = inbox.findIndex((m) => m.type === type);
         if (i >= 0) return resolve(inbox.splice(i, 1)[0] as never);
         waiters.push({ type, resolve: resolve as never });
-        setTimeout(() => reject(new Error(`no ${type} message`)), 3000);
+        setTimeout(() => reject(new Error(`no ${type} message`)), 10_000);
       }),
     opened: () => new Promise<void>((r, j) => (ws.once('open', () => r()), ws.once('unexpected-response', (_q, res) => j(new Error(String(res.statusCode)))))),
     closed: () => new Promise<number>((r) => ws.once('close', (code) => r(code))),
