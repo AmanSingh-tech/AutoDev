@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { relativeTime, tokens, usd } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { ConfigCommands } from './commands';
 import { Markdown } from './markdown';
 
 // Monaco is large: load it only when a document's source or a diff is opened.
@@ -33,8 +36,9 @@ export function AttentionPanel({ task: t }: { task: Task }) {
   }
   if (t.status === 'needs_input' && docs.data?.question) return <QuestionPanel task={t} question={docs.data.question} />;
   if (t.status === 'blocked_on_key') return <BlockedPanel task={t} />;
-  if (t.status === 'waiting_for_builder') return <Alert>Waiting for your builder to run the tests. (The local builder arrives in the next phase.)</Alert>;
-  if (['planning', 'designing', 'coding', 'fixing', 'testing'].includes(t.status)) return <Alert>The agent is working on this task. This page refreshes on its own.</Alert>;
+  if (t.status === 'waiting_for_builder') return <WaitingForBuilder task={t} />;
+  if (t.status === 'testing') return <Alert>Your builder is running the tests. The log below updates live.</Alert>;
+  if (['planning', 'designing', 'coding', 'fixing'].includes(t.status)) return <Alert>The agent is working on this task. This page refreshes on its own.</Alert>;
   return null;
 }
 
@@ -321,4 +325,103 @@ function summarize(input: unknown) {
   if (!input || typeof input !== 'object') return '';
   const o = input as Record<string, unknown>;
   return String(o.path ?? o.pattern ?? o.question ?? o.reason ?? o.summary ?? '').slice(0, 160);
+}
+
+/** Why a test run hasn't started yet, and what to do about it. */
+function WaitingForBuilder({ task: t }: { task: Task }) {
+  const { slug } = useParams<{ slug: string }>();
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const builders = trpc.builders.list.useQuery(undefined, { refetchInterval: 10_000 });
+  const pending = trpc.builders.pendingConfirmations.useQuery(undefined, { refetchInterval: 10_000 });
+  const job = jobs.data?.[0];
+  const refresh = useRefresh(t.key);
+  const consent = trpc.agent.consent.useMutation({ onSuccess: refresh });
+  if (job?.consent === 'pending') {
+    return (
+      <section className="space-y-3 rounded-lg border-2 border-status-warning bg-card p-4" aria-label="Test run consent">
+        <h2 className="text-base font-semibold"><span aria-hidden>⚠️ </span>The change edits .autodev.yml</h2>
+        <p className="text-sm">
+          The agent changed your test configuration. Tests always run the <span className="font-medium">base branch’s</span> commands below, but the
+          patched files are on disk during the run. Review the .autodev.yml change under “Changes” before allowing it.
+        </p>
+        <ConfigCommands config={job.config} />
+        {canAct(t) && (
+          <div className="flex gap-2">
+            <Button onClick={() => consent.mutate({ key: t.key, jobId: job.id, allow: true })} disabled={consent.isPending}>Allow the test run</Button>
+            <Button variant="outline" onClick={() => consent.mutate({ key: t.key, jobId: job.id, allow: false })} disabled={consent.isPending}>Don’t allow</Button>
+          </div>
+        )}
+      </section>
+    );
+  }
+  const mineOnline = builders.data?.some((b) => b.mine && b.online);
+  const needsConfirm = pending.data?.length;
+  return (
+    <Alert className="space-y-1">
+      <p className="font-medium">Waiting for your builder</p>
+      {needsConfirm ? (
+        <p>Your builder needs your OK for its first run in this repository. <Link className="underline" href={`/o/${slug}/builders`}>Review the commands</Link>.</p>
+      ) : mineOnline ? (
+        <p>Your builder is online; the run starts in a moment.</p>
+      ) : builders.data?.some((b) => b.mine) ? (
+        <p>Your builder is offline. Run <code className="font-mono">autodev start</code> on your machine; the tests run as soon as it connects.</p>
+      ) : (
+        <p>You don’t have a builder yet. <Link className="underline" href={`/o/${slug}/builders`}>Set one up</Link> to run tests on your machine.</p>
+      )}
+    </Alert>
+  );
+}
+
+const JOB_STATUS: Record<string, string> = { queued: 'Queued', offered: 'Starting', running: 'Running', passed: '✓ Passed', failed: '✕ Failed', timed_out: '✕ Timed out', error: '✕ Could not run', skipped: 'Skipped (no .autodev.yml)', cancelled: 'Cancelled' };
+
+/** Every test run for the task, with failing tests and the log. */
+export function TestsSection({ task: t }: { task: Task }) {
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const [open, setOpen] = useState<string | null>(null);
+  if (!jobs.data?.length) return null;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-medium text-muted-foreground">Test runs</h2>
+      <ul className="divide-y rounded-md border text-sm">
+        {jobs.data.map((j) => (
+          <li key={j.id} className="space-y-2 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-2">
+                <Badge variant={j.status === 'failed' || j.status === 'timed_out' || j.status === 'error' ? 'destructive' : 'outline'}>{JOB_STATUS[j.status] ?? j.status}</Badge>
+                <span className="text-muted-foreground">
+                  {j.fixCycle > 0 ? `Fix attempt ${j.fixCycle}` : j.final ? 'Final check' : 'Mid-way check'}
+                  {j.builderName ? ` · on ${j.builderName}` : ''}
+                  {j.durationMs ? ` · ${Math.round(j.durationMs / 1000)}s` : ''}
+                  {j.failedStep && j.status !== 'passed' ? ` · ${j.failedStep} step${j.exitCode !== null ? `, exit ${j.exitCode}` : ''}` : ''}
+                </span>
+              </span>
+              {['running', 'passed', 'failed', 'timed_out', 'error'].includes(j.status) && (
+                <button type="button" className="text-xs underline" onClick={() => setOpen(open === j.id ? null : j.id)}>
+                  {open === j.id ? 'Hide log' : 'Show log'}
+                </button>
+              )}
+            </div>
+            {j.configError && <p className="text-xs text-destructive">{j.configError}</p>}
+            {j.failedTests.length > 0 && (
+              <ul className="list-disc pl-5 font-mono text-xs">
+                {j.failedTests.slice(0, 20).map((ft, i) => (
+                  <li key={i}>{ft.file ? `${ft.file}: ` : ''}{ft.name}</li>
+                ))}
+              </ul>
+            )}
+            {open === j.id && <JobLog jobId={j.id} running={j.status === 'running'} />}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function JobLog({ jobId, running }: { jobId: string; running: boolean }) {
+  const q = trpc.agent.jobLog.useQuery({ jobId }, { refetchInterval: running ? 2000 : false });
+  return (
+    <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 font-mono text-xs leading-relaxed" aria-live={running ? 'polite' : undefined}>
+      {q.data?.text || (q.isLoading ? 'Loading…' : 'No output yet.')}
+    </pre>
+  );
 }

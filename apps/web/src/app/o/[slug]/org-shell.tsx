@@ -21,6 +21,7 @@ const NAV = [
   { href: 'tasks', label: 'Tasks' },
   { href: 'repos', label: 'Repositories' },
   { href: 'members', label: 'Members' },
+  { href: 'builders', label: 'Builders' },
   { href: 'usage', label: 'Usage' },
   { href: 'settings', label: 'Settings' },
 ];

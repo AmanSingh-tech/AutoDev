@@ -5,7 +5,7 @@ import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection } from '@/components/task-agent';
+import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection, TestsSection } from '@/components/task-agent';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { TaskForm, toTaskInput, type TaskFormValues } from '@/components/task-form';
 import { relativeTime } from '@/lib/format';
@@ -43,6 +43,7 @@ export default function TaskPage() {
         {editing ? <EditTask task={t} onDone={() => setEditing(false)} /> : <Details task={t} />}
         <DocumentsSection task={t} />
         <ChangesSection task={t} />
+        <TestsSection task={t} />
         <ActivitySection task={t} />
         <Timeline task={t} />
       </div>
