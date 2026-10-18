@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { FIXTURE_DIR } from './global-setup';
 
 const MOCK = 'http://localhost:4010';
 
@@ -18,6 +19,7 @@ const githubEnv = {
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './global-setup.ts',
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
@@ -30,11 +32,11 @@ export default defineConfig({
       // Unauthenticated /api/user answers 401, which Playwright counts as up.
       url: `${MOCK}/api/user`,
       reuseExistingServer: false,
-      env: { MOCK_GITHUB_PORT: '4010' },
+      env: { MOCK_GITHUB_PORT: '4010', MOCK_REPO_DIR: FIXTURE_DIR },
     },
     {
       // The worker has no HTTP port, so it starts alongside the API.
-      command: "pnpm --filter @autodev/db seed && sh -c 'pnpm --filter @autodev/worker dev & pnpm --filter @autodev/api dev'",
+      command: "pnpm --filter @autodev/db seed && sh -c 'pnpm --filter @autodev/worker dev & pnpm --filter @autodev/builder-gateway dev & pnpm --filter @autodev/api dev'",
       url: 'http://localhost:4000/healthz',
       reuseExistingServer: false,
       timeout: 60_000,

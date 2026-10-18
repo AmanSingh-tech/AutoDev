@@ -73,7 +73,7 @@ export function anthropicMessages(body: string, res: ServerResponse) {
   res.end(events.map((e) => `event: ${(e as { type: string }).type}\ndata: ${JSON.stringify(e)}\n\n`).join(''));
 }
 
-/** The demo repo's files for git trees/blobs (acme-demo/* all share it). */
+/** The demo repo's files (acme-demo/* all share it). The e2e fixture repo has the same content. */
 export const REPO_FILES: Record<string, string> = {
   'README.md': '# Demo\nRun `pnpm test`.\n',
   'src/app.ts': 'export const greet = () => "hi";\n',

@@ -4,7 +4,8 @@
  * to pick someone else (a cookie on the mock's origin).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { anthropicMessages, REPO_FILES } from './anthropic';
+import { anthropicMessages } from './anthropic';
+import { blob as repoBlob, headSha, tree as repoTree } from './repo';
 import { INSTALLATION_ID, ORG, reposFor, USERS, type Login } from './data';
 
 const PORT = Number(process.env.MOCK_GITHUB_PORT ?? 4010);
@@ -110,25 +111,15 @@ createServer(async (req, res) => {
     return json(res, 200, { state: 'active', role: user.orgRole });
   }
   const tree = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/trees\/(.+)$/);
-  if (tree) {
-    return json(res, 200, {
-      sha: tree[1],
-      truncated: false,
-      tree: [
-        ...Object.entries(REPO_FILES).map(([p, c]) => ({ path: p, type: 'blob', mode: '100644', sha: `blob:${p}`, size: Buffer.byteLength(c) })),
-        { path: 'src', type: 'tree', mode: '040000', sha: 'tree:src' },
-      ],
-    });
-  }
+  if (tree) return json(res, 200, { sha: tree[1], truncated: false, tree: repoTree() });
   const blob = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/blobs\/(.+)$/);
   if (blob) {
-    const p = decodeURIComponent(blob[1]!).replace(/^blob:/, '');
-    const c = REPO_FILES[p];
-    return c === undefined ? json(res, 404, { message: 'Not Found' }) : json(res, 200, { sha: blob[1], encoding: 'base64', content: Buffer.from(c).toString('base64') });
+    const content = repoBlob(blob[1]!);
+    return content ? json(res, 200, { sha: blob[1], encoding: 'base64', content: content.toString('base64') }) : json(res, 404, { message: 'Not Found' });
   }
   const branches = api.match(/^\/repos\/([^/]+)\/([^/]+)\/branches(?:\/(.+))?$/);
   if (branches) {
-    const all = ['main', 'develop', 'feature/sso-login'].map((name) => ({ name, commit: { sha: `sha-${name}` }, protected: name === 'main' }));
+    const all = ['main', 'develop', 'feature/sso-login'].map((name) => ({ name, commit: { sha: headSha(name) }, protected: name === 'main' }));
     if (!branches[3]) return json(res, 200, all);
     const b = all.find((x) => x.name === decodeURIComponent(branches[3]!));
     return b ? json(res, 200, b) : json(res, 404, { message: 'Branch not found' });

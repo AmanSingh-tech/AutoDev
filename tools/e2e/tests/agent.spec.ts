@@ -10,10 +10,12 @@ async function signInAs(page: Page, login: string) {
 }
 
 test('plan → request changes → plan v2 → approve → design → approve → code, end to end through the worker', async ({ page }) => {
+  await signInAs(page, 'demo-owner');
+  // Collected after sign-in: Next.js logs its own fallback when a server action redirects to the
+  // external OAuth page, which is expected and not part of what's tested here.
   const consoleErrors: string[] = [];
   page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text()));
   page.on('pageerror', (e) => consoleErrors.push(e.message));
-  await signInAs(page, 'demo-owner');
 
   // A working org key (validated against the mock). Leftovers from an aborted run are removed first.
   await page.goto('/o/acme-demo/settings/ai-keys');
@@ -58,9 +60,7 @@ test('plan → request changes → plan v2 → approve → design → approve �
   await page.getByRole('combobox', { name: 'Version' }).selectOption('1');
   await expect(page.getByText('Also handle empty names').first()).toBeVisible();
 
-  // Next.js logs this when a server action redirects to an external URL (the OAuth sign-in), then
-  // falls back to a normal navigation. It's expected, so it's not counted.
-  expect(consoleErrors.filter((e) => !e.startsWith('Failed to fetch RSC payload for http://localhost:4010/login/oauth/authorize'))).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 
   // Cleanup for reruns: cancel the task and remove the key.
   await page.getByRole('button', { name: 'Cancel task' }).click();

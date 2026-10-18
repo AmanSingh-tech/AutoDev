@@ -37,7 +37,7 @@ export function AttentionPanel({ task: t }: { task: Task }) {
   if (t.status === 'needs_input' && docs.data?.question) return <QuestionPanel task={t} question={docs.data.question} />;
   if (t.status === 'blocked_on_key') return <BlockedPanel task={t} />;
   if (t.status === 'waiting_for_builder') return <WaitingForBuilder task={t} />;
-  if (t.status === 'testing') return <Alert>Your builder is running the tests. The log below updates live.</Alert>;
+  if (t.status === 'testing') return <TestingPanel task={t} />;
   if (['planning', 'designing', 'coding', 'fixing'].includes(t.status)) return <Alert>The agent is working on this task. This page refreshes on its own.</Alert>;
   return null;
 }
@@ -325,6 +325,20 @@ function summarize(input: unknown) {
   if (!input || typeof input !== 'object') return '';
   const o = input as Record<string, unknown>;
   return String(o.path ?? o.pattern ?? o.question ?? o.reason ?? o.summary ?? '').slice(0, 160);
+}
+
+function TestingPanel({ task: t }: { task: Task }) {
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const last = jobs.data?.[0];
+  if (last?.final && (last.status === 'passed' || last.status === 'skipped')) {
+    return (
+      <Alert>
+        <span aria-hidden>✓ </span>
+        {last.status === 'passed' ? 'Tests passed on your builder.' : 'No .autodev.yml on the base branch, so no tests were run.'} The change is ready to push.
+      </Alert>
+    );
+  }
+  return <Alert>Your builder is running the tests. The log below updates live.</Alert>;
 }
 
 /** Why a test run hasn't started yet, and what to do about it. */

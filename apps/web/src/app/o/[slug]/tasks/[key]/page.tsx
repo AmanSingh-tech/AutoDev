@@ -200,7 +200,7 @@ function Timeline({ task: t }: { task: Task }) {
                   ? 'edited the task'
                   : e.type === 'status_changed'
                     ? `moved it to ${STATUS_LABEL[e.toStatus!]}`
-                    : e.type}
+                    : (EVENT_LABEL[e.type] ?? e.type)}
               {typeof e.payload.reason === 'string' && `: ${e.payload.reason}`}
             </span>
             <span className="text-xs text-muted-foreground">{relativeTime(e.createdAt)}</span>
@@ -210,6 +210,10 @@ function Timeline({ task: t }: { task: Task }) {
     </Section>
   );
 }
+
+const EVENT_LABEL: Record<string, string> = {
+  'tests.passed': 'reported that the tests passed',
+};
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
   <section>
