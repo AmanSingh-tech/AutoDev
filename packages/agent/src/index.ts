@@ -1,2 +1,5 @@
-// Agent runtime: tools, virtual workspace, plan/LLD gates. Filled in phase A-4.
-export {};
+export * from './blob-store';
+export * from './overlay';
+export * from './paths';
+export * from './repo-reader';
+export * from './workspace';

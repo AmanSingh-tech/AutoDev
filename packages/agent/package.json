@@ -7,6 +7,21 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@autodev/config": "workspace:^",
+    "@autodev/db": "workspace:^",
+    "@autodev/github": "workspace:^",
+    "@autodev/llm": "workspace:^",
+    "diff": "^7.0.0",
+    "uuidv7": "^1.0.2",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.0",
+    "msw": "^2.7.0"
   }
 }
