@@ -5,6 +5,7 @@ import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
+import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection } from '@/components/task-agent';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { TaskForm, toTaskInput, type TaskFormValues } from '@/components/task-form';
 import { relativeTime } from '@/lib/format';
@@ -38,7 +39,11 @@ export default function TaskPage() {
           </div>
         </div>
         <Actions task={t} onEdit={() => setEditing(true)} />
+        <AttentionPanel task={t} />
         {editing ? <EditTask task={t} onDone={() => setEditing(false)} /> : <Details task={t} />}
+        <DocumentsSection task={t} />
+        <ChangesSection task={t} />
+        <ActivitySection task={t} />
         <Timeline task={t} />
       </div>
       <aside className="space-y-4">
@@ -104,7 +109,7 @@ function Actions({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
         )}
       </div>
       {error && <Alert tone="destructive">{error.message}</Alert>}
-      {t.status === 'queued' && <Alert>Queued. The agent will start planning shortly.</Alert>}
+      {t.status === 'queued' && <Alert>Queued. The agent starts shortly.</Alert>}
     </div>
   );
 }
@@ -217,6 +222,6 @@ const Meta = ({ label, children }: { label: string; children: ReactNode }) => (
     <div>{children}</div>
   </div>
 );
-/** Plain text with line breaks. Rendered markdown (and Monaco) arrives with plans and designs in A-4. */
+/** Task fields are written by people; shown as plain text with line breaks. */
 const Prose = ({ text }: { text: string }) => <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</div>;
 const Empty = () => <p className="text-sm text-muted-foreground">None</p>;

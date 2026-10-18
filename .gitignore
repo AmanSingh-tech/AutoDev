@@ -10,3 +10,4 @@ coverage/
 playwright-report/
 test-results/
 apps/web/tsconfig.tsbuildinfo
+apps/web/public/monaco/

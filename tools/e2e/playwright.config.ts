@@ -22,7 +22,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
-  use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
+  use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
@@ -33,7 +33,8 @@ export default defineConfig({
       env: { MOCK_GITHUB_PORT: '4010' },
     },
     {
-      command: 'pnpm --filter @autodev/db seed && pnpm --filter @autodev/api dev',
+      // The worker has no HTTP port, so it starts alongside the API.
+      command: "pnpm --filter @autodev/db seed && sh -c 'pnpm --filter @autodev/worker dev & pnpm --filter @autodev/api dev'",
       url: 'http://localhost:4000/healthz',
       reuseExistingServer: false,
       timeout: 60_000,

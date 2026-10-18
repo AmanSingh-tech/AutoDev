@@ -4,6 +4,7 @@
  * to pick someone else (a cookie on the mock's origin).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { anthropicMessages, REPO_FILES } from './anthropic';
 import { INSTALLATION_ID, ORG, reposFor, USERS, type Login } from './data';
 
 const PORT = Number(process.env.MOCK_GITHUB_PORT ?? 4010);
@@ -43,6 +44,12 @@ createServer(async (req, res) => {
     return req.headers['x-api-key']?.toString().startsWith('sk-ant-good')
       ? json(res, 200, { data: [{ id: 'claude-opus-5-5', type: 'model' }], has_more: false })
       : json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
+  }
+
+  if (path === '/anthropic/v1/messages' && req.method === 'POST') {
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    return anthropicMessages(raw, res);
   }
 
   if (path === '/login/oauth/authorize') {
@@ -101,6 +108,23 @@ createServer(async (req, res) => {
   }
   if (api === `/user/memberships/orgs/${ORG.login}`) {
     return json(res, 200, { state: 'active', role: user.orgRole });
+  }
+  const tree = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/trees\/(.+)$/);
+  if (tree) {
+    return json(res, 200, {
+      sha: tree[1],
+      truncated: false,
+      tree: [
+        ...Object.entries(REPO_FILES).map(([p, c]) => ({ path: p, type: 'blob', mode: '100644', sha: `blob:${p}`, size: Buffer.byteLength(c) })),
+        { path: 'src', type: 'tree', mode: '040000', sha: 'tree:src' },
+      ],
+    });
+  }
+  const blob = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/blobs\/(.+)$/);
+  if (blob) {
+    const p = decodeURIComponent(blob[1]!).replace(/^blob:/, '');
+    const c = REPO_FILES[p];
+    return c === undefined ? json(res, 404, { message: 'Not Found' }) : json(res, 200, { sha: blob[1], encoding: 'base64', content: Buffer.from(c).toString('base64') });
   }
   const branches = api.match(/^\/repos\/([^/]+)\/([^/]+)\/branches(?:\/(.+))?$/);
   if (branches) {
