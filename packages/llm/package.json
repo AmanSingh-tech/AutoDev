@@ -7,6 +7,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@autodev/db": "workspace:^"
+  },
+  "devDependencies": {
+    "msw": "^2.7.0"
   }
 }
