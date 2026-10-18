@@ -7,3 +7,5 @@ export * from './oauth';
 export * from './permissions';
 export * from './vault';
 export * from './webhook';
+export * from './login';
+export * from './sync';
