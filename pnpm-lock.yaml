@@ -41,6 +41,9 @@ importers:
       '@autodev/github':
         specifier: workspace:*
         version: link:../../packages/github
+      '@autodev/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@fastify/cookie':
         specifier: ^9.4.0
         version: 9.4.0
@@ -78,6 +81,9 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
+      uuidv7:
+        specifier: ^1.0.2
+        version: 1.2.1
 
   apps/builder-gateway: {}
 

@@ -2,12 +2,14 @@ import type { JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
+import { AnthropicProvider, CredentialService, LlmGateway, staticRegistry } from '@autodev/llm';
 import { setupServer } from 'msw/node';
 import type { Deps } from '../src/deps';
 import { createCaller } from '../src/trpc/router';
 
 export const API = 'http://github.test/api';
 export const WEB_URL = 'http://web.test';
+export const ANTHROPIC = 'http://anthropic.test';
 export const AUTH_SECRET = 'test-auth-secret-'.padEnd(48, 'x');
 
 export const testCfg: GitHubConfig = {
@@ -34,6 +36,8 @@ export function createTestDeps() {
       jobs.push({ name, data });
     },
   };
+  const providers = staticRegistry([new AnthropicProvider({ baseURL: ANTHROPIC, maxRetries: 0 })]);
+  const credentials = new CredentialService({ app: app.db, sys: sys.db, kms: testKms, providers });
   const deps: Deps = {
     env: { WEB_URL, AUTH_SECRET, NODE_ENV: 'test' },
     app: app.db,
@@ -44,6 +48,9 @@ export function createTestDeps() {
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg: testCfg }),
     queues: { repoSync },
+    providers,
+    credentials,
+    gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
   };
   return { deps, jobs, close: () => Promise.all([app.close(), sys.close()]) };
 }

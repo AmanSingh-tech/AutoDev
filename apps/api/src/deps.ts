@@ -8,6 +8,7 @@ import {
   type GitHubConfig,
   type KvCache,
 } from '@autodev/github';
+import { createProviderRegistry, CredentialService, LlmGateway, type ProviderRegistry } from '@autodev/llm';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { ApiEnv } from './env';
@@ -23,6 +24,9 @@ export interface Deps {
   cache: KvCache;
   repoAccess: RepoAccessService;
   queues: { repoSync: JobQueue<RepoSyncJob> };
+  providers: ProviderRegistry;
+  credentials: CredentialService;
+  gateway: LlmGateway;
 }
 
 export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
@@ -37,6 +41,8 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     connection: redis,
     defaultJobOptions: { removeOnComplete: true, removeOnFail: 500, attempts: 5, backoff: { type: 'exponential', delay: 5000 } },
   });
+  const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
+  const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
     env,
     app: app.db,
@@ -47,6 +53,9 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg }),
     queues: { repoSync: repoSync as unknown as JobQueue<RepoSyncJob> },
+    providers,
+    credentials,
+    gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
     close: async () => {
       await repoSync.close();
       await Promise.all([app.close(), sys.close()]);

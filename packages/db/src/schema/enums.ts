@@ -23,6 +23,7 @@ export const budgetScope = pgEnum('budget_scope', ['org', 'user']);
 export const ORG_ROLES = orgRole.enumValues;
 export type LlmProviderId = (typeof llmProvider.enumValues)[number];
 export type CredentialScope = (typeof credentialScope.enumValues)[number];
+export const LLM_USE_CASES = llmUseCase.enumValues;
 export type LlmUseCase = (typeof llmUseCase.enumValues)[number];
 export type OrgRole = (typeof ORG_ROLES)[number];
 export type TaskMode = (typeof taskMode.enumValues)[number];

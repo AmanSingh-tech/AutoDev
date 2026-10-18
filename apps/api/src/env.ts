@@ -1,4 +1,4 @@
-import { authEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, loadEnv, redisEnv } from '@autodev/config';
+import { authEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, redisEnv } from '@autodev/config';
 import { z } from 'zod';
 
 export const apiEnvSchema = coreEnv
@@ -7,6 +7,7 @@ export const apiEnvSchema = coreEnv
   .merge(cryptoEnv)
   .merge(githubEnv)
   .merge(authEnv)
+  .merge(llmEnv)
   .merge(z.object({ PORT: z.coerce.number().int().default(4000), HOST: z.string().default('0.0.0.0') }));
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

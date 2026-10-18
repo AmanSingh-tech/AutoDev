@@ -13,6 +13,7 @@ const settingsInput = z
     defaultMemberRole: z.enum(ORG_ROLES).exclude(['owner']),
     maxFixCycles: z.number().int().min(0).max(10),
     taskKeyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, '2–10 uppercase letters or digits'),
+    allowUserKeys: z.boolean(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
@@ -29,6 +30,7 @@ const publicOrgColumns = {
   defaultMemberRole: orgs.defaultMemberRole,
   maxFixCycles: orgs.maxFixCycles,
   taskKeyPrefix: orgs.taskKeyPrefix,
+  allowUserKeys: orgs.allowUserKeys,
 };
 
 export const orgsRouter = router({

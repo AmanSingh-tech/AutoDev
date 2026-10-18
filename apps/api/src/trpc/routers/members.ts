@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminProcedure, orgProcedure, router } from '../trpc';
 
-const { orgMembers, teamMembers, users } = schema;
+const { orgMembers, teamMembers, teams, users } = schema;
 
 async function activeOwnerCount(tx: Tx, orgId: string) {
   const [row] = await tx
@@ -46,6 +46,7 @@ export const membersRouter = router({
           name: users.name,
           avatarUrl: users.avatarUrl,
           role: orgMembers.role,
+          primaryTeamId: orgMembers.primaryTeamId,
           joinedAt: orgMembers.joinedAt,
         })
         .from(orgMembers)
@@ -75,6 +76,29 @@ export const membersRouter = router({
           targetId: input.userId,
           metadata: { from: target.role, to: input.role },
         });
+        return { ok: true };
+      }),
+    ),
+
+  /** Decides whose team key applies when a member is in several teams with keys. */
+  setPrimaryTeam: adminProcedure
+    .input(z.object({ userId: z.string().uuid(), teamId: z.string().uuid().nullable() }))
+    .mutation(({ ctx, input }) =>
+      ctx.inOrg(async (tx) => {
+        await loadTarget(tx, ctx.orgId, input.userId);
+        if (input.teamId) {
+          const [inTeam] = await tx
+            .select()
+            .from(teamMembers)
+            .innerJoin(teams, eq(teams.id, teamMembers.teamId))
+            .where(and(eq(teamMembers.orgId, ctx.orgId), eq(teamMembers.teamId, input.teamId), eq(teamMembers.userId, input.userId)));
+          if (!inTeam) throw new TRPCError({ code: 'BAD_REQUEST', message: 'The member is not in that team' });
+        }
+        await tx
+          .update(orgMembers)
+          .set({ primaryTeamId: input.teamId })
+          .where(and(eq(orgMembers.orgId, ctx.orgId), eq(orgMembers.userId, input.userId)));
+        await ctx.audit(tx, { action: 'member.primary_team_set', targetType: 'user', targetId: input.userId, metadata: { teamId: input.teamId } });
         return { ok: true };
       }),
     ),

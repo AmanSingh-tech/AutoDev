@@ -53,6 +53,11 @@ export const githubEnv = z.object({
   GITHUB_WEB_URL: z.string().url().default('https://github.com'),
 });
 
+export const llmEnv = z.object({
+  /** Test/e2e override only. Admin-supplied provider config can never change where keys are sent. */
+  ANTHROPIC_BASE_URL: z.string().url().optional(),
+});
+
 export const authEnv = z.object({
   /** Shared by Auth.js (web) and the API, which decodes the same session JWT. */
   AUTH_SECRET: z.string().min(32),
