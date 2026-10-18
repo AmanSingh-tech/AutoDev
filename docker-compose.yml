@@ -1,0 +1,67 @@
+name: autodev
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d autodev']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # MinIO's public images are no longer pullable anonymously (2025). S3 is first needed in
+  # phase A-4; until a replacement is chosen this service is opt-in: `docker-compose --profile s3 up`.
+  minio:
+    profiles: ['s3']
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: autodev
+      MINIO_ROOT_PASSWORD: autodev-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    profiles: ['s3']
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "mc alias set local http://minio:9000 autodev autodev-secret &&
+      mc mb --ignore-existing local/autodev && mc mb --ignore-existing local/autodev-test"
+    restart: 'no'
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
