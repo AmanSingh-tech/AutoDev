@@ -76,6 +76,10 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
 
+  apps/builder-gateway: {}
+
+  apps/runner-cli: {}
+
   apps/web:
     dependencies:
       '@autodev/config':
@@ -180,6 +184,8 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
 
+  packages/agent: {}
+
   packages/config:
     dependencies:
       zod:
@@ -241,6 +247,10 @@ importers:
       msw:
         specifier: ^2.7.0
         version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
+
+  packages/llm: {}
+
+  packages/protocol: {}
 
   packages/ui:
     dependencies:
