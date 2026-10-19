@@ -81,8 +81,8 @@ describe('builders router', () => {
       .values({ orgId: fx.org.id, repoId: fx.repo.id, number: 1, key: 'AD-1', title: 'x', mode: 'direct', branchMode: 'new', workBranch: 'autodev/AD-1', ownerId: owner.id, status: 'waiting_for_builder' })
       .returning();
     const id = uuidv7();
-    await deps.blobs.put(fx.org.id, `jobs/${id}/patch.diff`, 'diff');
-    await deps.sys.insert(schema.builderJobs).values({ id, orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: owner.id, baseSha: 'b'.repeat(40), workspaceRevision: 1, patchKey: `jobs/${id}/patch.diff`, patchSha256: 'c'.repeat(64), configSnapshot: { setup: ['pnpm i'], test: ['pnpm test'], timeout_min: 15 } });
+    const patchHash = await deps.blobs.put('diff');
+    await deps.sys.insert(schema.builderJobs).values({ id, orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: owner.id, baseSha: 'b'.repeat(40), workspaceRevision: 1, patchHash, patchSha256: 'c'.repeat(64), configSnapshot: { setup: ['pnpm i'], test: ['pnpm test'], timeout_min: 15 } });
     return { task: t!, jobId: id };
   }
 

@@ -1,5 +1,8 @@
-import { AgentOrchestrator, BuilderJobs, PgBlobStore, Publisher, publishBus, RepoChatRunner } from '@autodev/agent';
-import { agentJob, chatJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
+import { AgentOrchestrator, BuilderJobs, Publisher, publishBus, RepoChatRunner } from '@autodev/agent';
+import { emit } from '@autodev/events';
+import { ORG_ADMIN_TOPIC } from '@autodev/protocol';
+import { createBlobStore } from '@autodev/storage';
+import { agentJob, chatJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv, storageEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
 import { githubConfigFromEnv, TokenVault, type KvCache } from '@autodev/github';
@@ -12,7 +15,7 @@ import { createMaintenanceProcessor } from './maintenance';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
-const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv));
+const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv).merge(storageEnv));
 const log = pino({ level: env.LOG_LEVEL });
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sys = createSystemDb(env.DATABASE_URL_SYSTEM);
@@ -28,7 +31,7 @@ const cache: KvCache = {
   del: async (k) => void (await connection.del(k)),
   incr: (k) => connection.incr(k),
 };
-const blobs = new PgBlobStore(sys.db);
+const blobs = createBlobStore(env, sys.db);
 const agentQueue = new Queue(QUEUES.agent, { connection, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } } });
 const builderJobs = new BuilderJobs({
   sys: sys.db,
@@ -59,6 +62,7 @@ const staleBranch = new Queue(QUEUES.staleBranch, { connection });
 await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 * * *', tz: 'UTC' }, { name: 'revalidate-all' });
 await staleBranch.upsertJobScheduler('nightly-stale-branches', { pattern: '0 2 * * *', tz: 'UTC' }, { name: 'sweep' });
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
+await maintenance.upsertJobScheduler('daily-blob-retention', { pattern: '0 4 * * *', tz: 'UTC' }, { name: 'blob-retention' });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 
 const agentWorker = new Worker(QUEUES.agent, (job) => orchestrator.process(agentJob.parse(job.data)), {
@@ -78,8 +82,19 @@ const workers = [
   agentWorker,
   new Worker(QUEUES.repoSync, createRepoSyncProcessor({ sys: sys.db, cfg }), { connection, concurrency: 5 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
-  new Worker(QUEUES.maintenance, createMaintenanceProcessor(sys.db), { connection, concurrency: 1 }),
-  new Worker(QUEUES.staleBranch, () => sweepStaleBranches({ sys: sys.db, publisher }), { connection, concurrency: 1 }),
+  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs }), { connection, concurrency: 1 }),
+  new Worker(
+    QUEUES.staleBranch,
+    () =>
+      sweepStaleBranches({
+        sys: sys.db,
+        publisher,
+        onStale: async (b) => {
+          await emit(connection, { type: 'stale_branch.found', orgId: b.orgId, topic: ORG_ADMIN_TOPIC, payload: { taskId: b.taskId, repoId: b.repoId, days: b.days } });
+        },
+      }),
+    { connection, concurrency: 1 },
+  ),
   // Chat answers read several files, so they can take a minute or two.
   new Worker(QUEUES.chat, (job) => {
     const data = chatJob.parse(job.data);

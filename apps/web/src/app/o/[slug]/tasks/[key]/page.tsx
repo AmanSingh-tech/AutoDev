@@ -10,7 +10,7 @@ import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { TaskForm, toTaskInput, type TaskFormValues } from '@/components/task-form';
 import { relativeTime } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
-import { useTaskChanges } from '@/lib/use-task-changes';
+import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../org-shell';
 
 type Task = RouterOutputs['tasks']['get'];
@@ -20,11 +20,15 @@ export default function TaskPage() {
   const org = useOrg();
   const utils = trpc.useUtils();
   // Task and agent changes refetch this page; the poll is only a safety net if the stream drops.
-  useTaskChanges(org.orgId, () => {
-    void utils.tasks.invalidate();
-    void utils.agent.invalidate();
-  });
   const q = trpc.tasks.get.useQuery({ key }, { refetchInterval: 60_000 });
+  // This task's topic. Live test output only refreshes the log; anything else refreshes the page.
+  useEvents(org.orgId, q.data ? [`task:${q.data.id}`] : [], (events) => {
+    if (events.some((e) => e.type === 'test.log')) void utils.agent.jobLog.invalidate();
+    if (events.some((e) => e.type !== 'test.log')) {
+      void utils.tasks.invalidate();
+      void utils.agent.invalidate();
+    }
+  });
   const [editing, setEditing] = useState(false);
   if (q.error) return <Alert tone="destructive">{q.error.message}</Alert>;
   if (!q.data) return <p className="text-sm text-muted-foreground">Loading…</p>;

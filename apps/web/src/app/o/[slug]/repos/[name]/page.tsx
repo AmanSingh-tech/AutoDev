@@ -10,7 +10,7 @@ import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { EMPTY_FILTERS, TaskFilters, toQuery } from '@/components/task-filters';
 import { TaskTable } from '@/components/task-table';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
-import { useTaskChanges } from '@/lib/use-task-changes';
+import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../org-shell';
 
 type Task = RouterOutputs['tasks']['list'][number];
@@ -26,7 +26,7 @@ export default function RepoBoardPage() {
   const deferred = useDeferredValue(filters);
   const utils = trpc.useUtils();
   // Task changes refetch the board; the poll is only a safety net if the stream drops.
-  useTaskChanges(org.orgId, () => void utils.tasks.invalidate());
+  useEvents(org.orgId, repo.data ? [`repo:${repo.data.id}`] : [], () => void utils.tasks.invalidate());
   const tasks = trpc.tasks.list.useQuery({ repoId: repo.data?.id, ...toQuery(view === 'board' ? { ...deferred, column: '' } : deferred) }, { enabled: !!repo.data, refetchInterval: 60_000 });
 
   if (repo.error) return <Alert tone="destructive">{repo.error.message}</Alert>;

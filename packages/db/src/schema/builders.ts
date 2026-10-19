@@ -82,7 +82,8 @@ export const builderJobs = pgTable(
     builderId: uuid('builder_id').references(() => builders.id, { onDelete: 'set null' }),
     baseSha: text('base_sha').notNull(),
     workspaceRevision: integer('workspace_revision').notNull(),
-    patchKey: text('patch_key').notNull(),
+    /** sha256 of the patch in the blob store. Kept forever. */
+    patchHash: text('patch_hash').notNull(),
     patchSha256: text('patch_sha256').notNull(),
     /** Parsed .autodev.yml from the base branch (null: none, so tests are skipped). */
     configSnapshot: jsonb('config_snapshot').$type<Record<string, unknown> | null>(),
@@ -101,7 +102,8 @@ export const builderJobs = pgTable(
     failedTests: jsonb('failed_tests').$type<{ name: string; file?: string; message?: string }[]>().notNull().default([]),
     durationMs: integer('duration_ms'),
     logTail: text('log_tail'),
-    logKey: text('log_key'),
+    /** sha256 of the gzipped log in the blob store. Cleared after the org's log retention. */
+    logHash: text('log_hash'),
     error: text('error'),
     queuedAt: createdAt(),
     offeredAt: tsz('offered_at'),

@@ -55,6 +55,13 @@ describe('stale-branch sweep', () => {
     expect(notes).toHaveLength(1);
   });
 
+  it('tells admins about every stale branch it finds', async () => {
+    const t = await pushedTask(4);
+    const found: unknown[] = [];
+    await sweepStaleBranches({ sys: sys.db, publisher, onStale: async (b) => void found.push(b) });
+    expect(found).toEqual([{ orgId: fx.org.id, taskId: t.id, repoId: fx.repo.id, days: 3 }]);
+  });
+
   it("auto-opens the PR as the owner when the org says so", async () => {
     await sys.db.update(schema.orgs).set({ staleBranchAction: 'auto_open_pr', staleBranchDays: 2 });
     const t = await pushedTask(3);

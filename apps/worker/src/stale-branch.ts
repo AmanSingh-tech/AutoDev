@@ -8,7 +8,20 @@ const { notifications, orgs, tasks } = schema;
  * stale_branch_days. Depending on stale_branch_action, open the PR (as the owner, created_by
  * stale_job) or notify the owner once.
  */
-export async function sweepStaleBranches(deps: { sys: SystemDb; publisher: Publisher; now?: Date }) {
+export interface StaleBranch {
+  orgId: string;
+  taskId: string;
+  repoId: string;
+  days: number;
+}
+
+export async function sweepStaleBranches(deps: {
+  sys: SystemDb;
+  publisher: Publisher;
+  now?: Date;
+  /** Told about every stale branch found (the admins' stale_branch.found event). */
+  onStale?: (s: StaleBranch) => Promise<void>;
+}) {
   const now = deps.now ?? new Date();
   const stale = await deps.sys
     .select({ task: tasks, action: orgs.staleBranchAction, days: orgs.staleBranchDays })
@@ -19,6 +32,7 @@ export async function sweepStaleBranches(deps: { sys: SystemDb; publisher: Publi
   let opened = 0;
   let notified = 0;
   for (const { task, action, days } of stale) {
+    await deps.onStale?.({ orgId: task.orgId, taskId: task.id, repoId: task.repoId, days });
     if (action === 'auto_open_pr') {
       try {
         await deps.publisher.openOrUpdatePr(task.id, { actorUserId: task.ownerId, createdBy: 'stale_job' });

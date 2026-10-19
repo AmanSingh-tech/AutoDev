@@ -34,6 +34,10 @@ export const orgs = pgTable(
     staleBranchAction: staleBranchAction('stale_branch_action').notNull().default('notify_owner'),
     defaultMemberRole: orgRole('default_member_role').notNull().default('developer'),
     maxFixCycles: integer('max_fix_cycles').notNull().default(3),
+    /** Builder logs are kept this many days (7–365). */
+    logRetentionDays: integer('log_retention_days').notNull().default(30),
+    /** Workspace snapshots of finished tasks are kept this many days (1–90). Patches are always kept. */
+    snapshotRetentionDays: integer('snapshot_retention_days').notNull().default(14),
     taskKeyPrefix: text('task_key_prefix').notNull().default('AD'),
     /** Per-org task counter. Incremented with UPDATE … RETURNING to mint task keys like AD-142. */
     taskSeq: integer('task_seq').notNull().default(0),
@@ -47,6 +51,8 @@ export const orgs = pgTable(
   (t) => [
     check('orgs_stale_days_range', sql`${t.staleBranchDays} between 1 and 90`),
     check('orgs_fix_cycles_range', sql`${t.maxFixCycles} between 0 and 10`),
+    check('orgs_log_retention_range', sql`${t.logRetentionDays} between 7 and 365`),
+    check('orgs_snapshot_retention_range', sql`${t.snapshotRetentionDays} between 1 and 90`),
     check('orgs_default_role_not_owner', sql`${t.defaultMemberRole} <> 'owner'`),
     check('orgs_key_prefix_format', sql`${t.taskKeyPrefix} ~ '^[A-Z][A-Z0-9]{1,9}$'`),
   ],

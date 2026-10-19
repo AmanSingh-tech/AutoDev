@@ -4,15 +4,22 @@ import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, C
 import { ConfigCommands } from '@/components/commands';
 import { relativeTime } from '@/lib/format';
 import { trpc } from '@/lib/trpc';
+import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../org-shell';
 
 export default function BuildersPage() {
   const org = useOrg();
   const isAdmin = org.role === 'owner' || org.role === 'admin';
   const utils = trpc.useUtils();
-  const list = trpc.builders.list.useQuery(undefined, { refetchInterval: 10_000 });
-  const pending = trpc.builders.pendingConfirmations.useQuery(undefined, { refetchInterval: 10_000 });
+  // Your builders' presence, pairing and revocation arrive on your topic. Other members' team
+  // builders aren't on it, so the slower poll still covers them.
+  const list = trpc.builders.list.useQuery(undefined, { refetchInterval: 30_000 });
+  const pending = trpc.builders.pendingConfirmations.useQuery(undefined, { refetchInterval: 30_000 });
   const refresh = () => Promise.all([utils.builders.list.invalidate(), utils.builders.pendingConfirmations.invalidate()]);
+  const me = trpc.me.get.useQuery();
+  useEvents(org.orgId, me.data?.user ? [`user:${me.data.user.id}`] : [], (events) => {
+    if (events.some((e) => e.type.startsWith('builder.'))) void refresh();
+  });
   const revoke = trpc.builders.revoke.useMutation({ onSuccess: refresh });
   const share = trpc.builders.setShared.useMutation({ onSuccess: refresh });
   const confirm = trpc.builders.confirmRepo.useMutation({ onSuccess: refresh });

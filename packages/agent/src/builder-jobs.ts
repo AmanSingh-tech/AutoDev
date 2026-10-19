@@ -4,7 +4,7 @@ import type { AgentJob } from '@autodev/config';
 import { and, asc, desc, eq, inArray, isNull, schema, sql, transitionTask, type SystemDb } from '@autodev/db';
 import type { KvCache } from '@autodev/github';
 import { DEFAULT_DOCKER_IMAGE, MAX_PATCH_BYTES, parseAutodevConfig, type AutodevConfig, type GatewayMessage, type JobResult } from '@autodev/protocol';
-import type { BlobStore } from './blob-store';
+import type { BlobStore } from '@autodev/storage';
 import type { VirtualWorkspace } from './workspace';
 
 const { builderJobs, builderRepoBindings, builders, notifications, orgs, repos, tasks } = schema;
@@ -63,8 +63,7 @@ export class BuilderJobs {
     const parsed = source === null ? null : parseAutodevConfig(source);
     const configChanged = await input.workspace.touchesBuilderConfig();
     const jobId = uuidv7();
-    const patchKey = `jobs/${jobId}/patch.diff`;
-    await this.deps.blobs.put(task.orgId, patchKey, patch, 'text/x-diff');
+    const patchHash = await this.deps.blobs.put(patch);
 
     const [job] = await this.deps.sys
       .insert(builderJobs)
@@ -77,7 +76,7 @@ export class BuilderJobs {
         requestedBy: task.ownerId,
         baseSha: input.baseSha,
         workspaceRevision: input.revision,
-        patchKey,
+        patchHash,
         patchSha256: createHash('sha256').update(patch).digest('hex'),
         configSnapshot: parsed?.ok ? (parsed.config as unknown as Record<string, unknown>) : null,
         configError: parsed && !parsed.ok ? parsed.error : null,
@@ -172,7 +171,7 @@ export class BuilderJobs {
     const [binding] = await this.deps.sys.select().from(builderRepoBindings).where(and(eq(builderRepoBindings.builderId, b.id), eq(builderRepoBindings.repoId, job.repoId)));
     const [task] = await this.deps.sys.select({ key: tasks.key }).from(tasks).where(eq(tasks.id, job.taskId));
     const config = job.configSnapshot as unknown as AutodevConfig;
-    const patch = (await this.deps.blobs.get(job.patchKey))?.toString('utf8') ?? '';
+    const patch = (await this.deps.blobs.get(job.patchHash))?.toString('utf8') ?? '';
     return {
       type: 'job.offer',
       jobId: job.id,
@@ -214,7 +213,7 @@ export class BuilderJobs {
     if (job) await this.dispatch(job.id);
   }
 
-  async finished(builderId: string, r: JobResult, logKey: string | null) {
+  async finished(builderId: string, r: JobResult, logHash: string | null) {
     const { sys } = this.deps;
     const [job] = await sys
       .update(builderJobs)
@@ -225,7 +224,7 @@ export class BuilderJobs {
         failedTests: r.failedTests,
         durationMs: r.durationMs,
         logTail: r.logTail,
-        logKey,
+        logHash,
         error: r.error ?? null,
         finishedAt: new Date(),
       })

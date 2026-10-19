@@ -1,4 +1,5 @@
-import { BuilderJobs, PgBlobStore, presenceKey } from '@autodev/agent';
+import { BuilderJobs, presenceKey } from '@autodev/agent';
+import { PostgresBlobStore } from '@autodev/storage';
 import { createSystemDb, eq, schema } from '@autodev/db';
 import { makeOrg, TEST_SYSTEM_URL, truncateAll } from '@autodev/db/testing';
 import type { KvCache } from '@autodev/github';
@@ -9,7 +10,9 @@ import pino from 'pino';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { uuidv7 } from 'uuidv7';
-import { createGateway, hashToken, redisBus } from './gateway';
+import { createGateway, hashToken, LOG_EVENT_INTERVAL_MS, LOG_EVENT_MAX_CHARS, redisBus } from './gateway';
+import { replayAfter } from '@autodev/events';
+import { taskTopic, userTopic } from '@autodev/protocol';
 
 const REDIS = process.env.TEST_REDIS_URL ?? 'redis://localhost:6379/1';
 const sys = createSystemDb(TEST_SYSTEM_URL);
@@ -22,7 +25,7 @@ const cache: KvCache = {
   del: async (k) => void (await redis.del(k)),
   incr: (k) => redis.incr(k),
 };
-const blobs = new PgBlobStore(sys.db);
+const blobs = new PostgresBlobStore(sys.db);
 const enqueued: string[] = [];
 const jobs = new BuilderJobs({ sys: sys.db, cache, blobs, bus: redisBus(redis), enqueueAgent: async (j) => void enqueued.push(j.taskId) });
 const gw = createGateway({ sys: sys.db, redis, sub, cache, blobs, jobs, log: pino({ level: 'silent' }), offerTimeoutMs: 400, offlineAfterMs: 1500 });
@@ -92,8 +95,8 @@ async function queuedJob() {
     .values({ orgId: fx.org.id, repoId: fx.repo.id, number: 1, key: 'AD-1', title: 'x', mode: 'direct', branchMode: 'new', workBranch: 'autodev/AD-1', ownerId: fx.owner.id, status: 'waiting_for_builder' })
     .returning();
   const id = uuidv7();
-  await blobs.put(fx.org.id, `jobs/${id}/patch.diff`, 'diff --git a/x b/x\n');
-  await sys.db.insert(schema.builderJobs).values({ id, orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: fx.owner.id, baseSha: 'b'.repeat(40), workspaceRevision: 1, patchKey: `jobs/${id}/patch.diff`, patchSha256: 'c'.repeat(64), configSnapshot: { test: ['pnpm test'], timeout_min: 15 } });
+  const patchHash = await blobs.put('diff --git a/x b/x\n');
+  await sys.db.insert(schema.builderJobs).values({ id, orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: fx.owner.id, baseSha: 'b'.repeat(40), workspaceRevision: 1, patchHash, patchSha256: 'c'.repeat(64), configSnapshot: { test: ['pnpm test'], timeout_min: 15 } });
   return { taskId: t!.id, jobId: id };
 }
 const until = async (fn: () => Promise<boolean>) => {
@@ -137,8 +140,8 @@ describe('builder gateway', () => {
     b.send({ type: 'job.result', jobId, status: 'passed', step: 'test', exitCode: 0, failedTests: [], durationMs: 900, logTail: '1 passed' });
     await until(async () => enqueued.length === 1);
     const [job] = await sys.db.select().from(schema.builderJobs).where(eq(schema.builderJobs.id, jobId));
-    expect(job).toMatchObject({ status: 'passed', exitCode: 0, logKey: `jobs/${jobId}/log.txt` });
-    expect((await blobs.get(job!.logKey!))!.toString()).toBe('running tests\n1 passed\n');
+    expect(job).toMatchObject({ status: 'passed', exitCode: 0, logHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect((await blobs.get(job!.logHash!))!.toString()).toBe('running tests\n1 passed\n');
     expect(enqueued).toEqual([taskId]);
   });
 
@@ -199,5 +202,45 @@ describe('builder gateway', () => {
     b.send({ type: 'job.result', jobId: other, status: 'passed', step: 'test', exitCode: 0, failedTests: [], durationMs: 1, logTail: '' });
     await new Promise((r) => setTimeout(r, 200));
     expect(enqueued).toEqual([]);
+  });
+});
+
+describe('builder gateway events', () => {
+  it("tells the owner when their builder comes online, and when it's dropped for going silent", async () => {
+    const b = connect();
+    await b.opened();
+    b.send(hello);
+    await b.next('hello');
+    expect(await b.closed()).toBe(1006); // terminated after the offline window
+
+    await until(async () => (await replayAfter(redis, fx.org.id, null)).filter((e) => e.type === 'builder.presence').length === 2);
+    const presence = (await replayAfter(redis, fx.org.id, null)).filter((e) => e.type === 'builder.presence');
+    expect(presence.map((e) => [e.topic, e.payload.online])).toEqual([
+      [userTopic(fx.owner.id), true],
+      [userTopic(fx.owner.id), false],
+    ]);
+  });
+
+  it('sends test output to the task in batches, before the result is recorded', async () => {
+    const { taskId, jobId } = await queuedJob();
+    const b = connect();
+    await b.opened();
+    b.send(hello);
+    await b.next('job.offer');
+    b.send({ type: 'job.accept', jobId });
+    await until(async () => (await sys.db.select().from(schema.tasks))[0]!.status === 'testing');
+    b.send({ type: 'log.chunk', jobId, seq: 0, step: 'test', stream: 'stdout', data: 'running tests\n' });
+    b.send({ type: 'log.chunk', jobId, seq: 1, step: 'test', stream: 'stdout', data: '1 passed\n' });
+    b.send({ type: 'job.result', jobId, status: 'passed', step: 'test', exitCode: 0, failedTests: [], durationMs: 900, logTail: '1 passed' });
+    await until(async () => enqueued.length === 1);
+
+    const logs = (await replayAfter(redis, fx.org.id, null)).filter((e) => e.type === 'test.log');
+    // Both lines arrived within one batch window, so they went out as one event.
+    expect(logs).toEqual([expect.objectContaining({ topic: taskTopic(taskId), payload: { taskId, jobId, text: 'running tests\n1 passed\n' } })]);
+  });
+
+  it('caps a batch at the size limit and sends the rest in further events', () => {
+    expect(LOG_EVENT_MAX_CHARS).toBe(16_000);
+    expect(LOG_EVENT_INTERVAL_MS).toBe(1000);
   });
 });

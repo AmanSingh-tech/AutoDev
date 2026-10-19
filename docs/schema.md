@@ -59,6 +59,16 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 | ✅ builder_repo_bindings | PK(builder_id, repo_id), local_path, first_run_confirmed_at | |
 | ✅ builder_jobs | task, run, base_sha, workspace_revision, patch_key + sha256, config_snapshot (base branch), config_changed, consent, docker, final, fix_cycle, status, result, failed_tests, log_tail, log_key | System-written |
 
+## Blob storage (R-1)
+
+| Table | Notes |
+|---|---|
+| ✅ blobs | `hash` (sha256 hex, pk), `size`, `encoding` (`gzip` or `identity` for rows migrated from the old table), `content`. No org column: a blob is reachable only through a row in an org. System role only (migration 0018). |
+
+Rows that point at blobs: `builder_jobs.patch_hash` (kept forever), `builder_jobs.log_hash` (cleared after `orgs.log_retention_days`), `agent_runs.transcript_hash` (cleared after `orgs.snapshot_retention_days` once the task is finished). Unreferenced blobs older than 24 h are deleted by the nightly sweep (04:00 UTC).
+
+`orgs.log_retention_days` (7–365, default 30) and `orgs.snapshot_retention_days` (1–90, default 14) are set in Settings.
+
 ## PRs (A-6)
 
 | Table | | Notes |
@@ -79,7 +89,6 @@ Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale
 ## Prompt guide (B-2)
 
 No tables: the review is stateless. `llm_use_case` gained `prompt_guide` (migration 0016, `claude-sonnet-5-5`).
-
 
 ## Section A tables still to come
 

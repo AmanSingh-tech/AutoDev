@@ -25,12 +25,14 @@ export const redisEnv = z.object({
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
 });
 
-export const s3Env = z.object({
+/** Blob storage. Postgres is the default; S3 is any S3-compatible endpoint (MinIO in docker-compose). */
+export const storageEnv = z.object({
+  BLOB_DRIVER: z.enum(['postgres', 's3']).default('postgres'),
   S3_ENDPOINT: z.string().url().optional(),
-  S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default('autodev'),
-  S3_ACCESS_KEY_ID: z.string(),
-  S3_SECRET_ACCESS_KEY: z.string(),
+  S3_KEY: z.string().optional(),
+  S3_SECRET: z.string().optional(),
+  S3_REGION: z.string().default('us-east-1'),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
 });
 

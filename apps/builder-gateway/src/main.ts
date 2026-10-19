@@ -1,5 +1,6 @@
-import { BuilderJobs, PgBlobStore } from '@autodev/agent';
-import { coreEnv, dbEnv, loadEnv, QUEUES, redisEnv, type AgentJob } from '@autodev/config';
+import { BuilderJobs } from '@autodev/agent';
+import { createBlobStore } from '@autodev/storage';
+import { coreEnv, dbEnv, loadEnv, QUEUES, redisEnv, storageEnv, type AgentJob } from '@autodev/config';
 import { createSystemDb } from '@autodev/db';
 import type { KvCache } from '@autodev/github';
 import { Queue } from 'bullmq';
@@ -8,7 +9,7 @@ import pino from 'pino';
 import { z } from 'zod';
 import { createGateway, redisBus } from './gateway';
 
-const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(z.object({ GATEWAY_PORT: z.coerce.number().int().default(4100) })));
+const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(storageEnv).merge(z.object({ GATEWAY_PORT: z.coerce.number().int().default(4100) })));
 const log = pino({ level: env.LOG_LEVEL });
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sub = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -21,7 +22,7 @@ const cache: KvCache = {
   incr: (k) => redis.incr(k),
 };
 const agent = new Queue<AgentJob>(QUEUES.agent, { connection: redis, defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } } });
-const blobs = new PgBlobStore(sys.db);
+const blobs = createBlobStore(env, sys.db);
 const jobs = new BuilderJobs({ sys: sys.db, cache, blobs, bus: redisBus(redis), enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }) });
 
 const gw = createGateway({ sys: sys.db, redis, sub, cache, blobs, jobs, log });

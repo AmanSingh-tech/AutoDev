@@ -2,13 +2,16 @@ import type { AgentJob, ChatJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
-import { BuilderJobs, MemoryBlobStore, Publisher } from '@autodev/agent';
+import { BuilderJobs, Publisher } from '@autodev/agent';
+import { MemoryBlobStore } from '@autodev/storage';
 import type { GatewayMessage } from '@autodev/protocol';
 import { AnthropicProvider, CredentialService, LlmGateway, staticRegistry } from '@autodev/llm';
 import { setupServer } from 'msw/node';
 import type { Deps } from '../src/deps';
 import { createCaller } from '../src/trpc/router';
-import { TaskChangeHub } from '../src/events/task-changes';
+import { EventHub } from '@autodev/events';
+import { Redis } from 'ioredis';
+import { ChangeBridge } from '../src/events/change-bridge';
 
 export const API = 'http://github.test/api';
 export const WEB_URL = 'http://web.test';
@@ -54,7 +57,10 @@ export function createTestDeps() {
     },
   };
   const blobs = new MemoryBlobStore();
-  const taskChanges = new TaskChangeHub(TEST_APP_URL);
+  // Events need a real Redis. Tests use their own database number so nothing else is touched.
+  const redis = new Redis(process.env.TEST_REDIS_URL ?? 'redis://localhost:6379/14', { maxRetriesPerRequest: 1 });
+  const events = new EventHub(redis.duplicate());
+  const bridge = new ChangeBridge({ databaseUrl: TEST_APP_URL, redis });
   const sentToBuilders: { builderId: string; msg: GatewayMessage }[] = [];
   const builderJobs = new BuilderJobs({
     sys: sys.db,
@@ -80,9 +86,17 @@ export function createTestDeps() {
     builderJobs,
     publisher: new Publisher({ sys: sys.db, vault, cfg: testCfg, cache, webUrl: WEB_URL }),
     liveLogs: async () => 'live log so far\n',
-    taskChanges,
+    events,
+    bridge,
+    redis,
   };
-  return { deps, jobs, agentJobs, chatJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close(), taskChanges.close()]) };
+  const close = async () => {
+    await bridge.close();
+    await events.close();
+    redis.disconnect();
+    await Promise.all([app.close(), sys.close()]);
+  };
+  return { deps, redis, jobs, agentJobs, chatJobs, sentToBuilders, close };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

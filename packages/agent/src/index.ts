@@ -1,4 +1,3 @@
-export * from './blob-store';
 export * from './overlay';
 export * from './paths';
 export * from './repo-reader';
@@ -13,3 +12,4 @@ export * from './pr-body';
 export * from './publisher';
 export * from './repo-chat';
 export * from './prompt-guide';
+export * from './blob-retention';

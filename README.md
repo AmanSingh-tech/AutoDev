@@ -107,12 +107,22 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   consumes it). Edits are allowed only in draft.
 - **Board:** six columns (Draft, Queued, In progress, Needs you, Pushed / PR, Done). Only drafts
   can be dragged, onto Queued.
-- **Realtime (A-9):** every write to a task's rows (`task_events`, `tasks`, agent runs, steps,
-  documents, questions, PRs, builder jobs) sends a Postgres `NOTIFY task_changes` on commit, with
-  only `org_id` and `task_id`. The API keeps one `LISTEN` connection and streams the changes to
-  `GET /events/tasks?org=…` (SSE), after a session and membership check. The board and task page
-  refetch on each change; the 60 s poll is a fallback. Builder log lines still poll (they live in
-  Redis, not in those tables).
+- **Realtime (A-9, R-2, R-3):** one SSE stream per tab at `GET /events?org=<id>&topics=…`; every
+  component in the tab shares it (`useEvents`). Topics: `task:<id>` and `repo:<id>` (members who
+  can see the repo), `user:<id>` (only that user), `org` (any member), `org:admin` (owners and
+  admins). Every topic is checked before the stream opens.
+  - The event catalogue (types, payload schemas, allowed topics) is in
+    `packages/protocol/src/events.ts`; `emit()` rejects anything that doesn't match it.
+  - Most events come from committed rows: a generic trigger (`notify_row_change`, migration 0020)
+    sends the changed columns, and `packages/events/src/changes.ts` maps them to events. Every API
+    process listens; each event is published once.
+  - The builder gateway sends `builder.presence` and batched `test.log` (at most one per second per
+    job); the nightly sweep sends `stale_branch.found`.
+  - Publishers write to a Redis stream per org (history, about 10,000 events) and a pub/sub channel
+    (live). Reconnects replay from `Last-Event-ID`. Heartbeat every 15 s. `TLS_CERT_FILE` and
+    `TLS_KEY_FILE` turn on HTTP/2.
+  - The board, task page, builders page and notifications use events; their polls are slow
+    fallbacks. WebSocket is used only by the builder gateway.
 
 ## Agent runtime (A-4)
 
@@ -213,6 +223,17 @@ Without a `.autodev.yml` on the base branch, tests are skipped and the task says
   nothing is stored. It needs push access to the repo, as creating a task does.
 - It reads the draft only, not the code, so it can't say which files to change. That's a possible
   next step.
+
+## Blob storage and retention
+
+Builder logs, agent transcripts and patches are stored as content-addressed blobs behind one
+interface (`packages/storage`). `BLOB_DRIVER=postgres` is the default. `BLOB_DRIVER=s3` uses any
+S3-compatible endpoint (MinIO in docker-compose; set `S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET`).
+
+- Move existing blobs with `pnpm blobs:migrate --to s3` (or `--to postgres`). It copies, verifies
+  every blob by reading it back, and is safe to re-run. Then set `BLOB_DRIVER`.
+- Retention is set per org in Settings: builder logs 7–365 days (default 30), workspace snapshots of
+  finished tasks 1–90 days (default 14). Patches are always kept.
 
 ## Repo chat (B-1)
 

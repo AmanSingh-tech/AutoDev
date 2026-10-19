@@ -175,11 +175,11 @@ export const agentRouter = router({
 
   /** Live while running (streamed through Redis), then the saved log. */
   jobLog: orgProcedure.input(z.object({ jobId: z.string().uuid() })).query(async ({ ctx, input }) => {
-    const [job] = await ctx.inOrg((tx) => tx.select({ status: builderJobs.status, logKey: builderJobs.logKey }).from(builderJobs).where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.id, input.jobId))));
+    const [job] = await ctx.inOrg((tx) => tx.select({ status: builderJobs.status, logHash: builderJobs.logHash }).from(builderJobs).where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.id, input.jobId))));
     if (!job) throw new TRPCError({ code: 'NOT_FOUND' });
-    const text = job.logKey ? ((await ctx.deps.blobs.get(job.logKey))?.toString('utf8') ?? '') : await ctx.deps.liveLogs(input.jobId);
+    const text = job.logHash ? ((await ctx.deps.blobs.get(job.logHash))?.toString('utf8') ?? '') : await ctx.deps.liveLogs(input.jobId);
     const MAX = 2 * 1024 * 1024;
-    return { status: job.status, text: text.length > MAX ? `[showing the last 2 MB]\n${text.slice(-MAX)}` : text, live: !job.logKey };
+    return { status: job.status, text: text.length > MAX ? `[showing the last 2 MB]\n${text.slice(-MAX)}` : text, live: !job.logHash };
   }),
 
   /** The patch edits .autodev.yml: the owner allows or refuses running it. */

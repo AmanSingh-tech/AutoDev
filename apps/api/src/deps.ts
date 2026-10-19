@@ -8,13 +8,15 @@ import {
   type GitHubConfig,
   type KvCache,
 } from '@autodev/github';
-import { BuilderJobs, liveLogsKey, PgBlobStore, Publisher, publishBus, type BlobStore } from '@autodev/agent';
+import { BuilderJobs, liveLogsKey, Publisher, publishBus } from '@autodev/agent';
+import { createBlobStore, type BlobStore } from '@autodev/storage';
 import { createProviderRegistry, CredentialService, LlmGateway, type ProviderRegistry } from '@autodev/llm';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { ApiEnv } from './env';
 import { redisCache } from './redis-cache';
-import { TaskChangeHub } from './events/task-changes';
+import { EventHub } from '@autodev/events';
+import { ChangeBridge } from './events/change-bridge';
 
 export interface Deps {
   env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV' | 'BUILDER_GATEWAY_URL'>;
@@ -33,7 +35,12 @@ export interface Deps {
   builderJobs: BuilderJobs;
   publisher: Publisher;
   /** Shared LISTEN connection that feeds the task-change SSE streams. */
-  taskChanges: TaskChangeHub;
+  /** Live events for the SSE streams. One Redis subscriber per process. */
+  events: EventHub;
+  /** Shared Redis connection (event history, publishing). Not for subscriptions. */
+  redis: Redis;
+  /** Turns committed row changes into events. Started by main.ts, not by tests. */
+  bridge: ChangeBridge;
   /** Log lines streamed so far for a running builder job (Redis). */
   liveLogs: (jobId: string) => Promise<string>;
 }
@@ -59,8 +66,9 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     connection: redis,
     defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 2, backoff: { type: 'fixed', delay: 5000 } },
   });
-  const blobs = new PgBlobStore(sys.db);
-  const taskChanges = new TaskChangeHub(env.DATABASE_URL);
+  const blobs = createBlobStore(env, sys.db);
+  const events = new EventHub(redis.duplicate());
+  const bridge = new ChangeBridge({ databaseUrl: env.DATABASE_URL, redis });
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
@@ -89,12 +97,16 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
     }),
     publisher: new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL }),
-    taskChanges,
+    events,
+    bridge,
+    redis,
     liveLogs: async (jobId) =>
       (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {
       await Promise.all([repoSync.close(), agent.close(), chat.close()]);
-      await Promise.all([app.close(), sys.close(), taskChanges.close()]);
+      await bridge.close();
+      await events.close();
+      await Promise.all([app.close(), sys.close()]);
       redis.disconnect();
     },
   };

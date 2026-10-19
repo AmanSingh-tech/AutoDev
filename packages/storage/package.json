@@ -1,0 +1,25 @@
+{
+  "name": "@autodev/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "migrate": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@autodev/config": "workspace:*",
+    "@autodev/db": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1000.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "s3rver": "^3.7.1",
+    "tsx": "^4.19.2",
+    "dotenv": "^16.4.7"
+  }
+}

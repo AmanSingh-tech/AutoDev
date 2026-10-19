@@ -12,6 +12,10 @@ const settingsInput = z
     staleBranchAction: z.enum(['auto_open_pr', 'notify_owner']),
     defaultMemberRole: z.enum(ORG_ROLES).exclude(['owner']),
     maxFixCycles: z.number().int().min(0).max(10),
+    /** Builder logs. Shorter is cheaper; longer helps debugging old failures. */
+    logRetentionDays: z.number().int().min(7).max(365),
+    /** Workspace snapshots of finished tasks. Patches are always kept. */
+    snapshotRetentionDays: z.number().int().min(1).max(90),
     taskKeyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, '2–10 uppercase letters or digits'),
     allowUserKeys: z.boolean(),
   })
@@ -29,6 +33,8 @@ const publicOrgColumns = {
   staleBranchAction: orgs.staleBranchAction,
   defaultMemberRole: orgs.defaultMemberRole,
   maxFixCycles: orgs.maxFixCycles,
+  logRetentionDays: orgs.logRetentionDays,
+  snapshotRetentionDays: orgs.snapshotRetentionDays,
   taskKeyPrefix: orgs.taskKeyPrefix,
   allowUserKeys: orgs.allowUserKeys,
 };

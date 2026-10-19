@@ -27,7 +27,8 @@ export const agentRuns = pgTable(
     fixCycle: integer('fix_cycle').notNull().default(0),
     model: text('model'),
     /** Blob key of the full message transcript, persisted every turn so a run can resume after a pause. */
-    transcriptKey: text('transcript_key'),
+    /** sha256 of the transcript in the blob store. Cleared after the org's snapshot retention once the task finishes. */
+    transcriptHash: text('transcript_hash'),
     turns: integer('turns').notNull().default(0),
     inputTokens: bigint('input_tokens', { mode: 'number' }).notNull().default(0),
     outputTokens: bigint('output_tokens', { mode: 'number' }).notNull().default(0),
@@ -150,15 +151,14 @@ export const workspaceFiles = pgTable(
 );
 
 /**
- * Postgres-backed object storage (transcripts, large tool outputs) behind the BlobStore interface.
- * It moves to S3 later. System role only.
+ * Content-addressed blob storage (see packages/storage). Rows are named by the sha256 of their bytes.
+ * `encoding` is 'gzip' for rows written by the store, and 'identity' for rows migrated from the
+ * name-keyed table. No org column: a blob is only reachable through a row that belongs to an org.
  */
 export const blobs = pgTable('blobs', {
-  key: text('key').primaryKey(),
-  orgId: orgRef(),
-  content: bytea('content').notNull(),
-  contentType: text('content_type').notNull().default('application/octet-stream'),
+  hash: text('hash').primaryKey(),
   size: integer('size').notNull(),
+  encoding: text('encoding').notNull().default('gzip'),
+  content: bytea('content').notNull(),
   createdAt: createdAt(),
-  updatedAt: updatedAt(),
 });

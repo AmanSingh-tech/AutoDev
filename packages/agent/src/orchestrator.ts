@@ -15,7 +15,7 @@ import {
 } from '@autodev/db';
 import { getBranchHead, userOctokit, type GitHubConfig, type KvCache, type TokenVault } from '@autodev/github';
 import { KeyFailure, LlmBlocked, LlmError, type LlmGateway, type Message } from '@autodev/llm';
-import type { BlobStore } from './blob-store';
+import type { BlobStore } from '@autodev/storage';
 import type { BuilderJob, BuilderJobs } from './builder-jobs';
 import type { Publisher } from './publisher';
 import { isAllowedByDesign, mentionedPaths } from './documents';
@@ -201,7 +201,7 @@ export class AgentOrchestrator {
             await sys.insert(agentSteps).values({ orgId: task.orgId, taskId: task.id, agentRunId: run.id, seq: ++seq, kind: s.kind, toolName: s.toolName ?? null, input: s.input ?? null, output: s.output ?? null, isError: s.isError ?? false, durationMs: s.durationMs ?? null });
           },
           persist: async ({ transcript: t }) => {
-            await this.saveTranscript(task.orgId, run, t);
+            await this.saveTranscript(run, t);
             await sys
               .update(agentRuns)
               .set({
@@ -219,7 +219,7 @@ export class AgentOrchestrator {
         system,
         transcript,
       );
-      await this.saveTranscript(task.orgId, run, finalTranscript);
+      await this.saveTranscript(run, finalTranscript);
       return await this.handleOutcome(task, run, phase, outcome, pendingResults, { workspace, rootView, ws, lockKey });
     } catch (e) {
       return this.handleError(task, run, e);
@@ -464,17 +464,17 @@ export class AgentOrchestrator {
     };
   }
 
-  private async saveTranscript(orgId: string, run: Run, transcript: Message[]) {
-    const key = run.transcriptKey ?? `runs/${run.id}/transcript.json`;
-    await this.deps.blobs.put(orgId, key, JSON.stringify(transcript), 'application/json');
-    if (!run.transcriptKey) {
-      await this.deps.sys.update(agentRuns).set({ transcriptKey: key }).where(eq(agentRuns.id, run.id));
-      run.transcriptKey = key;
+  /** Each save stores a new content-addressed blob; the run points at the latest one. */
+  private async saveTranscript(run: Run, transcript: Message[]) {
+    const transcriptHash = await this.deps.blobs.put(JSON.stringify(transcript));
+    if (run.transcriptHash !== transcriptHash) {
+      await this.deps.sys.update(agentRuns).set({ transcriptHash }).where(eq(agentRuns.id, run.id));
+      run.transcriptHash = transcriptHash;
     }
   }
 
   private async loadTranscript(run: Run): Promise<Message[]> {
-    const raw = run.transcriptKey ? await this.deps.blobs.get(run.transcriptKey) : null;
+    const raw = run.transcriptHash ? await this.deps.blobs.get(run.transcriptHash) : null;
     if (!raw) throw new Error(`run ${run.id} has no transcript to resume`);
     return JSON.parse(raw.toString('utf8')) as Message[];
   }

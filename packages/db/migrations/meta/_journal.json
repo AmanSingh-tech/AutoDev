@@ -120,6 +120,34 @@
       "when": 1792442700000,
       "tag": "0016_prompt_guide",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792442800000,
+      "tag": "0017_blob_storage_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792442900000,
+      "tag": "0018_blobs_system_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792443000000,
+      "tag": "0019_task_change_dedupe_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792443100000,
+      "tag": "0020_row_change_events",
+      "breakpoints": true
     }
   ]
 }

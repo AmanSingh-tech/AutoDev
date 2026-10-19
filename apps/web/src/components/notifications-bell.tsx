@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { relativeTime } from '@/lib/format';
 import { trpc } from '@/lib/trpc';
+import { useEvents } from '@/lib/use-events';
 
 /** Notification links are stored org-relative ("/settings/ai-keys"); this prefixes the current org. */
 export function NotificationsBell({ slug }: { slug: string }) {
@@ -12,6 +13,12 @@ export function NotificationsBell({ slug }: { slug: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
   const q = trpc.notifications.list.useQuery(undefined, { refetchInterval: 60_000 });
+  // New notifications arrive on the user's own topic; the poll stays as a fallback.
+  const me = trpc.me.get.useQuery();
+  const orgId = me.data?.orgs.find((o) => o.slug === slug)?.orgId ?? '';
+  useEvents(orgId, orgId && me.data?.user ? [`user:${me.data.user.id}`] : [], (events) => {
+    if (events.some((e) => e.type === 'notification')) void utils.notifications.list.invalidate();
+  });
   const markRead = trpc.notifications.markRead.useMutation({ onSuccess: () => utils.notifications.list.invalidate() });
 
   useEffect(() => {

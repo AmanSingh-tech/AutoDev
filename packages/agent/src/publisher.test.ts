@@ -5,7 +5,7 @@ import { setupServer } from 'msw/node';
 import { uuidv7 } from 'uuidv7';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fakeGitHub } from '../test/fake-github';
-import { PgBlobStore } from './blob-store';
+import { PostgresBlobStore } from '@autodev/storage';
 import { AgentOrchestrator } from './orchestrator';
 import { Publisher, PublishError } from './publisher';
 
@@ -75,7 +75,7 @@ async function testedTask(over: { mode?: TaskMode; createPr?: boolean; branchMod
     ]);
   }
   const [b] = await sys.db.insert(schema.builders).values({ orgId: fx.org.id, ownerUserId: fx.owner.id, name: 'Devi laptop', tokenHash: String(Math.random()) }).returning();
-  await sys.db.insert(schema.builderJobs).values({ orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: fx.owner.id, builderId: b!.id, baseSha: BASE, workspaceRevision: 4, patchKey: 'k', patchSha256: 'c'.repeat(64), configSnapshot: { setup: ['pnpm i'], test: ['pnpm test'], timeout_min: 15 }, final: true, status: 'passed', durationMs: 42_000, docker: true });
+  await sys.db.insert(schema.builderJobs).values({ orgId: fx.org.id, taskId: t!.id, repoId: fx.repo.id, requestedBy: fx.owner.id, builderId: b!.id, baseSha: BASE, workspaceRevision: 4, patchHash: 'k'.repeat(64), patchSha256: 'c'.repeat(64), configSnapshot: { setup: ['pnpm i'], test: ['pnpm test'], timeout_min: 15 }, final: true, status: 'passed', durationMs: 42_000, docker: true });
   await sys.db.insert(schema.tokenUsage).values({ id: uuidv7(), orgId: fx.org.id, taskId: t!.id, userId: fx.owner.id, provider: 'anthropic', model: 'claude-opus-5-5', useCase: 'agent', inputTokens: 123_000, outputTokens: 4_500, cacheReadTokens: 50_000, costUsd: '0.842000' });
   return t!;
 }
@@ -147,7 +147,7 @@ describe('Publisher', () => {
     await expect(publisher.publish(t.id)).rejects.toBeInstanceOf(PublishError);
     expect(gh.state.refs.has('autodev/AD-1-greet-with-hello')).toBe(false);
 
-    const orchestrator = new AgentOrchestrator({ sys: sys.db, gateway: {} as never, vault, cfg, cache, blobs: new PgBlobStore(sys.db), publisher });
+    const orchestrator = new AgentOrchestrator({ sys: sys.db, gateway: {} as never, vault, cfg, cache, blobs: new PostgresBlobStore(sys.db), publisher });
     expect(await orchestrator.publish(t)).toBe('push_failed:not_allowed');
     const cur = await task(t.id);
     expect(cur.status).toBe('failed');

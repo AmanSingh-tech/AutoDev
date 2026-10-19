@@ -7,7 +7,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { text, toolUse } from '../test/scripted';
-import { PgBlobStore } from './blob-store';
+import { PostgresBlobStore } from '@autodev/storage';
 import { BuilderJobs, presenceKey } from './builder-jobs';
 import { AgentOrchestrator } from './orchestrator';
 
@@ -33,7 +33,7 @@ const providers = staticRegistry([provider]);
 const credentials = new CredentialService({ app: app.db, sys: sys.db, kms: testKms, providers });
 const vault = new TokenVault(sys.db, testKms, cfg);
 const cache = new MemoryCache();
-const blobs = new PgBlobStore(sys.db);
+const blobs = new PostgresBlobStore(sys.db);
 const sent: { builderId: string; msg: GatewayMessage }[] = [];
 const enqueued: string[] = [];
 const jobs = new BuilderJobs({ sys: sys.db, cache, blobs, bus: { send: async (builderId, msg) => void sent.push({ builderId, msg }) }, enqueueAgent: async (j) => void enqueued.push(j.taskId) });

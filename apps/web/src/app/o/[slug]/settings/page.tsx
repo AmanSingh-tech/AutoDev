@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 
 type Org = RouterOutputs['orgs']['current'];
-type Form = Pick<Org, 'defaultTaskMode' | 'staleBranchDays' | 'staleBranchAction' | 'maxFixCycles' | 'taskKeyPrefix' | 'allowUserKeys'> & {
+type Form = Pick<Org, 'defaultTaskMode' | 'staleBranchDays' | 'staleBranchAction' | 'maxFixCycles' | 'logRetentionDays' | 'snapshotRetentionDays' | 'taskKeyPrefix' | 'allowUserKeys'> & {
   // A DB check constraint guarantees the default role is never owner.
   defaultMemberRole: 'admin' | 'developer' | 'viewer';
 };
@@ -87,6 +87,14 @@ export default function SettingsPage() {
               <Field label="Max automatic fix cycles after failing tests" id="cycles">
                 <Input id="cycles" type="number" min={0} max={10} value={form.maxFixCycles} onChange={(e) => set('maxFixCycles', Number(e.target.value))} />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Keep builder logs (days)" id="log-retention" hint="7–365. Patches are always kept.">
+                  <Input id="log-retention" type="number" min={7} max={365} value={form.logRetentionDays} onChange={(e) => set('logRetentionDays', Number(e.target.value))} />
+                </Field>
+                <Field label="Keep workspace snapshots of finished tasks (days)" id="snapshot-retention" hint="1–90.">
+                  <Input id="snapshot-retention" type="number" min={1} max={90} value={form.snapshotRetentionDays} onChange={(e) => set('snapshotRetentionDays', Number(e.target.value))} />
+                </Field>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Stale branch after (days)" id="stale">
                   <Input id="stale" type="number" min={1} max={90} value={form.staleBranchDays} onChange={(e) => set('staleBranchDays', Number(e.target.value))} />
