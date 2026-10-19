@@ -9,6 +9,9 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The monorepo root, so server files traced from packages/ are included (and a stray lockfile
+  // elsewhere on the machine isn't mistaken for the workspace root).
+  outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   transpilePackages: ['@autodev/ui', '@autodev/config', '@autodev/crypto', '@autodev/db', '@autodev/github', '@autodev/protocol'],
   serverExternalPackages: ['postgres'],
   // Same-origin proxy, so the Auth.js session cookie reaches the API without CORS.
