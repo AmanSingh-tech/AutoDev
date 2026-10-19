@@ -25,6 +25,8 @@
   "devDependencies": {
     "@types/dockerode": "^3.3.33",
     "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.2",
+    "postject": "1.0.0-alpha.6",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2"
   }

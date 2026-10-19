@@ -7,7 +7,7 @@ import type { GatewayMessage } from '@autodev/protocol';
 import { Redis } from 'ioredis';
 import type { AddressInfo } from 'node:net';
 import pino from 'pino';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { uuidv7 } from 'uuidv7';
 import { createGateway, hashToken, LOG_EVENT_INTERVAL_MS, LOG_EVENT_MAX_CHARS, redisBus } from './gateway';
@@ -60,8 +60,8 @@ beforeEach(async () => {
 });
 
 /** A fake builder: collects messages and lets the test wait for a type. */
-function connect(token = TOKEN) {
-  const ws = new WebSocket(url, { headers: { authorization: `Bearer ${token}` } });
+function connect(token = TOKEN, at = url) {
+  const ws = new WebSocket(at, { headers: { authorization: `Bearer ${token}` } });
   // Rejected handshakes and terminated sockets emit 'error'; the tests assert on status codes instead.
   ws.on('error', () => {});
   open.push(ws);
@@ -242,5 +242,53 @@ describe('builder gateway events', () => {
   it('caps a batch at the size limit and sends the rest in further events', () => {
     expect(LOG_EVENT_MAX_CHARS).toBe(16_000);
     expect(LOG_EVENT_INTERVAL_MS).toBe(1000);
+  });
+});
+
+describe('builder presence with the real timings', () => {
+  it('drops a builder after 60 s of silence, keeps one that heartbeats every 20 s, and lets the presence key expire', async () => {
+    // Only intervals and the clock are faked: sockets, Redis and Postgres run for real.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const real = createGateway({ sys: sys.db, redis, sub, cache, blobs, jobs, log: pino({ level: 'silent' }) });
+    try {
+      await new Promise<void>((r) => real.server.listen(0, r));
+      const at = `ws://127.0.0.1:${(real.server.address() as AddressInfo).port}/builder`;
+      const chattyToken = 'adb_' + 'y'.repeat(40);
+      await sys.db.insert(schema.builders).values({ orgId: fx.org.id, ownerUserId: fx.owner.id, name: 'desktop', tokenHash: hashToken(chattyToken) });
+
+      const quiet = connect(TOKEN, at);
+      const chatty = connect(chattyToken, at);
+      await Promise.all([quiet.opened(), chatty.opened()]);
+      quiet.send(hello);
+      chatty.send(hello);
+      await Promise.all([quiet.next('hello'), chatty.next('hello')]);
+      const quietClosed = quiet.closed();
+      let quietCode: number | null = null;
+      void quietClosed.then((c) => (quietCode = c));
+
+      // The presence key is what the dashboard reads; it lapses 60 s after the last sign of life.
+      const ttl = await redis.ttl(presenceKey(builderId));
+      expect(ttl).toBeGreaterThan(55);
+      expect(ttl).toBeLessThanOrEqual(60);
+
+      const settle = () => new Promise((r) => setTimeout(r, 100));
+      // 0 → 59.9 s: the chatty builder heartbeats every 20 s; the quiet one sends nothing.
+      for (const step of [20_000, 20_000, 19_900]) {
+        vi.advanceTimersByTime(step);
+        chatty.send({ type: 'heartbeat', ts: Date.now() });
+        await settle();
+      }
+      expect(quietCode).toBeNull();
+
+      // Past 60 s of silence, the next sweep (every 10 s) drops the quiet one.
+      vi.advanceTimersByTime(10_200);
+      chatty.send({ type: 'heartbeat', ts: Date.now() });
+      expect(await quietClosed).toBe(1006);
+      await settle();
+      expect(chatty.ws.readyState).toBe(chatty.ws.OPEN);
+    } finally {
+      vi.useRealTimers();
+      await real.close();
+    }
   });
 });

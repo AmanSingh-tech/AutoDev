@@ -6,7 +6,9 @@ import { DockerExecutor, ShellExecutor } from './executors';
 import { sameRepo } from './job-runner';
 import { cacheDir, clearSettings, loadSettings, saveSettings, settingsPath } from './settings';
 
-const VERSION = '0.1.0';
+// Release builds replace this with the tag's version (scripts/build-sea.mjs, tsup); dev builds use the fallback.
+declare const __AUTODEV_VERSION__: string | undefined;
+const VERSION = typeof __AUTODEV_VERSION__ === 'string' ? __AUTODEV_VERSION__ : '0.1.0';
 const DEFAULT_API = process.env.AUTODEV_API_URL ?? 'http://localhost:4000';
 
 const HELP = `autodev-runner ${VERSION}: runs AutoDev test jobs on this machine

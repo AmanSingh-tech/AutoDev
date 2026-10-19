@@ -4,6 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseFailedTests, steps, type JobOffer, type JobResult } from '@autodev/protocol';
 import { simpleGit, type SimpleGit } from 'simple-git';
+
+/**
+ * Per-command git settings. On Windows, worktrees in a temp directory can exceed the 260-character
+ * path limit, so long paths are turned on for every git command the runner runs.
+ */
+export const gitConfigFor = (platform: NodeJS.Platform = process.platform): string[] => (platform === 'win32' ? ['core.longpaths=true'] : []);
+const git = (dir: string): SimpleGit => simpleGit(dir, { config: gitConfigFor() });
 import type { Executor } from './executors';
 
 export type LogFn = (step: 'system' | 'setup' | 'build' | 'test', stream: 'stdout' | 'stderr' | 'system', data: string) => void;
@@ -42,7 +49,7 @@ export class JobRunner {
       if (offer.patch.trim()) {
         const patchFile = join(scratch, 'change.patch');
         writeFileSync(patchFile, offer.patch);
-        await simpleGit(worktree).raw(['apply', '--whitespace=nowarn', patchFile]);
+        await git(worktree).raw(['apply', '--whitespace=nowarn', patchFile]);
         sys('Applied the patch.');
       }
 
@@ -89,12 +96,12 @@ export class JobRunner {
   /** The developer's bound clone if it really is this repo; otherwise a cached clone of our own. */
   private async repository(offer: JobOffer, sys: (m: string) => void): Promise<SimpleGit> {
     if (offer.repo.localPath && existsSync(join(offer.repo.localPath, '.git'))) {
-      const git = simpleGit(offer.repo.localPath);
+      const local = git(offer.repo.localPath);
       // The configured URL, not `get-url`, which applies insteadOf rewrites.
-      const remote = (await git.raw(['config', '--get', 'remote.origin.url']).catch(() => '')).trim();
+      const remote = (await local.raw(['config', '--get', 'remote.origin.url']).catch(() => '')).trim();
       if (sameRepo(remote, offer.repo.fullName)) {
         sys(`Using your clone at ${offer.repo.localPath} (a separate worktree; your checkout isn't touched).`);
-        return git;
+        return local;
       }
       sys(`${offer.repo.localPath} is not a clone of ${offer.repo.fullName}; using a cached clone instead.`);
     }
@@ -102,9 +109,9 @@ export class JobRunner {
     if (!existsSync(join(dir, '.git'))) {
       sys(`Cloning ${offer.repo.fullName} (with your own git credentials)…`);
       mkdirSync(dir, { recursive: true });
-      await simpleGit(dir).clone(offer.repo.cloneUrl, dir, ['--no-checkout', '--filter=blob:none']);
+      await git(dir).clone(offer.repo.cloneUrl, dir, ['--no-checkout', '--filter=blob:none']);
     }
-    return simpleGit(dir);
+    return git(dir);
   }
 }
 

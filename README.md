@@ -193,6 +193,20 @@ notes: Anything the agent should know (never executed).
 
 Without a `.autodev.yml` on the base branch, tests are skipped and the task says so.
 
+### Releasing the runner (R-4)
+
+- **Install options for developers:** single binaries for macOS arm64/x64, Linux x64/arm64 and
+  Windows x64 (Node SEA, no Node needed), or `npm install -g autodev-runner` (Node 18.18+). See
+  `apps/runner-cli/README.md`, including Docker Desktop (WSL 2) for Docker mode on Windows and long
+  paths.
+- **Build locally:** `node apps/runner-cli/scripts/build-sea.mjs --version 1.2.3` (Node 20+, builds
+  for the machine it runs on and smoke-tests the result); `node apps/runner-cli/scripts/pack-npm.mjs
+  --version 1.2.3` prepares the npm package in `apps/runner-cli/dist/npm`.
+- **Release:** push a tag `runner-v1.2.3`. `.github/workflows/release-runner.yml` builds the five
+  binaries on native runners, creates the GitHub release with checksums, and publishes to npm.
+  Code signing (macOS notarization, Windows Authenticode) and npm publishing run only when their
+  secrets are set; otherwise they're skipped with a notice. "Run workflow" does a dry run.
+
 ## Push and PR (A-6)
 
 - **Push** happens after the final test run passes (or is skipped for lack of `.autodev.yml`). It

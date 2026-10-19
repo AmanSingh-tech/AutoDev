@@ -53,8 +53,8 @@ Decisions from the owner:
 
 - **R-1 Blob storage: done** (approved). Details in "R-1 notes" below.
 - **R-2 Realtime transport: done** (approved). Details in "R-2 notes" below.
-- **R-3 Full event catalogue: built, awaiting review.** Details in "R-3 notes" below.
-- R-4 Builder: not started.
+- **R-3 Full event catalogue: done** (approved). Details in "R-3 notes" below.
+- **R-4 Builder: built, awaiting review.** Details in "R-4 notes" below.
 
 ### R-1 notes
 
@@ -107,6 +107,22 @@ Decisions from the owner:
 3. **`task.deleted` never fires today.** Tasks aren't deleted anywhere in the product; the mapping is there for when they are.
 4. **Builder presence goes to the owner's topic only.** Other members watching a team builder get its status from the builders page's 30 s poll.
 5. **Admin pages don't use `org:admin` yet.** The events are emitted and tested; the settings and AI-keys pages still poll.
+
+### R-4 notes
+
+- **Timing tests:** the runner sends no heartbeat before 20 s and one every 20 s after (fake intervals, real socket); the gateway, with its real defaults, keeps a builder that heartbeats every 20 s, drops one silent for more than 60 s at the next 10 s sweep, and its presence key expires after 60 s.
+- **Single binaries:** `apps/runner-cli/scripts/build-sea.mjs` (rewritten; the old one never ran) bundles with esbuild into one CommonJS file and injects it into Node with SEA, named `autodev-runner-<os>-<arch>`. It smoke-tests `--version`. Release builds take their version from the tag.
+- **npm package:** `scripts/pack-npm.mjs` prepares `autodev-runner` (bins `autodev` and `autodev-runner`, Node 18.18+).
+- **Release workflow:** `.github/workflows/release-runner.yml`. Tag `runner-v*` builds the five targets on native runners, runs each binary, creates the GitHub release with SHA256SUMS, and publishes to npm. Signing, notarization and npm publishing are skipped with a notice when their secrets are missing. Dry run via "Run workflow".
+- **Windows:** every git command the runner runs gets `core.longpaths=true` on Windows. `apps/runner-cli/README.md` documents Docker Desktop with WSL 2 for Docker mode and the Windows long-path setting.
+- Verification: runner 19 tests (3 new), gateway 12 (1 new); the Linux x64 binary built and ran with no Node on PATH; the npm package packed, installed from the tarball and ran on Node 22 and Node 18; actionlint 1.7.7 (with shellcheck) passes.
+
+**Not verified, to confirm:**
+
+1. **Only the Linux x64 binary was built here.** macOS, Linux arm64 and Windows are built by the workflow, which hasn't run yet. A dry run ("Run workflow") would check all five without publishing.
+2. **Signing is untested.** The steps follow Apple's and Microsoft's standard commands but need real certificates to prove.
+3. **The npm package is marked `UNLICENSED`.** Set the license you want before the first publish, and make sure the name `autodev-runner` is free on npm.
+4. **macOS binaries can't be stapled.** A bare binary is notarized online; offline Macs check it on first run.
 
 ### Proposed phases (each needs approval before coding)
 

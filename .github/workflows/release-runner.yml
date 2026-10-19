@@ -1,0 +1,205 @@
+# Builds autodev-runner as single binaries (Node SEA) for five targets, publishes them to a GitHub
+# release, and publishes the npm package `autodev-runner`.
+#
+# Release: push a tag `runner-v<version>` (e.g. runner-v0.3.0).
+# Dry run: "Run workflow" with a version; it builds everything and uploads artifacts, but publishes
+# nothing.
+#
+# Signing is optional. Each step runs only when its secrets exist and otherwise leaves a notice:
+#   macOS:   MACOS_CERT_P12 (base64), MACOS_CERT_PASSWORD, MACOS_SIGN_IDENTITY,
+#            APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (notarization)
+#   Windows: WINDOWS_CERT_PFX (base64), WINDOWS_CERT_PASSWORD
+#   npm:     NPM_TOKEN
+name: Release autodev-runner
+
+on:
+  push:
+    tags: ['runner-v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build (dry run; nothing is published)
+        required: true
+        default: 0.0.0-dev
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/runner-v') && github.ref_name || inputs.version }}
+
+jobs:
+  binary:
+    name: Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: macos-arm64, runner: macos-14 }
+          - { target: macos-x64, runner: macos-13 }
+          - { target: linux-x64, runner: ubuntu-24.04 }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: windows-x64, runner: windows-2022 }
+    env:
+      HAS_MAC_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
+      HAS_MAC_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
+      HAS_WIN_SIGNING: ${{ secrets.WINDOWS_CERT_PFX != '' }}
+      EXE: autodev-runner-${{ matrix.target }}${{ startsWith(matrix.target, 'windows') && '.exe' || '' }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/runner-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Version
+        run: echo "VERSION=${VERSION#runner-v}" >> "$GITHUB_ENV"
+
+      - name: Build (includes a --version smoke test)
+        run: node scripts/build-sea.mjs --version "$VERSION"
+
+      - name: Check the target name
+        run: test -f "dist/bin/$EXE"
+
+      - name: Sign (macOS)
+        if: runner.os == 'macOS' && env.HAS_MAC_SIGNING == 'true'
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/sign.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" "dist/bin/$EXE"
+          codesign --verify --verbose "dist/bin/$EXE"
+      - name: Notarize (macOS)
+        if: runner.os == 'macOS' && env.HAS_MAC_SIGNING == 'true' && env.HAS_MAC_NOTARY == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k "dist/bin/$EXE" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+      - name: macOS signing skipped
+        if: runner.os == 'macOS' && (env.HAS_MAC_SIGNING != 'true' || env.HAS_MAC_NOTARY != 'true')
+        run: echo "::notice::macOS signing or notarization skipped (secrets not set). The binary is ad-hoc signed only; Gatekeeper will warn users."
+
+      - name: Sign (Windows)
+        if: runner.os == 'Windows' && env.HAS_WIN_SIGNING == 'true'
+        shell: pwsh
+        env:
+          CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_PFX))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe | Where-Object { $_.FullName -like '*\x64\*' } | Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 "dist/bin/$env:EXE"
+          & $signtool.FullName verify /pa "dist/bin/$env:EXE"
+      - name: Windows signing skipped
+        if: runner.os == 'Windows' && env.HAS_WIN_SIGNING != 'true'
+        run: echo "::notice::Windows signing skipped (WINDOWS_CERT_PFX not set). SmartScreen will warn users."
+
+      - name: Run the final binary
+        run: ./dist/bin/"$EXE" --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runner-${{ matrix.target }}
+          path: apps/runner-cli/dist/bin/${{ env.EXE }}
+          if-no-files-found: error
+
+  npm-package:
+    name: npm package
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/runner-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: echo "VERSION=${VERSION#runner-v}" >> "$GITHUB_ENV"
+      - run: node scripts/pack-npm.mjs --version "$VERSION"
+      - name: Pack and try the package
+        run: |
+          cd dist/npm && npm pack
+          mkdir -p "$RUNNER_TEMP/try" && cd "$RUNNER_TEMP/try" && npm init -y > /dev/null
+          npm install --no-audit --no-fund "$GITHUB_WORKSPACE/apps/runner-cli/dist/npm/autodev-runner-$VERSION.tgz"
+          test "$(./node_modules/.bin/autodev --version)" = "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: apps/runner-cli/dist/npm/autodev-runner-*.tgz
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/runner-v')
+    needs: [binary, npm-package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: runner-*
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        run: cd out && sha256sum autodev-runner-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" --title "autodev-runner ${GITHUB_REF_NAME#runner-v}" --generate-notes
+
+  npm-publish:
+    name: Publish to npm
+    if: startsWith(github.ref, 'refs/tags/runner-v')
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      - name: Publish
+        if: env.HAS_NPM_TOKEN == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish autodev-runner-*.tgz --provenance --access public
+      - name: npm publishing skipped
+        if: env.HAS_NPM_TOKEN != 'true'
+        run: echo "::notice::npm publish skipped (NPM_TOKEN not set)."
