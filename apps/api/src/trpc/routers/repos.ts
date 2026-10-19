@@ -27,7 +27,8 @@ export const reposRouter = router({
     );
     if (!repo) throw new TRPCError({ code: 'NOT_FOUND', message: 'Repository not found' });
     const writable = ctx.role === 'viewer' ? [] : await ctx.deps.repoAccess.listWritable(ctx.orgId, ctx.userId);
-    return { ...repo, canCreate: writable.some((r) => r.id === repo.id) };
+    // GitHub page of the repo, for links (citations, files). The web URL is configurable for GHES and tests.
+    return { ...repo, canCreate: writable.some((r) => r.id === repo.id), htmlUrl: `${ctx.deps.cfg.webUrl}/${repo.fullName}` };
   }),
 
   /** Branch dropdown for "existing branch" tasks. Read with the caller's token, cached 5 minutes per repo. */

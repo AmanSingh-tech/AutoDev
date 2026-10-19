@@ -1,4 +1,4 @@
-import { AgentOrchestrator, BuilderJobs, Publisher, publishBus, RepoChatRunner } from '@autodev/agent';
+import { AgentOrchestrator, BuilderJobs, Publisher, publishBus, RepoAgent, RepoChatRunner } from '@autodev/agent';
 import { emit } from '@autodev/events';
 import { ORG_ADMIN_TOPIC } from '@autodev/protocol';
 import { createBlobStore } from '@autodev/storage';
@@ -44,6 +44,7 @@ const vault = new TokenVault(sys.db, kms, cfg);
 const gateway = new LlmGateway({ sys: sys.db, providers, credentials });
 const publisher = new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL });
 const repoChat = new RepoChatRunner({ sys: sys.db, gateway, vault, cfg, cache });
+const repoAgent = new RepoAgent({ sys: sys.db, gateway, vault, cfg, cache });
 const orchestrator = new AgentOrchestrator({
   sys: sys.db,
   gateway,
@@ -98,7 +99,7 @@ const workers = [
   // Chat answers read several files, so they can take a minute or two.
   new Worker(QUEUES.chat, (job) => {
     const data = chatJob.parse(job.data);
-    return repoChat.answer(data.orgId, data.messageId);
+    return data.kind === 'room' ? repoAgent.answerInRoom(data.orgId, data.messageId) : repoChat.answer(data.orgId, data.messageId);
   }, { connection, concurrency: 4, lockDuration: 5 * 60_000 }),
 ];
 

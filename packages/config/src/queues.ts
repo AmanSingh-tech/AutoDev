@@ -25,9 +25,12 @@ export const agentJob = z.object({
 });
 export type AgentJob = z.infer<typeof agentJob>;
 
-/** Enqueued when someone asks a repo chat question. The job answers the pending assistant message. */
+/**
+ * Enqueued when someone asks a private repo chat question (`answer`) or mentions the Repo Agent in
+ * a team room (`room`). The job answers the pending message.
+ */
 export const chatJob = z.object({
-  kind: z.literal('answer'),
+  kind: z.enum(['answer', 'room']),
   orgId: z.string().uuid(),
   messageId: z.string().uuid(),
 });

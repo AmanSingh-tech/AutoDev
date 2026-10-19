@@ -225,6 +225,28 @@ export function eventsForChange(c: RowChange): PlannedEvent[] {
         );
       break;
     }
+    case 'chat_messages':
+      add('chat.message', userTopic(String(n.user_id)), {
+        sessionId: String(n.session_id),
+        messageId: String(n.id),
+        role: n.role === 'user' ? 'user' : 'assistant',
+        status: String(n.status),
+      });
+      break;
+    case 'channel_messages':
+      add('channel.message', repoTopic(String(n.repo_id)), {
+        channelId: String(n.channel_id),
+        messageId: String(n.id),
+        author: n.author === 'agent' ? 'agent' : 'user',
+        status: String(n.status),
+      });
+      break;
+    case 'repo_agent_memory':
+      add('repo_agent.memory_updated', repoTopic(String(n.repo_id)), {
+        repoId: String(n.repo_id),
+        section: String(n.section),
+      });
+      break;
     case 'llm_credentials':
       if (c.op === 'INSERT' || changed(n, o, 'status'))
         add('credential.status', ORG_ADMIN_TOPIC, {

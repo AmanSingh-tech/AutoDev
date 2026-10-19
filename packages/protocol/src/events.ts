@@ -129,12 +129,15 @@ export const eventPayloads = {
   'task.created': z.object({ ...taskBase, key: z.string() }),
   'task.moved': z.object({ ...taskBase, from: z.string(), to: z.string() }),
   'task.deleted': z.object(taskBase),
+  'channel.message': z.object({ channelId: id, messageId: id, author: z.enum(['user', 'agent']), status: z.string() }),
+  'repo_agent.memory_updated': z.object({ repoId: id, section: z.string() }),
   // user:<userId> (budget events also go to org:admin)
   notification: z.object({ notificationId: id, type: z.string(), title: z.string() }),
   'builder.presence': z.object({ builderId: id, online: z.boolean() }),
   'builder.paired': z.object({ builderId: id }),
   'builder.revoked': z.object({ builderId: id }),
   'repo_access.changed': z.object({ userId: id }),
+  'chat.message': z.object({ sessionId: id, messageId: id, role: z.enum(['user', 'assistant']), status: z.string() }),
   'budget.warning': budget,
   'budget.exceeded': budget,
   // org:admin
@@ -178,6 +181,8 @@ const REPO_EVENTS = [
   'task.created',
   'task.moved',
   'task.deleted',
+  'channel.message',
+  'repo_agent.memory_updated',
 ] as const satisfies readonly EventType[];
 const USER_EVENTS = [
   'notification',
@@ -185,6 +190,7 @@ const USER_EVENTS = [
   'builder.paired',
   'builder.revoked',
   'repo_access.changed',
+  'chat.message',
   'budget.warning',
   'budget.exceeded',
 ] as const satisfies readonly EventType[];

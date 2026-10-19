@@ -77,14 +77,20 @@ Rows that point at blobs: `builder_jobs.patch_hash` (kept forever), `builder_job
 
 Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale_notified_at`.
 
-## Repo chat (B-2)
+## Repo chat, team room and Repo Agent (B-2)
 
 | Table | Columns that matter | Notes |
 |---|---|---|
-| ✅ repo_chats | org, repo, user (author), title | Private to the author (RLS `chats_owner`, migration 0015) |
-| ✅ repo_chat_messages | chat, user, role user/assistant, status pending/done/failed, content, reply_to, sources, error | Pending assistant row per question, filled in by the `chat` worker queue. RLS `chat_messages_owner` |
+| ✅ chat_sessions | org, repo, user (author), title | Private chat (was `repo_chats`, renamed in 0022). RLS `chat_sessions_owner` |
+| ✅ chat_messages | session, user, role user/assistant, status pending/done/failed, content, reply_to, citations [{path, startLine?, endLine?}], commit_sha, error | Was `repo_chat_messages`; `sources` (paths) became `citations` in 0022. RLS `chat_messages_owner` |
+| ✅ repo_channels | org, repo (unique) | The team room, created on first use |
+| ✅ channel_messages | channel, repo, author user/agent, user, status, content, reply_to, citations, commit_sha, error | For an agent message, `user` is who mentioned it. No deletes by the app role |
+| ✅ repo_agent_memory | org, repo, section (conventions, architecture, rules, fragile_areas), content_md ≤ 8000, updated_by | Unique per repo and section |
 
-`llm_use_case` gained `chat` (default: `claude-sonnet-5-5`, no per-task cap; monthly budgets apply).
+Room and memory tables use RLS `repo_readers` (migration 0023): inside the org **and** the user has
+a `user_repo_access` row for the repo. `llm_use_case` value `chat` (default `claude-sonnet-5-5`, no
+per-task cap; monthly budgets apply). Realtime: `chat.message` (to the author), `channel.message`
+and `repo_agent.memory_updated` (to the repo topic).
 
 ## Prompt guide (B-1)
 

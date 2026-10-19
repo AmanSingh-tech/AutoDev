@@ -50,3 +50,22 @@ export async function searchCode(gh: Octokit, owner: string, repo: string, query
   const { data } = await gh.rest.search.code({ q, per_page: 50 });
   return data.items.map((i) => i.path);
 }
+
+export interface CommitSummary {
+  sha: string;
+  /** First line of the commit message. */
+  title: string;
+  author: string;
+  date: string;
+}
+
+/** Recent commits reachable from `sha`, optionally only those touching `path`. Newest first. */
+export async function listCommits(gh: Octokit, owner: string, repo: string, sha: string, opts: { path?: string; limit?: number } = {}): Promise<CommitSummary[]> {
+  const { data } = await gh.rest.repos.listCommits({ owner, repo, sha, per_page: Math.min(opts.limit ?? 20, 100), ...(opts.path ? { path: opts.path } : {}) });
+  return data.map((c) => ({
+    sha: c.sha,
+    title: c.commit.message.split('\n')[0] ?? '',
+    author: c.author?.login ?? c.commit.author?.name ?? 'unknown',
+    date: c.commit.author?.date ?? c.commit.committer?.date ?? '',
+  }));
+}

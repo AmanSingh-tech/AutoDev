@@ -24,11 +24,13 @@ test.afterEach(async ({ page }) => {
   // The test accepts confirm dialogs (registered before anything can fail).
   await page.goto('/o/acme-demo/settings/templates');
   await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible();
+  await expect(page.locator('summary', { hasText: /^Bug fix$/ })).toBeVisible();
   await removeCopies(page);
   await page.goto('/o/acme-demo/settings/ai-keys');
   await expect(page.getByRole('heading', { name: 'AI keys' })).toBeVisible();
+  await expect(page.getByText(/Your tasks use|No working key yet/)).toBeVisible();
   await removeAll(page, 'Remove');
-  await expect(page.getByText('••••PRMT')).toHaveCount(0);
+  await expect(page.getByText('No working key yet')).toBeVisible();
 });
 
 async function signInAs(page: Page, login: string) {
@@ -45,6 +47,7 @@ test('templates, the live score, check deeper and a rewrite that can be undone; 
   // A working org key, for the model calls. Leftovers from an aborted run are removed first.
   await page.goto('/o/acme-demo/settings/ai-keys');
   await expect(page.getByRole('heading', { name: 'AI keys' })).toBeVisible();
+  await expect(page.getByText(/Your tasks use|No working key yet/)).toBeVisible();
   await removeAll(page, 'Remove');
   await page.getByLabel('Anthropic API key').fill('sk-ant-good-e2e-prompt-000-PRMT');
   await page.getByRole('button', { name: 'Check and save' }).click();
@@ -53,6 +56,7 @@ test('templates, the live score, check deeper and a rewrite that can be undone; 
   // An org template, copied from a built-in one.
   await page.getByRole('link', { name: 'Task templates' }).click();
   await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible();
+  await expect(page.locator('summary', { hasText: /^Bug fix$/ })).toBeVisible();
   await removeCopies(page);
   await page.locator('summary', { hasText: /^Bug fix$/ }).click();
   await page.getByRole('button', { name: 'Copy to your templates' }).click();

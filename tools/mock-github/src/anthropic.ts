@@ -6,7 +6,8 @@ import type { ServerResponse } from 'node:http';
  *   PLAN   → submit_plan (v2 after the reviewer asks for changes)
  *   DESIGN → submit_design
  *   CODE   → edit src/app.ts, then finish
- * The prompt guide's calls are recognized by their tool (submit_check, submit_rewrite).
+ * The prompt guide's calls are recognized by their tool (submit_check, submit_rewrite), and repo
+ * chat and the Repo Agent by git_log: they read src/app.ts, then answer citing it.
  */
 interface Req {
   model: string;
@@ -54,6 +55,10 @@ function respond(req: Req) {
   const flat = JSON.stringify(req.messages);
   const tools = (req.tools ?? []).map((t) => t.name);
   if (tools.includes('submit_rewrite')) return [tool('submit_rewrite', REWRITE)];
+  if (tools.includes('git_log'))
+    return flat.includes('tool_result')
+      ? [{ type: 'text', text: '`greet()` returns "hi" (`src/app.ts:1`).' }]
+      : [tool('read_file', { path: 'src/app.ts' })];
   if (tools.includes('submit_check'))
     return [tool('submit_check', { score: 40, summary: 'The draft needs steps to reproduce.', flags: ['missing_repro'], suggestions: ['Say how to trigger the wrong greeting.'] })];
   if (system.includes('Phase: PLAN')) return [tool('submit_plan', { markdown: PLAN(flat.includes('requested changes') ? 2 : 1) })];

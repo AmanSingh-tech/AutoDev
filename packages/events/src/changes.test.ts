@@ -53,13 +53,14 @@ const SPEC: Record<string, EventType[]> = {
     'usage.tick',
     'task.blocked_on_key',
   ],
-  repo: ['task.created', 'task.moved', 'task.deleted'],
+  repo: ['task.created', 'task.moved', 'task.deleted', 'channel.message', 'repo_agent.memory_updated'],
   user: [
     'notification',
     'builder.presence',
     'builder.paired',
     'builder.revoked',
     'repo_access.changed',
+    'chat.message',
     'budget.warning',
     'budget.exceeded',
   ],
@@ -433,6 +434,16 @@ describe('eventsForChange', () => {
         ),
       ),
     ).toEqual(['member.left@org']);
+  });
+
+  it('private chat answers go to their author; team room and memory changes go to the repo', () => {
+    const chat = change('chat_messages', 'UPDATE', { id: ROW, session_id: RUN, user_id: USER, role: 'assistant', status: 'done' });
+    expect(eventsForChange(chat)).toMatchObject([{ type: 'chat.message', topic: `user:${USER}`, payload: { sessionId: RUN, messageId: ROW, role: 'assistant', status: 'done' } }]);
+    const room = change('channel_messages', 'INSERT', { id: ROW, channel_id: RUN, repo_id: REPO, author: 'agent', status: 'pending' });
+    expect(eventsForChange(room)).toMatchObject([{ type: 'channel.message', topic: `repo:${REPO}`, payload: { channelId: RUN, author: 'agent', status: 'pending' } }]);
+    const memory = change('repo_agent_memory', 'UPDATE', { id: ROW, repo_id: REPO, section: 'rules' });
+    expect(eventsForChange(memory)).toMatchObject([{ type: 'repo_agent.memory_updated', topic: `repo:${REPO}`, payload: { repoId: REPO, section: 'rules' } }]);
+    for (const e of [chat, room, memory].flatMap(eventsForChange)) expect(eventPayloads[e.type].safeParse(e.payload).success).toBe(true);
   });
 
   it('ignores rows with no org, and every planned payload passes its schema', () => {

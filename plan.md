@@ -160,7 +160,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | Phase | Scope (from brief) | Status | Notes |
 |---|---|---|---|
 | B-1 Prompt guide | Templates (bug fix, feature, refactor, add tests, UI change), org-owned templates, live checker that scores 0–100 and flags missing repro, acceptance criteria, file hints, vague scope, one-click rewrite; score stored on the task; policy `prompt_check` | **done** | See "B-1 notes" below. |
-| B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **partial, not to spec** | Built: private chat per user, answers from live reads (read_file, list_dir, search_code), file citations, RLS. Not built: team channel, RAG and indexing, `store_code_index`, one-click to task, repo agent memory, GitHub links on citations. Built before a plan was approved. |
+| B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **part 1 done; part 2 (code index) next** | See "B-2 notes" below. |
 | B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | not started | |
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | not started | |
 | B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | not started | |
@@ -189,6 +189,26 @@ Approved decisions: the live score is rule-based (no AI cost per keystroke); the
 - Admin-only template changes are enforced in the API, not in RLS (RLS has no role function), the same as other admin settings.
 - Bug detection is a heuristic (bug words in the title, or strong ones like "crash" in the description). It can miss or over-flag, and the flag is advice only: it never blocks saving or starting.
 
+### B-2 notes
+
+Approved decisions (2026-10-20): embeddings from an open code model run in the worker (`jina-embeddings-v2-base-code` via transformers.js), behind a provider interface so Voyage can be added later; chat tables renamed to the brief's names; memory edited by people with push access plus admins; stop for a go-ahead between part 1 and part 2.
+
+**Part 1 (done): chat, team room, Repo Agent memory**
+- **Schema:** 0022 renames `repo_chats` → `chat_sessions`, `repo_chat_messages` → `chat_messages` (`chat_id` → `session_id`, `sources` → `citations` with old paths converted). 0023 adds `repo_channels`, `channel_messages`, `repo_agent_memory`, `chat_messages.commit_sha`, RLS `repo_readers` (org + repo access) and realtime triggers.
+- **Agent:** `repo-qa.ts` (shared scope, tools incl. `git_log`, memory in the system prompt, citation parsing), `repo-chat.ts` (private), `repo-agent.ts` (`@agent` in the room, room transcript as context, runs as the person who mentioned it).
+- **API:** `chat.*` on the renamed tables, `room.get/post`, `repoAgent.memory.get/update` (audited). `repos.byName` returns `htmlUrl` for links.
+- **Web:** repo tabs; private chat with citations and live updates; team room; memory page; "Make this a task" pre-fills the new-task form.
+- **Events:** `chat.message` (user topic), `channel.message`, `repo_agent.memory_updated` (repo topic).
+- **Tests:** RLS for all chat tables, runner and agent with a scripted model, citation parsing, API permissions and queueing, events mapping, and an end-to-end test (room → @agent → cited answer → task → memory edit).
+
+**Deviations and limits:**
+- Admins edit memory without push access, but still need some access to the repo on GitHub (RLS), the same as reading it.
+- The room shows the latest 100 messages; older history is kept but not paged yet.
+- Citations come from `path:start-end` references in the answer, kept only when the file exists at the answer commit; line numbers aren't checked against the file length.
+- Found while testing: two end-to-end specs could leave an AI key behind when cleanup ran before the key list loaded. Both now wait for the list first.
+
+**Part 2 (next, after go-ahead): code index** — `code_chunks` with pgvector + HNSW, tree-sitter chunking, local embeddings, full index on connect and incremental re-index on push (GitHub App `push` event), hybrid search in chat, `store_code_index` org setting with purge.
+
 ## Next step
 
-**B-2 Repo chat and Repo Agent memory, to be planned and approved before coding.**
+**B-2 part 2 (code index), waiting for the go-ahead.**

@@ -11,5 +11,7 @@ export * from './builder-jobs';
 export * from './pr-body';
 export * from './publisher';
 export * from './repo-chat';
+export * from './repo-agent';
+export { citationsFor, loadMemory, MEMORY_TITLES } from './repo-qa';
 export * from './prompt-guide';
 export * from './blob-retention';

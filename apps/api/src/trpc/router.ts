@@ -8,6 +8,8 @@ import { membersRouter } from './routers/members';
 import { modelsRouter } from './routers/models';
 import { notificationsRouter } from './routers/notifications';
 import { promptGuideRouter } from './routers/prompt-guide';
+import { repoAgentRouter } from './routers/repo-agent';
+import { roomRouter } from './routers/room';
 import { orgsRouter } from './routers/orgs';
 import { githubRouter, installationsRouter, reposRouter } from './routers/repos';
 import { tasksRouter } from './routers/tasks';
@@ -33,6 +35,8 @@ export const appRouter = router({
   builders: buildersRouter,
   chat: chatRouter,
   promptGuide: promptGuideRouter,
+  room: roomRouter,
+  repoAgent: repoAgentRouter,
 });
 
 export type AppRouter = typeof appRouter;

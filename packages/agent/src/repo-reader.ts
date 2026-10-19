@@ -1,4 +1,4 @@
-import { getBlob, getTree, listDirAt, searchCode, type KvCache, type Octokit, type TreeEntry } from '@autodev/github';
+import { getBlob, getTree, listCommits, listDirAt, searchCode, type CommitSummary, type KvCache, type Octokit, type TreeEntry } from '@autodev/github';
 
 /** Read-only view of the repo at the base commit. */
 export interface RepoReader {
@@ -7,6 +7,8 @@ export interface RepoReader {
   readBlob(blobSha: string): Promise<Buffer>;
   /** Default-branch code search: a fallback when a bounded local search isn't possible. */
   search(query: string, path?: string): Promise<string[]>;
+  /** Recent commits up to the base commit, optionally only those touching `path`. Used by repo chat. */
+  log?(path?: string, limit?: number): Promise<CommitSummary[]>;
 }
 
 const CACHE_TTL = 24 * 3600;
@@ -58,6 +60,10 @@ export class GitHubRepoReader implements RepoReader {
 
   search(query: string, path?: string) {
     return this.opts.withClient((gh) => searchCode(gh, this.opts.owner, this.opts.name, query, path ? { path } : {}));
+  }
+
+  log(path?: string, limit = 20) {
+    return this.opts.withClient((gh) => listCommits(gh, this.opts.owner, this.opts.name, this.opts.baseSha, { ...(path ? { path } : {}), limit }));
   }
 }
 

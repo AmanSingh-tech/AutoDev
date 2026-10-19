@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; repo chat exists in an early form ahead of B-2.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 part 1 (repo chat, team room, Repo Agent memory) is done.
 
 ## Layout
 
@@ -252,21 +252,33 @@ S3-compatible endpoint (MinIO in docker-compose; set `S3_ENDPOINT`, `S3_BUCKET`,
 - Retention is set per org in Settings: builder logs 7–365 days (default 30), workspace snapshots of
   finished tasks 1–90 days (default 14). Patches are always kept.
 
-## Repo chat (B-1)
+## Repo chat, team room and Repo Agent (B-2)
 
-- Each repo page has **Ask the repo**. You ask a question, and the answer comes from the repo's
-  code: the model lists directories, reads files with line numbers and searches code, then cites
-  `path:line`. Every answer lists the files it read.
-- Reads happen at the default branch's current commit, with **your own** GitHub token. A chat can't
-  show anything you couldn't already see on GitHub.
-- Chats are private to their author, enforced by RLS as well as the router. Other members of the
-  org can't read them.
-- Answers are produced by the `chat` worker queue, through the LLM gateway. They use the org's key
-  and the monthly budgets (`claude-sonnet-5-5`; the Models screen doesn't edit this policy yet). A question is
-  refused up front when no working key or budget is left, and a hard budget is checked again on
-  every model turn.
-- Limits: at most 12 tool turns per answer and 4,000 characters per question. The chat page polls
-  while an answer is pending (chat isn't on the realtime stream yet). No edits to the repo, and no
-  chat deletion yet.
+Each repo has tabs: **Board**, **Team room**, **Ask the repo** and **Repo Agent**.
+
+- **Ask the repo** is a private chat (`chat_sessions`, `chat_messages`; only the author can read it).
+  The model lists directories, reads files with line numbers, searches code and reads the commit
+  history (`git_log`), then cites `path:start-end`.
+- **Team room** (`repo_channels`, `channel_messages`) is shared by everyone in the org with access to
+  the repo. Mention **@agent** and the Repo Agent answers in the room, with the recent room messages
+  as context. It runs on the GitHub access, AI key and budget of the person who mentioned it, one
+  pending answer per person at a time.
+- **Citations** link to GitHub at the exact commit the answer read
+  (`…/blob/<sha>/path#L10-L20`), so they don't drift as the branch moves.
+- **Make this a task** on any answer or message opens the new-task form, pre-filled with the text
+  and its sources. Nothing is created until you save.
+- **Repo Agent memory** (`repo_agent_memory`): four notes per repo (conventions, architecture,
+  rules, fragile areas), up to 8,000 characters each. Everyone with access reads them; people who
+  can push to the repo, and admins, edit them; edits are audited. Both the private chat and the
+  Repo Agent read them before answering. The agent only answers questions for now; it is one
+  module (`packages/agent/src/repo-agent.ts`) so AI review can be added to it later.
+- Reads happen at the default branch's current commit with the asker's **own** GitHub token, so an
+  answer can't show anything they couldn't already see. Room and memory rows are also limited by
+  RLS to people with access to the repo.
+- Answers come from the `chat` worker queue, through the LLM gateway (`chat` policy,
+  `claude-sonnet-5-5`). A question is refused up front when no working key or budget is left, and
+  a hard budget is checked again on every model turn. At most 12 tool turns per answer and 4,000
+  characters per message. New messages and answers arrive live over the event stream.
+- Not yet: the code index (part 2 of B-2), paging older room history, deleting chats.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

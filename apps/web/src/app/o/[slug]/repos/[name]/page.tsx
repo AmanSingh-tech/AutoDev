@@ -4,6 +4,7 @@ import { BOARD_COLUMNS, columnOf } from '@autodev/db/task-machine';
 import type { TaskMode } from '@autodev/db/schema';
 import { Alert, Avatar, Button, cn, NativeSelect } from '@autodev/ui';
 import Link from 'next/link';
+import { RepoNav } from '@/components/repo-nav';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useDeferredValue, useState } from 'react';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
@@ -35,6 +36,7 @@ export default function RepoBoardPage() {
 
   return (
     <section className="space-y-4">
+      <RepoNav slug={slug} name={name} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{repo.data.fullName}</h1>
@@ -48,9 +50,6 @@ export default function RepoBoardPage() {
               </button>
             ))}
           </div>
-          <Button asChild variant="outline">
-            <Link href={`/o/${slug}/repos/${name}/chat`}>Ask the repo</Link>
-          </Button>
           {repo.data.canCreate && (
             <Button asChild>
               <Link href={`/o/${slug}/repos/${name}/new`}>New task</Link>
