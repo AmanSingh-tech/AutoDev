@@ -4,6 +4,7 @@ import { Alert, Badge, Button, Table, TBody, TD, TH, THead, TR } from '@autodev/
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 
 export default function ReposPage() {
   const welcome = useSearchParams().get('welcome');
@@ -11,7 +12,10 @@ export default function ReposPage() {
   const utils = trpc.useUtils();
   const repos = trpc.repos.list.useQuery();
   const refresh = trpc.repos.refresh.useMutation({
-    onSuccess: (data) => utils.repos.list.setData(undefined, data),
+    onSuccess: (data) => {
+      utils.repos.list.setData(undefined, data);
+      toast.success(`Repositories refreshed: ${new Intl.PluralRules('en').select(data.length) === 'one' ? '1 repository' : `${data.length} repositories`} you can push to`);
+    },
   });
 
   return (

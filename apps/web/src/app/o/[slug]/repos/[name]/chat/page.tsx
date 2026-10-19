@@ -1,12 +1,13 @@
 'use client';
 
-import { Alert, Button, cn } from '@autodev/ui';
+import { Alert, Button, cn, Pending } from '@autodev/ui';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Markdown } from '@/components/markdown';
 import { Citations, MakeTaskButton } from '@/components/repo-chat-bits';
 import { RepoNav } from '@/components/repo-nav';
 import { trpc } from '@/lib/trpc';
+import { useArrivals } from '@/lib/use-arrivals';
 import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../../org-shell';
 
@@ -33,6 +34,7 @@ export default function RepoChatPage() {
       void utils.chat.list.invalidate();
     }
   });
+  const isNew = useArrivals(thread.data?.messages.map((m) => m.id), chatId ?? '');
   const [draft, setDraft] = useState('');
   const select = (id: string) => router.replace(`/o/${slug}/repos/${name}/chat?c=${id}`);
 
@@ -91,19 +93,19 @@ export default function RepoChatPage() {
           <ol className="space-y-6">
             {thread.data?.messages.map((m) =>
               m.role === 'user' ? (
-                <li key={m.id} className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg bg-muted px-4 py-2 text-sm">
+                <li key={m.id} className={cn('ml-auto max-w-[85%] whitespace-pre-wrap rounded-lg [overflow-wrap:anywhere] bg-muted px-4 py-2 text-sm', isNew(m.id) && 'animate-enter motion-reduce:animate-fade')}>
                   {m.content}
                 </li>
               ) : (
-                <li key={m.id} className="space-y-2">
-                  {m.status === 'pending' && <p className="text-sm text-muted-foreground">Reading the repository…</p>}
+                <li key={m.id} className={cn('space-y-2', isNew(m.id) && 'animate-enter motion-reduce:animate-fade')}>
+                  {m.status === 'pending' && <Pending label="Reading the repository…" />}
                   {m.status === 'failed' && <Alert tone="destructive">{m.content}</Alert>}
                   {m.status === 'done' && (
-                    <>
+                    <div className={cn('space-y-2', isNew(m.id) && 'animate-fade')}>
                       <Markdown text={m.content} />
                       <Citations htmlUrl={r.htmlUrl} sha={m.commitSha} citations={m.citations} />
                       {r.canCreate && <MakeTaskButton slug={slug} repoName={name} htmlUrl={r.htmlUrl} text={m.content} sha={m.commitSha} citations={m.citations} />}
-                    </>
+                    </div>
                   )}
                 </li>
               ),

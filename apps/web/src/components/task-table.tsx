@@ -25,32 +25,34 @@ export function TaskTable({ slug, rows, showRepo }: { slug: string; rows: Row[];
       <TBody>
         {rows.map((t) => (
           <TR key={t.id}>
-            <TD>
-              <Link href={`/o/${slug}/tasks/${t.key}`} className="hover:underline">
-                <span className="mr-2 font-mono text-xs text-muted-foreground">{t.key}</span>
+            {/* A floor for the title column: on phones the table scrolls sideways instead of
+                squeezing titles to two words a line. Up to 3 lines, full title on hover. */}
+            <TD className="min-w-[15rem] max-w-[40rem]">
+              <Link href={`/o/${slug}/tasks/${t.key}`} className="line-clamp-3 break-words hover:underline" title={t.title}>
+                <span className="mr-2 whitespace-nowrap font-mono text-xs text-muted-foreground">{t.key}</span>
                 <span className="font-medium">{t.title}</span>
               </Link>
             </TD>
             {showRepo && (
               <TD>
-                <Link href={`/o/${slug}/repos/${t.repoName}`} className="text-muted-foreground hover:underline">
+                <Link href={`/o/${slug}/repos/${t.repoName}`} title={t.repoName} className="block max-w-[11rem] truncate text-muted-foreground hover:underline">
                   {t.repoName}
                 </Link>
               </TD>
             )}
-            <TD>
+            <TD className="whitespace-nowrap">
               <StatusBadge status={t.status} />
             </TD>
-            <TD>
+            <TD className="whitespace-nowrap">
               <PriorityLabel priority={t.priority} />
             </TD>
             <TD>
               <span className="flex items-center gap-2">
-                <Avatar src={t.ownerAvatar} alt={t.ownerLogin} className="h-5 w-5" />
+                <Avatar src={t.ownerAvatar} alt={t.ownerLogin} className="h-5 w-5 shrink-0" />
                 {t.ownerLogin}
               </span>
             </TD>
-            <TD className="text-right text-muted-foreground">{relativeTime(t.updatedAt)}</TD>
+            <TD className="whitespace-nowrap text-right text-muted-foreground">{relativeTime(t.updatedAt)}</TD>
           </TR>
         ))}
       </TBody>

@@ -9,6 +9,7 @@ import { relativeTime } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../../org-shell';
+import { toast } from 'sonner';
 
 type Section = RouterOutputs['repoAgent']['memory']['get']['sections'][number];
 
@@ -45,7 +46,7 @@ export default function RepoAgentPage() {
         </p>
       </div>
       {memory.error && <Alert tone="destructive">{memory.error.message}</Alert>}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {memory.data?.sections.map((s) => (
           <MemoryCard key={s.section} repoId={repoId} section={s} canEdit={memory.data.canEdit} />
         ))}
@@ -61,6 +62,7 @@ function MemoryCard({ repoId, section: s, canEdit }: { repoId: string; section: 
   const save = trpc.repoAgent.memory.update.useMutation({
     onSuccess: async () => {
       setEditing(false);
+      toast.success(`${s.title} saved`);
       await utils.repoAgent.memory.get.invalidate({ repoId });
     },
   });

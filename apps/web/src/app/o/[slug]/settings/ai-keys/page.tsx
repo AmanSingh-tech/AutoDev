@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { relativeTime } from '@/lib/format';
 import { trpc } from '@/lib/trpc';
 import { useOrg } from '../../org-shell';
+import { toast } from 'sonner';
 
 type Scope = 'org' | 'team' | 'user';
 const SCOPE_LABEL: Record<Scope, string> = { org: 'Organization', team: 'Team', user: 'Personal' };
@@ -19,7 +20,12 @@ export default function AiKeysPage() {
   const teams = trpc.teams.list.useQuery(undefined, { enabled: isAdmin });
   const [replacing, setReplacing] = useState<{ scope: Scope; teamId?: string | null } | null>(null);
   const refresh = () => Promise.all([utils.llmKeys.list.invalidate(), utils.llmKeys.effective.invalidate()]);
-  const revoke = trpc.llmKeys.revoke.useMutation({ onSuccess: refresh });
+  const revoke = trpc.llmKeys.revoke.useMutation({
+    onSuccess: () => {
+      toast.success('Key removed');
+      return refresh();
+    },
+  });
 
   const scopes: Scope[] = [
     ...(isAdmin ? (['org', 'team'] as Scope[]) : []),
@@ -133,6 +139,7 @@ function AddKeyForm({
     onSuccess: () => {
       setApiKey('');
       setLabel('');
+      toast.success('Key checked and saved');
       onDone();
     },
     // Clear the secret from the form even when the save fails.

@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ConfigCommands } from './commands';
 import { Markdown } from './markdown';
+import { toast } from 'sonner';
 
 // Monaco is large: load it only when a document's source or a diff is opened.
 const MarkdownSource = dynamic(() => import('./monaco').then((m) => m.MarkdownSource), { ssr: false, loading: () => <Loading /> });
@@ -332,7 +333,12 @@ function summarize(input: unknown) {
 /** Where the change is on GitHub: the PR (open, merged, closed), or the branch with a Create PR button. */
 function PrPanel({ task: t }: { task: Task }) {
   const refresh = useRefresh(t.key);
-  const create = trpc.agent.createPr.useMutation({ onSuccess: refresh });
+  const create = trpc.agent.createPr.useMutation({
+    onSuccess: () => {
+      toast.success('Pull request opened');
+      return refresh();
+    },
+  });
   const pr = t.pullRequests[0];
   if (pr) {
     const label = pr.state === 'merged' ? 'merged' : pr.state === 'closed' ? 'closed without merging' : 'open';

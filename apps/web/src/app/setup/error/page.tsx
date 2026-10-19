@@ -14,7 +14,7 @@ const MESSAGES: Record<string, string> = {
 export default async function SetupError({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {
   const { reason } = await searchParams;
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
+    <main className="flex min-h-dvh items-center justify-center px-4">
       <Card className="max-w-md">
         <CardHeader>
           <CardTitle>Couldn’t finish setup</CardTitle>

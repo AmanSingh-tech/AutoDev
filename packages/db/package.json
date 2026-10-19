@@ -14,7 +14,8 @@
     "test": "vitest run",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "seed:worst": "tsx src/seed-worst.ts"
   },
   "dependencies": {
     "@autodev/config": "workspace:*",

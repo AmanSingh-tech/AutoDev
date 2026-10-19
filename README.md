@@ -58,6 +58,14 @@ pnpm --filter @autodev/e2e e2e # Playwright against tools/mock-github (needs doc
 
 GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github for e2e).
 
+## Deploying and frontend conventions
+
+- **Vercel** hosts the web app only; the API, worker, builder gateway, Postgres and Redis run
+  elsewhere. Settings, environment variables and GitHub App URLs: [docs/deploy-vercel.md](docs/deploy-vercel.md).
+- **Frontend rules** (motion tokens, toasts, phone baseline, worst-case data):
+  [docs/frontend.md](docs/frontend.md). `pnpm db:seed:worst` seeds an org of realistic extreme data
+  for checking layouts; `--remove` deletes it.
+
 ## Security model (A-1)
 
 - **Tenancy:** every tenant table has `org_id` with Postgres RLS. Request paths use the

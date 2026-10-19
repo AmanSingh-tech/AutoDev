@@ -3,6 +3,7 @@
 import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, NativeSelect } from '@autodev/ui';
 import { useEffect, useState } from 'react';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
+import { toast } from 'sonner';
 
 type Org = RouterOutputs['orgs']['current'];
 type Form = Pick<Org, 'defaultTaskMode' | 'staleBranchDays' | 'staleBranchAction' | 'maxFixCycles' | 'logRetentionDays' | 'snapshotRetentionDays' | 'taskKeyPrefix' | 'allowUserKeys'> & {
@@ -21,11 +22,10 @@ export default function SettingsPage() {
   const org = trpc.orgs.current.useQuery();
   const installs = trpc.installations.list.useQuery();
   const [form, setForm] = useState<Form | null>(null);
-  const [saved, setSaved] = useState(false);
   const save = trpc.orgs.updateSettings.useMutation({
     onSuccess: (data) => {
       utils.orgs.current.setData(undefined, (prev) => (prev ? { ...prev, ...data } : prev));
-      setSaved(true);
+      toast.success('Settings saved');
     },
   });
 
@@ -36,7 +36,6 @@ export default function SettingsPage() {
   if (!org.data || !form) return <p className="text-sm text-muted-foreground">Loading…</p>;
   const readOnly = org.data.myRole !== 'owner' && org.data.myRole !== 'admin';
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
-    setSaved(false);
     setForm({ ...form, [k]: v });
   };
 
@@ -108,7 +107,6 @@ export default function SettingsPage() {
               </div>
             </fieldset>
             {save.error && <Alert tone="destructive">{save.error.message}</Alert>}
-            {saved && <p className="text-sm text-muted-foreground">Saved.</p>}
             {!readOnly && (
               <div>
                 <Button type="submit" disabled={save.isPending}>

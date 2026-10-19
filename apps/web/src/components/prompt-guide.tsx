@@ -52,14 +52,11 @@ export function PromptGuidePanel({
   repoId,
   draft,
   onRewrite,
-  onUndo,
 }: {
   repoId: string;
   draft: PromptDraft;
-  /** Apply the rewrite to the form; the form keeps what it replaced, for Undo. */
+  /** Apply the rewrite to the form; the form offers Undo (in a toast). */
   onRewrite: (rw: Rewrite) => void;
-  /** Present while a rewrite can be undone. */
-  onUndo: (() => void) | null;
 }) {
   const live = scorePrompt(draft);
   const input = {
@@ -87,11 +84,6 @@ export function PromptGuidePanel({
           <PromptScoreBadge score={live.score} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {onUndo && (
-            <Button type="button" size="sm" variant="ghost" onClick={onUndo}>
-              Undo rewrite
-            </Button>
-          )}
           <Button
             type="button"
             size="sm"
@@ -104,7 +96,7 @@ export function PromptGuidePanel({
           >
             {check.isPending ? 'Checking…' : 'Check deeper'}
           </Button>
-          <Button type="button" size="sm" disabled={!canCall || rewrite.isPending} onClick={() => rewrite.mutate(input)}>
+          <Button type="button" size="sm" disabled={!canCall || rewrite.isPending} onClick={() => rewrite.mutate(input)} aria-busy={rewrite.isPending}>
             {rewrite.isPending ? 'Rewriting…' : 'Rewrite'}
           </Button>
         </div>
@@ -123,7 +115,7 @@ export function PromptGuidePanel({
       {error && <Alert tone="destructive">{error}</Alert>}
 
       {deep && (
-        <div className="space-y-2 rounded-md bg-muted/50 p-3 text-sm" aria-label="Deeper check">
+        <div className="animate-enter space-y-2 rounded-md bg-muted/50 p-3 text-sm motion-reduce:animate-fade" aria-label="Deeper check">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">AI check</span>
             <PromptScoreBadge score={deep.score} />

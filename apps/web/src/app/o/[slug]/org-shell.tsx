@@ -57,22 +57,29 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
 
   return (
     <OrgContext.Provider value={org}>
-      <div className="min-h-screen">
-        <header className="border-b">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <div className="min-h-dvh">
+        {/* Padded away from the notch and rounded corners (viewport-fit=cover in the root layout). */}
+        <header className="border-b pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 md:gap-x-6">
             <Link href="/orgs" className="font-semibold">
               AutoDev
             </Link>
-            <span className="text-sm">
-              {org.name} <Badge variant="outline">{org.role}</Badge>
+            {/* Phones: one line between the logo and the bell; the full name is in the tooltip. */}
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm md:flex-none" title={org.name}>
+              <span className="truncate">{org.name}</span>
+              <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
+                {org.role}
+              </Badge>
             </span>
-            <nav className="flex gap-1 text-sm">
+            {/* Phones: its own row that scrolls sideways, instead of wrapping into a block of links. */}
+            <nav aria-label="Main" className="no-scrollbar -mx-4 order-last flex w-[calc(100%+2rem)] gap-1 overflow-x-auto whitespace-nowrap px-4 text-sm md:order-none md:mx-0 md:w-auto md:overflow-visible md:px-0">
               {NAV.map((n) => {
                 const href = `/o/${slug}/${n.href}`;
                 return (
                   <Link
                     key={n.href}
                     href={href}
+                    aria-current={pathname.startsWith(href) ? 'page' : undefined}
                     className={cn(
                       'rounded-md px-3 py-1.5 hover:bg-muted',
                       pathname.startsWith(href) && 'bg-muted font-medium',
@@ -83,13 +90,13 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
                 );
               })}
             </nav>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
               <NotificationsBell slug={slug} />
               {signOut}
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-8">{children}</main>
       </div>
     </OrgContext.Provider>
   );

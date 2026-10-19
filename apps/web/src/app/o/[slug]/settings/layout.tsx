@@ -19,7 +19,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const base = `/o/${slug}/settings`;
   return (
     <div className="space-y-6">
-      <nav className="flex flex-wrap gap-1 border-b pb-2 text-sm" aria-label="Settings">
+      <nav className="no-scrollbar flex gap-1 overflow-x-auto whitespace-nowrap border-b pb-2 text-sm" aria-label="Settings">
         {TABS.map((t) => {
           const href = base + t.href;
           const active = t.href ? pathname.startsWith(href) : pathname === base;

@@ -6,3 +6,4 @@ export * from './components/button';
 export * from './components/card';
 export * from './components/form';
 export * from './components/table';
+export * from './components/pending';

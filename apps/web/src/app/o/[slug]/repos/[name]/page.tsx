@@ -39,7 +39,7 @@ export default function RepoBoardPage() {
       <RepoNav slug={slug} name={name} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{repo.data.fullName}</h1>
+          <h1 className="text-xl font-semibold [overflow-wrap:anywhere]">{repo.data.fullName}</h1>
           <ModePolicy repo={repo.data} canEdit={org.role === 'owner' || org.role === 'admin'} />
         </div>
         <div className="flex gap-2">
@@ -118,11 +118,16 @@ function Board({ slug, tasks }: { slug: string; tasks: Task[] }) {
                       className={cn('rounded-md border bg-card p-3 text-sm shadow-sm', t.status === 'draft' && 'cursor-grab')}
                     >
                       <Link href={`/o/${slug}/tasks/${t.key}`} className="block space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">{t.key}</span>
-                          <PriorityLabel priority={t.priority} />
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                          <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">{t.key}</span>
+                          <span className="whitespace-nowrap">
+                            <PriorityLabel priority={t.priority} />
+                          </span>
                         </div>
-                        <div className="font-medium leading-snug">{t.title}</div>
+                        {/* Clamped so one long title can't make a card tower over the column; the full title is on the task page. */}
+                        <div className="line-clamp-4 font-medium leading-snug [overflow-wrap:anywhere]" title={t.title}>
+                          {t.title}
+                        </div>
                         <div className="flex items-center justify-between gap-2">
                           {col.id === 'draft' ? <span className="text-xs text-muted-foreground">{MODE_LABEL[t.mode]}</span> : <StatusBadge status={t.status} className="min-w-0 max-w-full" />}
                           <Avatar src={t.ownerAvatar} alt={t.ownerLogin} className="h-5 w-5 shrink-0" />

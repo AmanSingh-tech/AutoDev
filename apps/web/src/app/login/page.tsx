@@ -26,7 +26,7 @@ export default async function LoginPage({
   if (session?.user?.id && !params.reauth) redirect(callbackUrl);
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
+    <main className="flex min-h-dvh items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in to AutoDev</CardTitle>

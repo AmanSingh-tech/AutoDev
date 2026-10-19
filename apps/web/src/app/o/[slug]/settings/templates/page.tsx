@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { PromptScoreBadge } from '@/components/prompt-guide';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useOrg } from '../../org-shell';
+import { toast } from 'sonner';
 
 type Template = RouterOutputs['promptGuide']['templates']['list'][number];
 
@@ -75,7 +76,12 @@ export default function TemplatesPage() {
 function TemplateRow({ template: t, editable, onCopy }: { template: Template; editable: boolean; onCopy?: () => void }) {
   const utils = trpc.useUtils();
   const [editing, setEditing] = useState(false);
-  const remove = trpc.promptGuide.templates.delete.useMutation({ onSuccess: () => utils.promptGuide.templates.list.invalidate() });
+  const remove = trpc.promptGuide.templates.delete.useMutation({
+    onSuccess: () => {
+      toast.success(`Deleted “${t.name}”`);
+      return utils.promptGuide.templates.list.invalidate();
+    },
+  });
   if (editing) return <TemplateForm existing={t} initial={t} onDone={() => setEditing(false)} />;
   return (
     <details className="rounded-md border p-3">
@@ -110,6 +116,7 @@ function TemplateRow({ template: t, editable, onCopy }: { template: Template; ed
 function TemplateForm({ existing, initial, onDone }: { existing?: Template; initial?: Pick<Template, 'name' | 'kind' | 'descriptionMd' | 'acceptanceCriteriaMd'>; onDone: () => void }) {
   const utils = trpc.useUtils();
   const done = () => {
+    toast.success('Template saved');
     void utils.promptGuide.templates.list.invalidate();
     onDone();
   };

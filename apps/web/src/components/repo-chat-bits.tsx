@@ -3,6 +3,7 @@
 import type { Citation } from '@autodev/db/schema';
 import { Button } from '@autodev/ui';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import type { TaskFormValues } from './task-form';
 
 const PREFILL_KEY = 'autodev:task-prefill';
@@ -12,24 +13,39 @@ const range = (c: Citation) => (c.startLine ? (c.endLine && c.endLine !== c.star
 export const citationUrl = (htmlUrl: string, sha: string, c: Citation) =>
   `${htmlUrl}/blob/${sha}/${c.path}${c.startLine ? `#L${c.startLine}${c.endLine && c.endLine !== c.startLine ? `-L${c.endLine}` : ''}` : ''}`;
 export const citationLabel = (c: Citation) => (range(c) ? `${c.path}:${range(c)}` : c.path);
+/** `services/billing/…/ReconciliationServiceImpl.kt:12-40`: the start and the file name survive. */
+const middle = (s: string, max = 56) => (s.length <= max ? s : `${s.slice(0, 18)}…${s.slice(-(max - 19))}`);
+
+/** Sources shown before "Show more": enough to check the main claims without a wall of chips. */
+const FIRST_SOURCES = 5;
 
 /** The places an answer relied on, as links to GitHub. */
 export function Citations({ htmlUrl, sha, citations }: { htmlUrl: string; sha: string | null; citations: Citation[] }) {
+  const [all, setAll] = useState(false);
   if (!sha || citations.length === 0) return null;
+  const shown = all ? citations : citations.slice(0, FIRST_SOURCES);
+  const hidden = citations.length - shown.length;
   return (
-    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground" aria-label="Sources">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" aria-label="Sources">
       <span>Sources:</span>
-      {citations.map((c) => (
+      {shown.map((c) => (
         <a
           key={citationLabel(c)}
           href={citationUrl(htmlUrl, sha, c)}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded border px-1.5 py-0.5 font-mono hover:underline"
+          title={citationLabel(c)}
+          aria-label={citationLabel(c)}
+          className="max-w-full truncate rounded border px-1.5 py-0.5 font-mono hover:underline"
         >
-          {citationLabel(c)}
+          {middle(citationLabel(c))}
         </a>
       ))}
+      {hidden > 0 && (
+        <button type="button" className="rounded px-1.5 py-0.5 underline-offset-2 hover:underline" onClick={() => setAll(true)}>
+          {hidden} more
+        </button>
+      )}
     </div>
   );
 }

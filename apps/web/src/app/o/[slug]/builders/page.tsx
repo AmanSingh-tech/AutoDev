@@ -6,6 +6,7 @@ import { relativeTime } from '@/lib/format';
 import { trpc } from '@/lib/trpc';
 import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../org-shell';
+import { toast } from 'sonner';
 
 export default function BuildersPage() {
   const org = useOrg();
@@ -20,7 +21,12 @@ export default function BuildersPage() {
   useEvents(org.orgId, me.data?.user ? [`user:${me.data.user.id}`] : [], (events) => {
     if (events.some((e) => e.type.startsWith('builder.'))) void refresh();
   });
-  const revoke = trpc.builders.revoke.useMutation({ onSuccess: refresh });
+  const revoke = trpc.builders.revoke.useMutation({
+    onSuccess: () => {
+      toast.success('Builder revoked');
+      return refresh();
+    },
+  });
   const share = trpc.builders.setShared.useMutation({ onSuccess: refresh });
   const confirm = trpc.builders.confirmRepo.useMutation({ onSuccess: refresh });
   const apiUrl = typeof window === 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000');

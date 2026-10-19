@@ -21,6 +21,7 @@ import {
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useOrg } from '../org-shell';
+import { toast } from 'sonner';
 
 const ROLES: OrgRole[] = ['owner', 'admin', 'developer', 'viewer'];
 const isAdmin = (r: OrgRole) => r === 'owner' || r === 'admin';
@@ -38,7 +39,13 @@ export default function MembersPage() {
   const setPrimary = trpc.members.setPrimaryTeam.useMutation({ onSuccess: refreshAll, onError });
   const teamsQ = trpc.teams.list.useQuery();
   const teamsOf = (userId: string) => (teamsQ.data ?? []).filter((t) => t.members.some((m) => m.userId === userId));
-  const remove = trpc.members.remove.useMutation({ onSuccess: refreshAll, onError });
+  const remove = trpc.members.remove.useMutation({
+    onSuccess: () => {
+      toast.success('Member removed');
+      return refreshAll();
+    },
+    onError,
+  });
 
   /** What this viewer may assign, mirroring the server rules (the server enforces them). */
   const assignable = (target: OrgRole) =>

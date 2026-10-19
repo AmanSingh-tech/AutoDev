@@ -209,6 +209,22 @@ Approved decisions (2026-10-20): embeddings from an open code model run in the w
 
 **Part 2 (next, after go-ahead): code index** — `code_chunks` with pgvector + HNSW, tree-sitter chunking, local embeddings, full index on connect and incremental re-index on push (GitHub App `push` event), hybrid search in chat, `store_code_index` org setting with purge.
 
+### Frontend polish and Vercel (2026-10-20)
+
+Approved: polish and motion, toasts, phone feel and a robustness pass, using Emil Kowalski's skills (read, not installed); Vercel for the web app only; option (a), sign-in stays in the web app.
+
+- **Motion:** easing tokens and `enter`/`fade`/`pulse-dot` animations in the UI preset; button press feedback; arrivals-only entrance for chat and room messages (`useArrivals`); `<Pending>` for waits; reduced motion respected.
+- **Toasts:** Sonner, mounted once; success toasts for silent actions; the prompt guide's Undo moved into the rewrite toast.
+- **Phones:** viewport export (cover, theme colors, keyboard resize), tap highlight off, 16 px inputs on touch, hover only where supported, `dvh`, safe-area padding, sideways-scrolling tab rows, a one-line header.
+- **Robustness:** `pnpm db:seed:worst` (own mock GitHub user, so demo and e2e are unaffected). Fixed: unbreakable titles, paths and URLs overflowing the page (task page, room, memory page), grid columns widened by tables (usage), board card key/priority collisions and very tall cards, citation walls, table columns squeezed to two words.
+- **Vercel:** `apps/web/vercel.json`; build needs no secrets; the web app now requires only the GitHub settings sign-in uses (no App private key or webhook secret) and only the system database URL. Guide: `docs/deploy-vercel.md`.
+- **Tests:** e2e now uses the toast's Undo, and `mobile.spec.ts` checks no sideways scroll at 375 px and 16 px inputs.
+
+**Decisions left open:**
+- The board loads the latest 200 tasks of a repo and its column counts are of those, so a repo with 1,000 tasks shows partial counts. Options: real counts from the server plus "load more" per column, or keep it and label the board "latest 200".
+- On phones the members table and task list scroll sideways inside their box rather than becoming stacked cards.
+- Not checked on a real phone: sticky hover, tap delay, safe areas and input zoom need hardware.
+
 ## Next step
 
 **B-2 part 2 (code index), waiting for the go-ahead.**

@@ -84,7 +84,10 @@ test('templates, the live score, check deeper and a rewrite that can be undone; 
   await guide.getByRole('button', { name: 'Rewrite' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Fix greet() returning the wrong word');
   await expect(guide.getByTitle(/Prompt score/).first()).toHaveText('100/100');
-  await guide.getByRole('button', { name: 'Undo rewrite' }).click();
+  // Undo lives in the toast that confirms the rewrite.
+  const toast = page.getByRole('listitem').filter({ hasText: 'Draft rewritten' });
+  await expect(toast).toBeVisible();
+  await toast.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Fix greeting');
   await guide.getByRole('button', { name: 'Rewrite' }).click();
   await expect(page.getByLabel('Title')).toHaveValue('Fix greet() returning the wrong word');

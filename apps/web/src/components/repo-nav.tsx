@@ -18,7 +18,7 @@ export function RepoNav({ slug, name, fullName }: { slug: string; name: string; 
   return (
     <div className="space-y-2">
       {fullName && <p className="text-sm text-muted-foreground">{fullName}</p>}
-      <nav className="flex flex-wrap gap-1 border-b pb-2 text-sm" aria-label="Repository">
+      <nav className="no-scrollbar flex gap-1 overflow-x-auto whitespace-nowrap border-b pb-2 text-sm" aria-label="Repository">
         {TABS.map((t) => {
           const href = base + t.href;
           const active = t.href ? pathname.startsWith(href) : pathname === base;

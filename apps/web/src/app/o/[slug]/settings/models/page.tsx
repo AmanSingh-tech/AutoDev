@@ -4,6 +4,7 @@ import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, C
 import { useEffect, useState } from 'react';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useOrg } from '../../org-shell';
+import { toast } from 'sonner';
 
 type Price = RouterOutputs['models']['prices'][number];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -33,7 +34,12 @@ function PolicyCard({ isAdmin, models }: { isAdmin: boolean; models: string[] })
   const policies = trpc.models.policies.useQuery();
   const agent = policies.data?.find((p) => p.useCase === 'agent');
   const [form, setForm] = useState<{ model: string; maxTokensPerTask: number; maxOutputTokens: number; effort: string } | null>(null);
-  const save = trpc.models.setPolicy.useMutation({ onSuccess: () => utils.models.policies.invalidate() });
+  const save = trpc.models.setPolicy.useMutation({
+    onSuccess: () => {
+      toast.success('Model policy saved');
+      return utils.models.policies.invalidate();
+    },
+  });
   useEffect(() => {
     if (agent && !form) setForm({ model: agent.model, maxTokensPerTask: agent.maxTokensPerTask, maxOutputTokens: agent.maxOutputTokens, effort: agent.effort ?? '' });
   }, [agent, form]);
@@ -87,7 +93,6 @@ function PolicyCard({ isAdmin, models }: { isAdmin: boolean; models: string[] })
             </div>
           </fieldset>
           {save.error && <Alert tone="destructive">{save.error.message}</Alert>}
-          {save.isSuccess && <p className="text-sm text-muted-foreground">Saved.</p>}
           {isAdmin && (
             <div>
               <Button type="submit" disabled={save.isPending}>
@@ -106,8 +111,8 @@ function PricesCard({ isAdmin, prices }: { isAdmin: boolean; prices: Price[] }) 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const invalidate = () => utils.models.prices.invalidate();
-  const save = trpc.models.setPrice.useMutation({ onSuccess: () => (setEditing(null), invalidate()) });
-  const reset = trpc.models.clearPriceOverride.useMutation({ onSuccess: invalidate });
+  const save = trpc.models.setPrice.useMutation({ onSuccess: () => (setEditing(null), toast.success('Price saved'), invalidate()) });
+  const reset = trpc.models.clearPriceOverride.useMutation({ onSuccess: () => (toast.success('Price reset to the default'), invalidate()) });
 
   return (
     <Card>

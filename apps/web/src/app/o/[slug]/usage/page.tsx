@@ -47,7 +47,7 @@ export default function UsagePage() {
               {int(s.total.unpricedCalls)} calls used a model with no price, so their cost is shown as $0. Add the model under Models & prices.
             </Alert>
           )}
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatTile hero label="Cost" value={usd(s.total.costUsd, { compact: true })} hint={`${int(s.total.calls)} LLM calls`} />
             <StatTile label="Input tokens" value={tokens(s.total.inputTokens)} />
             <StatTile label="Output tokens" value={tokens(s.total.outputTokens)} />
@@ -55,7 +55,7 @@ export default function UsagePage() {
             <StatTile label="Cache reads" value={tokens(s.total.cacheReadTokens)} />
           </div>
           <DailyCostChart month={s.month} daily={s.daily} />
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Breakdown title="By member" rows={s.byUser} name={(r) => r.login ?? 'System'} />
             <Breakdown title="By repository" rows={s.byRepo} name={(r) => r.fullName ?? 'No repository'} />
             <Breakdown title="By model" rows={s.byModel} name={(r) => r.model} mono />

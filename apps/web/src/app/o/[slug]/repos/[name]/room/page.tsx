@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Avatar, Button } from '@autodev/ui';
+import { Alert, Avatar, Button, cn, Pending } from '@autodev/ui';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Markdown } from '@/components/markdown';
@@ -8,6 +8,7 @@ import { Citations, MakeTaskButton } from '@/components/repo-chat-bits';
 import { RepoNav } from '@/components/repo-nav';
 import { relativeTime } from '@/lib/format';
 import { trpc } from '@/lib/trpc';
+import { useArrivals } from '@/lib/use-arrivals';
 import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../../org-shell';
 
@@ -22,6 +23,7 @@ export default function TeamRoomPage() {
   useEvents(org.orgId, repoId ? [`repo:${repoId}`] : [], (events) => {
     if (events.some((e) => e.type === 'channel.message')) void utils.room.get.invalidate({ repoId });
   });
+  const isNew = useArrivals(room.data?.messages.map((m) => m.id), repoId);
   const [draft, setDraft] = useState('');
   const post = trpc.room.post.useMutation({
     onSuccess: async () => {
@@ -55,7 +57,7 @@ export default function TeamRoomPage() {
       <ol className="space-y-5" aria-label="Messages">
         {room.data?.messages.length === 0 && <p className="text-sm text-muted-foreground">No messages yet. Say hello, or ask @agent about the code.</p>}
         {room.data?.messages.map((m) => (
-          <li key={m.id} className="flex gap-3">
+          <li key={m.id} className={cn('flex gap-3', isNew(m.id) && 'animate-enter motion-reduce:animate-fade')}>
             {m.author === 'agent' ? (
               <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                 AI
@@ -68,10 +70,10 @@ export default function TeamRoomPage() {
                 <span className="font-medium text-foreground">{m.author === 'agent' ? 'Repo Agent' : m.login}</span>
                 {m.author === 'agent' && <span> · asked by {m.login}</span>} · {relativeTime(m.createdAt)}
               </p>
-              {m.status === 'pending' && <p className="text-sm text-muted-foreground">Reading the repository…</p>}
+              {m.status === 'pending' && <Pending label="Reading the repository…" />}
               {m.status === 'failed' && <Alert tone="destructive">{m.content}</Alert>}
               {m.status === 'done' &&
-                (m.author === 'agent' ? <Markdown text={m.content} /> : <p className="whitespace-pre-wrap break-words text-sm">{m.content}</p>)}
+                (m.author === 'agent' ? <Markdown text={m.content} /> : <p className="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{m.content}</p>)}
               {m.status === 'done' && <Citations htmlUrl={r.htmlUrl} sha={m.commitSha} citations={m.citations} />}
               {m.status === 'done' && r.canCreate && (
                 <MakeTaskButton slug={slug} repoName={name} htmlUrl={r.htmlUrl} text={m.content} sha={m.commitSha} citations={m.citations} />

@@ -14,6 +14,7 @@ import { relativeTime } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../../org-shell';
+import { toast } from 'sonner';
 
 type Task = RouterOutputs['tasks']['get'];
 
@@ -43,11 +44,11 @@ export default function TaskPage() {
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{t.key}</span>
             <span>·</span>
-            <Link href={`/o/${slug}/repos/${t.repo.name}`} className="hover:underline">
+            <Link href={`/o/${slug}/repos/${t.repo.name}`} className="min-w-0 [overflow-wrap:anywhere] hover:underline">
               {t.repo.fullName}
             </Link>
           </div>
-          <h1 className="text-2xl font-semibold">{t.title}</h1>
+          <h1 className="text-2xl font-semibold [overflow-wrap:anywhere]">{t.title}</h1>
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge status={t.status} />
             <PriorityLabel priority={t.priority} />
@@ -113,7 +114,12 @@ function Actions({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
   const refresh = () => Promise.all([utils.tasks.get.invalidate({ key: t.key }), utils.tasks.list.invalidate()]);
   const start = trpc.tasks.start.useMutation({ onSuccess: refresh });
   const unqueue = trpc.tasks.unqueue.useMutation({ onSuccess: refresh });
-  const cancel = trpc.tasks.cancel.useMutation({ onSuccess: refresh });
+  const cancel = trpc.tasks.cancel.useMutation({
+    onSuccess: () => {
+      toast.success(`${t.key} cancelled`);
+      return refresh();
+    },
+  });
   const error = start.error ?? unqueue.error ?? cancel.error;
   if (!Object.values(t.can).some(Boolean)) return null;
   return (

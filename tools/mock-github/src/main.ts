@@ -7,7 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { anthropicMessages } from './anthropic';
 import { branchFiles, handleGitWrite, pulls } from './git-write';
 import { blob as repoBlob, headSha, tree as repoTree } from './repo';
-import { INSTALLATION_ID, ORG, reposFor, USERS, type Login } from './data';
+import { INSTALLATION_ID, ORG, reposFor, USERS, WORST_INSTALLATION_ID, WORST_ORG, WORST_USER, worstReposFor, type Login } from './data';
 
 const PORT = Number(process.env.MOCK_GITHUB_PORT ?? 4010);
 const DEFAULT_LOGIN = (process.env.MOCK_GITHUB_LOGIN ?? 'demo-dev') as Login;
@@ -104,22 +104,25 @@ createServer(async (req, res) => {
   if (api === '/user/installations') {
     return json(res, 200, {
       total_count: 1,
-      installations: [
-        {
-          id: INSTALLATION_ID,
-          target_type: 'Organization',
-          account: { id: ORG.id, login: ORG.login, type: 'Organization' },
-          permissions: { contents: 'write', pull_requests: 'write', metadata: 'read', members: 'read' },
-          events: [],
-        },
-      ],
+      // Each person sees one org: the demo users acme-demo, the worst-case user the worst-case org.
+      installations: [login === WORST_USER ? WORST_ORG : ORG].map((o) => ({
+        id: o === ORG ? INSTALLATION_ID : WORST_INSTALLATION_ID,
+        target_type: 'Organization',
+        account: { id: o.id, login: o.login, type: 'Organization' },
+        permissions: { contents: 'write', pull_requests: 'write', metadata: 'read', members: 'read' },
+        events: [],
+      })),
     });
   }
   if (api === `/user/installations/${INSTALLATION_ID}/repositories`) {
     const repositories = reposFor(login);
     return json(res, 200, { total_count: repositories.length, repositories });
   }
-  if (api === `/user/memberships/orgs/${ORG.login}`) {
+  if (api === `/user/installations/${WORST_INSTALLATION_ID}/repositories`) {
+    const repositories = worstReposFor(login);
+    return json(res, 200, { total_count: repositories.length, repositories });
+  }
+  if (api === `/user/memberships/orgs/${ORG.login}` || api === `/user/memberships/orgs/${WORST_ORG.login}`) {
     return json(res, 200, { state: 'active', role: user.orgRole });
   }
   const tree = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/trees\/(.+)$/);

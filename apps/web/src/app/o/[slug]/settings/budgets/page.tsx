@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { BudgetMeter } from '@/components/budget-meter';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useOrg } from '../../org-shell';
+import { toast } from 'sonner';
 
 type Budget = RouterOutputs['budgets']['list'][number];
 
@@ -67,8 +68,8 @@ function BudgetForm({ scope, existing }: { scope: 'org' | 'user'; existing?: Bud
     setOpen(false);
     void utils.budgets.list.invalidate();
   };
-  const save = trpc.budgets.set.useMutation({ onSuccess: done });
-  const remove = trpc.budgets.remove.useMutation({ onSuccess: done });
+  const save = trpc.budgets.set.useMutation({ onSuccess: () => (toast.success('Budget saved'), done()) });
+  const remove = trpc.budgets.remove.useMutation({ onSuccess: () => (toast.success('Budget removed'), done()) });
 
   if (!open) {
     return (

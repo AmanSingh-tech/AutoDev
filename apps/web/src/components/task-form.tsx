@@ -2,7 +2,8 @@
 
 import type { TaskMode, TaskPriority } from '@autodev/db/schema';
 import { Alert, Button, Input, Label, NativeSelect } from '@autodev/ui';
-import { useDeferredValue, useState, type ReactNode } from 'react';
+import { useDeferredValue, useRef, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { PromptGuidePanel, type Rewrite } from './prompt-guide';
 import { MODE_LABEL } from './task-bits';
@@ -58,7 +59,7 @@ export function TaskForm({
 }) {
   const [v, setV] = useState(initial);
   const set = <K extends keyof TaskFormValues>(k: K, val: TaskFormValues[K]) => {
-    if (k === 'title' || k === 'descriptionMd' || k === 'acceptanceCriteriaMd') setBeforeRewrite(null);
+    if (k === 'title' || k === 'descriptionMd' || k === 'acceptanceCriteriaMd') closeUndo();
     setV({ ...v, [k]: val });
   };
   const applyTemplate = (id: string) => {
@@ -66,11 +67,16 @@ export function TaskForm({
     if (!t) return;
     const hasText = v.descriptionMd.trim() || v.acceptanceCriteriaMd.trim();
     if (hasText && !confirm(`Replace the description and acceptance criteria with the “${t.name}” template?`)) return;
-    setBeforeRewrite(null);
+    closeUndo();
     setV({ ...v, descriptionMd: t.descriptionMd, acceptanceCriteriaMd: t.acceptanceCriteriaMd });
   };
-  // What a rewrite replaced, so it can be undone until the author edits those fields again.
-  const [beforeRewrite, setBeforeRewrite] = useState<Rewrite | null>(null);
+  // The toast offering to undo the last rewrite. Editing those fields again closes it, so Undo can't
+  // throw away what the author typed after the rewrite.
+  const undoToast = useRef<string | number | null>(null);
+  const closeUndo = () => {
+    if (undoToast.current !== null) toast.dismiss(undoToast.current);
+    undoToast.current = null;
+  };
   const templates = trpc.promptGuide.templates.list.useQuery(undefined, { staleTime: 5 * 60_000 });
   const branches = trpc.repos.branches.useQuery({ repoId: repo.id }, { enabled: v.branchMode === 'existing', staleTime: 5 * 60_000 });
   const [relatedQ, setRelatedQ] = useState('');
@@ -228,17 +234,21 @@ export function TaskForm({
         repoId={repo.id}
         draft={{ title: v.title, descriptionMd: v.descriptionMd, acceptanceCriteriaMd: v.acceptanceCriteriaMd, extraContext: v.extraContext, scopePath: v.scopePath }}
         onRewrite={(rw) => {
-          setBeforeRewrite({ title: v.title, descriptionMd: v.descriptionMd, acceptanceCriteriaMd: v.acceptanceCriteriaMd });
+          const before: Rewrite = { title: v.title, descriptionMd: v.descriptionMd, acceptanceCriteriaMd: v.acceptanceCriteriaMd };
           setV({ ...v, ...rw });
+          closeUndo();
+          undoToast.current = toast.success('Draft rewritten', {
+            description: 'Fill in any [TODO: …] it left.',
+            duration: 10_000,
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                setV((cur) => ({ ...cur, ...before }));
+                undoToast.current = null;
+              },
+            },
+          });
         }}
-        onUndo={
-          beforeRewrite
-            ? () => {
-                setV({ ...v, ...beforeRewrite });
-                setBeforeRewrite(null);
-              }
-            : null
-        }
       />
 
       {error && <Alert tone="destructive">{error}</Alert>}
