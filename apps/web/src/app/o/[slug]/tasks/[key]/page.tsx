@@ -10,12 +10,21 @@ import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { TaskForm, toTaskInput, type TaskFormValues } from '@/components/task-form';
 import { relativeTime } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
+import { useTaskChanges } from '@/lib/use-task-changes';
+import { useOrg } from '../../org-shell';
 
 type Task = RouterOutputs['tasks']['get'];
 
 export default function TaskPage() {
   const { slug, key } = useParams<{ slug: string; key: string }>();
-  const q = trpc.tasks.get.useQuery({ key }, { refetchInterval: 15_000 });
+  const org = useOrg();
+  const utils = trpc.useUtils();
+  // Task and agent changes refetch this page; the poll is only a safety net if the stream drops.
+  useTaskChanges(org.orgId, () => {
+    void utils.tasks.invalidate();
+    void utils.agent.invalidate();
+  });
+  const q = trpc.tasks.get.useQuery({ key }, { refetchInterval: 60_000 });
   const [editing, setEditing] = useState(false);
   if (q.error) return <Alert tone="destructive">{q.error.message}</Alert>;
   if (!q.data) return <p className="text-sm text-muted-foreground">Loading…</p>;

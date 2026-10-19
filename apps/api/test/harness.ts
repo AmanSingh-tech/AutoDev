@@ -8,6 +8,7 @@ import { AnthropicProvider, CredentialService, LlmGateway, staticRegistry } from
 import { setupServer } from 'msw/node';
 import type { Deps } from '../src/deps';
 import { createCaller } from '../src/trpc/router';
+import { TaskChangeHub } from '../src/events/task-changes';
 
 export const API = 'http://github.test/api';
 export const WEB_URL = 'http://web.test';
@@ -47,6 +48,7 @@ export function createTestDeps() {
     },
   };
   const blobs = new MemoryBlobStore();
+  const taskChanges = new TaskChangeHub(TEST_APP_URL);
   const sentToBuilders: { builderId: string; msg: GatewayMessage }[] = [];
   const builderJobs = new BuilderJobs({
     sys: sys.db,
@@ -72,8 +74,9 @@ export function createTestDeps() {
     builderJobs,
     publisher: new Publisher({ sys: sys.db, vault, cfg: testCfg, cache, webUrl: WEB_URL }),
     liveLogs: async () => 'live log so far\n',
+    taskChanges,
   };
-  return { deps, jobs, agentJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close()]) };
+  return { deps, jobs, agentJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close(), taskChanges.close()]) };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

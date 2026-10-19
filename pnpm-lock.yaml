@@ -65,6 +65,9 @@ importers:
       ioredis:
         specifier: ^5.4.2
         version: 5.11.1
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
       superjson:
         specifier: ^2.2.2
         version: 2.2.6

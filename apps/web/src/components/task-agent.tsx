@@ -28,7 +28,7 @@ const canAct = (t: Task) => t.can.cancel || t.can.start || t.can.edit;
 
 /** What the task needs from a person right now: a review, an answer, or a key. */
 export function AttentionPanel({ task: t }: { task: Task }) {
-  const docs = trpc.agent.documents.useQuery({ key: t.key }, { refetchInterval: 15_000 });
+  const docs = trpc.agent.documents.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   if (t.status === 'awaiting_plan_approval' || t.status === 'awaiting_lld_approval') {
     const kind = t.status === 'awaiting_plan_approval' ? 'plan' : 'lld';
     const pending = docs.data?.docs.find((d) => d.kind === kind && d.status === 'pending_review');
@@ -254,7 +254,7 @@ export function DocumentsSection({ task: t }: { task: Task }) {
 
 /** Files the agent changed, with a side-by-side diff (Monaco). */
 export function ChangesSection({ task: t }: { task: Task }) {
-  const changes = trpc.agent.changes.useQuery({ key: t.key }, { refetchInterval: 20_000 });
+  const changes = trpc.agent.changes.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   const [open, setOpen] = useState<string | null>(null);
   const diff = trpc.agent.fileDiff.useQuery({ key: t.key, path: open ?? '' }, { enabled: !!open });
   if (!changes.data?.files.length) return null;
@@ -287,7 +287,7 @@ const PHASE = { plan: 'Planning', lld: 'Design', code: 'Coding', fix: 'Fixing' }
 
 /** Runs and tool calls, newest first. Truncated; the full transcript stays on the server. */
 export function ActivitySection({ task: t }: { task: Task }) {
-  const q = trpc.agent.activity.useQuery({ key: t.key }, { refetchInterval: 15_000 });
+  const q = trpc.agent.activity.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   const [expanded, setExpanded] = useState(false);
   if (!q.data?.runs.length) return null;
   const steps = q.data.steps.filter((s) => s.kind === 'tool_call');
@@ -389,7 +389,7 @@ function FailurePanel({ task: t }: { task: Task }) {
 }
 
 function TestingPanel({ task: t }: { task: Task }) {
-  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   const last = jobs.data?.[0];
   if (last?.final && (last.status === 'passed' || last.status === 'skipped')) {
     return (
@@ -405,7 +405,7 @@ function TestingPanel({ task: t }: { task: Task }) {
 /** Why a test run hasn't started yet, and what to do about it. */
 function WaitingForBuilder({ task: t }: { task: Task }) {
   const { slug } = useParams<{ slug: string }>();
-  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   const builders = trpc.builders.list.useQuery(undefined, { refetchInterval: 10_000 });
   const pending = trpc.builders.pendingConfirmations.useQuery(undefined, { refetchInterval: 10_000 });
   const job = jobs.data?.[0];
@@ -451,7 +451,7 @@ const JOB_STATUS: Record<string, string> = { queued: 'Queued', offered: 'Startin
 
 /** Every test run for the task, with failing tests and the log. */
 export function TestsSection({ task: t }: { task: Task }) {
-  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 5000 });
+  const jobs = trpc.agent.testJobs.useQuery({ key: t.key }, { refetchInterval: 60_000 });
   const [open, setOpen] = useState<string | null>(null);
   if (!jobs.data?.length) return null;
   return (

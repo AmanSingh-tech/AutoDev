@@ -14,6 +14,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { ApiEnv } from './env';
 import { redisCache } from './redis-cache';
+import { TaskChangeHub } from './events/task-changes';
 
 export interface Deps {
   env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV' | 'BUILDER_GATEWAY_URL'>;
@@ -31,6 +32,8 @@ export interface Deps {
   blobs: BlobStore;
   builderJobs: BuilderJobs;
   publisher: Publisher;
+  /** Shared LISTEN connection that feeds the task-change SSE streams. */
+  taskChanges: TaskChangeHub;
   /** Log lines streamed so far for a running builder job (Redis). */
   liveLogs: (jobId: string) => Promise<string>;
 }
@@ -53,6 +56,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } },
   });
   const blobs = new PgBlobStore(sys.db);
+  const taskChanges = new TaskChangeHub(env.DATABASE_URL);
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
@@ -77,11 +81,12 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
     }),
     publisher: new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL }),
+    taskChanges,
     liveLogs: async (jobId) =>
       (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {
       await Promise.all([repoSync.close(), agent.close()]);
-      await Promise.all([app.close(), sys.close()]);
+      await Promise.all([app.close(), sys.close(), taskChanges.close()]);
       redis.disconnect();
     },
   };

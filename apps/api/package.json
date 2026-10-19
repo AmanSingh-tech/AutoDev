@@ -27,6 +27,7 @@
     "bullmq": "^5.34.6",
     "fastify": "^4.29.0",
     "ioredis": "^5.4.2",
+    "postgres": "^3.4.5",
     "superjson": "^2.2.2",
     "zod": "^3.24.1"
   },

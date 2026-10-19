@@ -106,7 +106,13 @@ GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github
   the owner has no working LLM key or hit a hard budget; otherwise an `agent` job is queued (A-4
   consumes it). Edits are allowed only in draft.
 - **Board:** six columns (Draft, Queued, In progress, Needs you, Pushed / PR, Done). Only drafts
-  can be dragged, onto Queued. The board polls every 15 s until realtime events land (A-9).
+  can be dragged, onto Queued.
+- **Realtime (A-9):** every write to a task's rows (`task_events`, `tasks`, agent runs, steps,
+  documents, questions, PRs, builder jobs) sends a Postgres `NOTIFY task_changes` on commit, with
+  only `org_id` and `task_id`. The API keeps one `LISTEN` connection and streams the changes to
+  `GET /events/tasks?org=…` (SSE), after a session and membership check. The board and task page
+  refetch on each change; the 60 s poll is a fallback. Builder log lines still poll (they live in
+  Redis, not in those tables).
 
 ## Agent runtime (A-4)
 
