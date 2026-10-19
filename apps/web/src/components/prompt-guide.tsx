@@ -1,82 +1,141 @@
 'use client';
 
-import type { RouterOutputs } from '@/lib/trpc';
-import { Alert, Button } from '@autodev/ui';
+import { PROMPT_FLAG_TEXT, scoreBand, scorePrompt, type PromptDraft, type PromptFlag } from '@autodev/protocol/prompt-check';
+import { Alert, Button, cn } from '@autodev/ui';
+import { useState } from 'react';
+import { trpc } from '@/lib/trpc';
 
-export type PromptReview = RouterOutputs['promptGuide']['review'];
+const BAND_CLASS = {
+  good: 'border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  fair: 'border-amber-600/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  weak: 'border-red-600/40 bg-red-500/10 text-red-700 dark:text-red-400',
+} as const;
 
-const KIND_LABEL: Record<PromptReview['issues'][number]['kind'], string> = {
-  missing: 'Missing',
-  ambiguous: 'Unclear',
-  scope: 'Scope',
-  risk: 'Risk',
-};
+/** The 0–100 prompt score, colored by band. Used in the form and on the task page. */
+export function PromptScoreBadge({ score, className }: { score: number; className?: string }) {
+  const band = scoreBand(score);
+  return (
+    <span
+      className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums', BAND_CLASS[band], className)}
+      title={`Prompt score ${score} of 100 (${band})`}
+    >
+      {score}/100
+    </span>
+  );
+}
 
-/** Shows the prompt guide's review of the draft above. Nothing changes until the author applies the rewrite. */
+export const FlagList = ({ flags, className }: { flags: readonly PromptFlag[]; className?: string }) =>
+  flags.length === 0 ? null : (
+    <ul className={cn('space-y-1 text-sm', className)}>
+      {flags.map((f) => (
+        <li key={f} className="flex gap-2">
+          <span aria-hidden className="text-muted-foreground">
+            •
+          </span>
+          <span>{PROMPT_FLAG_TEXT[f]}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+export interface Rewrite {
+  title: string;
+  descriptionMd: string;
+  acceptanceCriteriaMd: string;
+}
+
+/**
+ * The prompt guide under the task form. The score updates on every keystroke from fixed rules (no
+ * cost). "Check deeper" and "Rewrite" call the model and use the org's AI budget.
+ */
 export function PromptGuidePanel({
-  canReview,
-  busy,
-  error,
-  review,
-  onReview,
-  onApply,
-  onDismiss,
+  repoId,
+  draft,
+  onRewrite,
+  onUndo,
 }: {
-  canReview: boolean;
-  busy: boolean;
-  error: string | null;
-  review: PromptReview | null;
-  onReview: () => void;
-  onApply: (rewrite: PromptReview['rewrite']) => void;
-  onDismiss: () => void;
+  repoId: string;
+  draft: PromptDraft;
+  /** Apply the rewrite to the form; the form keeps what it replaced, for Undo. */
+  onRewrite: (rw: Rewrite) => void;
+  /** Present while a rewrite can be undone. */
+  onUndo: (() => void) | null;
 }) {
+  const live = scorePrompt(draft);
+  const input = {
+    repoId,
+    title: draft.title,
+    descriptionMd: draft.descriptionMd,
+    acceptanceCriteriaMd: draft.acceptanceCriteriaMd,
+    extraContext: draft.extraContext || undefined,
+    scopePath: draft.scopePath || undefined,
+  };
+  const draftKey = JSON.stringify(input);
+  const check = trpc.promptGuide.check.useMutation();
+  const rewrite = trpc.promptGuide.rewrite.useMutation({ onSuccess: (rw) => onRewrite(rw) });
+  // A deeper check is only shown for the draft it looked at.
+  const [checkedKey, setCheckedKey] = useState('');
+  const deep = check.data && checkedKey === draftKey ? check.data : null;
+  const canCall = draft.title.trim().length > 0;
+  const error = check.error?.message ?? rewrite.error?.message ?? null;
+
   return (
     <section aria-label="Prompt guide" className="grid gap-3 rounded-md border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium">Prompt guide</p>
-          <p className="text-xs text-muted-foreground">
-            Checks the draft for what the agent needs. Costs AI usage, like a run.
-          </p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">Prompt score</p>
+          <PromptScoreBadge score={live.score} />
         </div>
-        <Button type="button" variant="outline" onClick={onReview} disabled={!canReview || busy}>
-          {busy ? 'Reviewing…' : review ? 'Review again' : 'Review prompt'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {onUndo && (
+            <Button type="button" size="sm" variant="ghost" onClick={onUndo}>
+              Undo rewrite
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!canCall || check.isPending}
+            onClick={() => {
+              setCheckedKey(draftKey);
+              check.mutate(input);
+            }}
+          >
+            {check.isPending ? 'Checking…' : 'Check deeper'}
+          </Button>
+          <Button type="button" size="sm" disabled={!canCall || rewrite.isPending} onClick={() => rewrite.mutate(input)}>
+            {rewrite.isPending ? 'Rewriting…' : 'Rewrite'}
+          </Button>
+        </div>
       </div>
+
+      {live.flags.length > 0 ? (
+        <FlagList flags={live.flags} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing obvious is missing.</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        The score comes from fixed rules and is saved with the task. Check deeper and Rewrite use AI, which counts toward
+        your budget. A rewrite marks unknowns as [TODO: …] for you to fill in.
+      </p>
 
       {error && <Alert tone="destructive">{error}</Alert>}
 
-      {review && (
-        <div className="space-y-3 text-sm">
-          <p>{review.summary}</p>
-          {review.issues.length > 0 && (
-            <ul className="space-y-1">
-              {review.issues.map((issue, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">
-                    {KIND_LABEL[issue.kind]}
-                  </span>
-                  <span>{issue.text}</span>
-                </li>
+      {deep && (
+        <div className="space-y-2 rounded-md bg-muted/50 p-3 text-sm" aria-label="Deeper check">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">AI check</span>
+            <PromptScoreBadge score={deep.score} />
+          </div>
+          <p>{deep.summary}</p>
+          {deep.suggestions.length > 0 && (
+            <ul className="list-disc space-y-1 pl-5">
+              {deep.suggestions.map((s, i) => (
+                <li key={i}>{s}</li>
               ))}
             </ul>
           )}
-          <div className="rounded-md bg-muted/50 p-3">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">Suggested rewrite</p>
-            <p className="font-medium">{review.rewrite.title}</p>
-            <p className="mt-2 whitespace-pre-wrap text-xs">{review.rewrite.descriptionMd}</p>
-            <p className="mt-2 whitespace-pre-wrap text-xs">
-              {review.rewrite.acceptanceCriteriaMd}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={() => onApply(review.rewrite)}>
-              Use this rewrite
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>
-              Dismiss
-            </Button>
-          </div>
         </div>
       )}
     </section>

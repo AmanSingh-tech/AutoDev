@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 is repo chat and B-2 is the prompt guide.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; repo chat exists in an early form ahead of B-2.
 
 ## Layout
 
@@ -227,16 +227,19 @@ Without a `.autodev.yml` on the base branch, tests are skipped and the task says
   keep the mirror in sync; a PR opened by hand on a pushed task's branch is linked to it.
 - Pushes, PRs and merges are in the audit log. There's no AI code review in this version.
 
-## Prompt guide (B-2)
+## Prompt guide (B-1)
 
-- The new-task form has **Review prompt**. It checks the draft for what the agent needs: missing
-  facts, unclear wording, scope and risks. It returns a short summary and a rewrite that keeps your
-  intent and marks unknowns as `[TODO: …]`. **Use this rewrite** applies it to the form; nothing
-  changes until you do.
-- The review uses the org's key and budgets (`prompt_guide` use case, `claude-sonnet-5-5`), and
-  nothing is stored. It needs push access to the repo, as creating a task does.
-- It reads the draft only, not the code, so it can't say which files to change. That's a possible
-  next step.
+- **Templates.** The new-task form starts from a template: bug fix, feature, refactor, add tests or
+  UI change, plus the org's own (Settings → Task templates; admins add, edit and copy them).
+  Placeholders are written `[TODO: …]`.
+- **Live score.** A 0–100 score updates as you type, from fixed rules in
+  `packages/protocol/src/prompt-check.ts` (no AI, no cost). Flags: missing repro steps (for bugs),
+  missing acceptance criteria, no file hints, vague scope, unfilled `[TODO: …]`. The same rules
+  run on save, and the score and flags are stored on the task and shown on the task page.
+- **Check deeper** asks the model for its own score, a summary and suggestions. **Rewrite** fills in
+  a clearer draft in one click, marking unknowns as `[TODO: …]`; **Undo rewrite** puts back what you
+  had. Both use the org's key and budgets (`prompt_check` use case, `claude-sonnet-5-5`), store
+  nothing, and need push access to the repo.
 
 ## Blob storage and retention
 

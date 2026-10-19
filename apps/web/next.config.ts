@@ -9,7 +9,7 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@autodev/ui', '@autodev/config', '@autodev/crypto', '@autodev/db', '@autodev/github'],
+  transpilePackages: ['@autodev/ui', '@autodev/config', '@autodev/crypto', '@autodev/db', '@autodev/github', '@autodev/protocol'],
   serverExternalPackages: ['postgres'],
   // Same-origin proxy, so the Auth.js session cookie reaches the API without CORS.
   async rewrites() {

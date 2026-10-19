@@ -17,6 +17,7 @@ import {
 } from '@autodev/db';
 import { getBranch, isValidBranchName, newBranchName, userOctokit } from '@autodev/github';
 import { LlmBlocked } from '@autodev/llm';
+import { PROMPT_SCORE_VERSION, scorePrompt, type PromptDraft } from '@autodev/protocol';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import type { Deps } from '../../deps';
@@ -44,6 +45,12 @@ const keyInput = z.object({ key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}-\d+$/) })
 const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`;
 
 type Ctx = { deps: Deps; orgId: string; userId: string; role: import('@autodev/db').OrgRole; inOrg: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
+
+/** The prompt guide's rule-based score (B-1), the same one the form shows while typing. */
+function promptScoreFields(d: PromptDraft) {
+  const { score, flags } = scorePrompt(d);
+  return { promptScore: score, promptScoreDetails: { version: PROMPT_SCORE_VERSION, flags }, promptCheckedAt: new Date() };
+}
 
 /** Only someone who can push to the repo may create work for it. Uses the 15-minute cache. */
 async function assertCanWork(ctx: Ctx, repoId: string, userId = ctx.userId) {
@@ -251,6 +258,7 @@ export const tasksRouter = router({
             createPrOnCompletion: input.createPrOnCompletion,
             createdBy: ctx.userId,
             ownerId: ctx.userId,
+            ...promptScoreFields({ ...input, scopePath }),
           })
           .returning();
         await recordEvent(tx, { orgId: ctx.orgId, taskId: t!.id, actor: { type: 'user', userId: ctx.userId }, type: 'created', payload: { mode, branchMode: input.branchMode } });
@@ -280,12 +288,15 @@ export const tasksRouter = router({
       return ctx.inOrg(async (tx) => {
         const mode = patch.mode !== undefined ? await resolveMode(tx, ctx.orgId, t.repoId, patch.mode) : t.mode;
         const relatedTaskId = patch.relatedTaskId !== undefined ? await validateRelated(tx, ctx.orgId, patch.relatedTaskId, t.id) : t.relatedTaskId;
+        const descriptionMd = patch.descriptionMd ?? t.descriptionMd;
+        const acceptanceCriteriaMd = patch.acceptanceCriteriaMd ?? t.acceptanceCriteriaMd;
+        const extraContext = patch.extraContext !== undefined ? patch.extraContext?.trim() || null : t.extraContext;
         const [updated] = await tx
           .update(tasks)
           .set({
             title,
-            descriptionMd: patch.descriptionMd ?? t.descriptionMd,
-            acceptanceCriteriaMd: patch.acceptanceCriteriaMd ?? t.acceptanceCriteriaMd,
+            descriptionMd,
+            acceptanceCriteriaMd,
             priority: patch.priority ?? t.priority,
             mode,
             scopePath,
@@ -293,8 +304,9 @@ export const tasksRouter = router({
             targetBranch,
             workBranch: targetBranch ?? newBranchName(t.key, title),
             relatedTaskId,
-            extraContext: patch.extraContext !== undefined ? patch.extraContext?.trim() || null : t.extraContext,
+            extraContext,
             createPrOnCompletion: patch.createPrOnCompletion ?? t.createPrOnCompletion,
+            ...promptScoreFields({ title, descriptionMd, acceptanceCriteriaMd, extraContext, scopePath }),
           })
           .where(and(eq(tasks.id, t.id), eq(tasks.status, 'draft')))
           .returning();

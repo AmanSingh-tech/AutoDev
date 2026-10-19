@@ -148,6 +148,13 @@
       "when": 1792443100000,
       "tag": "0020_row_change_events",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792443200000,
+      "tag": "0021_prompt_check",
+      "breakpoints": true
     }
   ]
 }

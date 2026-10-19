@@ -77,7 +77,7 @@ Rows that point at blobs: `builder_jobs.patch_hash` (kept forever), `builder_job
 
 Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale_notified_at`.
 
-## Repo chat (B-1)
+## Repo chat (B-2)
 
 | Table | Columns that matter | Notes |
 |---|---|---|
@@ -86,9 +86,15 @@ Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale
 
 `llm_use_case` gained `chat` (default: `claude-sonnet-5-5`, no per-task cap; monthly budgets apply).
 
-## Prompt guide (B-2)
+## Prompt guide (B-1)
 
-No tables: the review is stateless. `llm_use_case` gained `prompt_guide` (migration 0016, `claude-sonnet-5-5`).
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ prompt_templates | org, name (unique per org), kind (bug_fix, feature, refactor, add_tests, ui_change), description_md, acceptance_criteria_md, created_by | The org's own templates; the five built-ins live in code (`@autodev/protocol` prompt-check). RLS `tenant_isolation`; only admins change them (API) |
+| ✅ tasks (added) | prompt_score 0–100, prompt_score_details {version, flags}, prompt_checked_at | The rule-based score, recomputed on create and edit (migration 0021) |
+
+`llm_use_case` value `prompt_guide` (migration 0016) was renamed to `prompt_check` in 0021 with
+`RENAME VALUE`, so existing policies and usage rows keep working. Default model: `claude-sonnet-5-5`.
 
 ## Section A tables still to come
 

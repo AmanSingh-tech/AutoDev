@@ -51,6 +51,10 @@ export const tasks = pgTable(
     /** The stale-branch job notifies the owner once per pushed state. */
     staleNotifiedAt: tsz('stale_notified_at'),
     tokenCapOverride: bigint('token_cap_override', { mode: 'number' }),
+    /** Prompt guide (B-1): the rule-based draft score from @autodev/protocol, set on create and edit. */
+    promptScore: integer('prompt_score'),
+    promptScoreDetails: jsonb('prompt_score_details').$type<{ version: number; flags: string[] }>(),
+    promptCheckedAt: tsz('prompt_checked_at'),
     completedAt: tsz('completed_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -63,6 +67,7 @@ export const tasks = pgTable(
     check('tasks_existing_needs_target', sql`(${t.branchMode} = 'existing') = (${t.targetBranch} is not null)`),
     check('tasks_title_length', sql`char_length(${t.title}) between 1 and 200`),
     check('tasks_scope_path_relative', sql`${t.scopePath} is null or (${t.scopePath} !~ '(^/|\\.\\.)')`),
+    check('tasks_prompt_score_range', sql`${t.promptScore} is null or ${t.promptScore} between 0 and 100`),
     check('tasks_not_self_related', sql`${t.relatedTaskId} is distinct from ${t.id}`),
   ],
 );

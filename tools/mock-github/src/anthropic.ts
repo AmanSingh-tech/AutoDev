@@ -6,12 +6,21 @@ import type { ServerResponse } from 'node:http';
  *   PLAN   → submit_plan (v2 after the reviewer asks for changes)
  *   DESIGN → submit_design
  *   CODE   → edit src/app.ts, then finish
+ * The prompt guide's calls are recognized by their tool (submit_check, submit_rewrite).
  */
 interface Req {
   model: string;
   system?: { text: string }[];
   messages: { role: string; content: { type: string; content?: string; text?: string }[] | string }[];
+  tools?: { name: string }[];
 }
+
+/** A complete draft: the rule-based score gives it 100. */
+const REWRITE = {
+  title: 'Fix greet() returning the wrong word',
+  descriptionMd: 'greet() returns "hi" but the docs promise "hello".\n\n## Steps to reproduce\n1. Call greet()\n2. Read the result\n\nExpected: "hello". The code is in `src/app.ts`.',
+  acceptanceCriteriaMd: '- greet() returns "hello"\n- Existing tests still pass',
+};
 
 const PLAN = (v: number) => `## Approach
 Make greet() say hello${v > 1 ? ', and handle empty names' : ''}.
@@ -43,6 +52,10 @@ const tool = (name: string, input: unknown) => ({ type: 'tool_use', id: `toolu_$
 function respond(req: Req) {
   const system = (req.system ?? []).map((s) => s.text).join('\n');
   const flat = JSON.stringify(req.messages);
+  const tools = (req.tools ?? []).map((t) => t.name);
+  if (tools.includes('submit_rewrite')) return [tool('submit_rewrite', REWRITE)];
+  if (tools.includes('submit_check'))
+    return [tool('submit_check', { score: 40, summary: 'The draft needs steps to reproduce.', flags: ['missing_repro'], suggestions: ['Say how to trigger the wrong greeting.'] })];
   if (system.includes('Phase: PLAN')) return [tool('submit_plan', { markdown: PLAN(flat.includes('requested changes') ? 2 : 1) })];
   if (system.includes('LOW-LEVEL DESIGN')) return [tool('submit_design', { markdown: DESIGN })];
   if (!flat.includes('Saved src/app.ts')) return [{ type: 'text', text: 'Updating greet().' }, tool('edit_file', { path: 'src/app.ts', old_string: '"hi"', new_string: '"hello"' })];

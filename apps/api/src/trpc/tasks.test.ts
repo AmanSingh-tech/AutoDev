@@ -129,6 +129,24 @@ describe('tasks.create', () => {
   });
 });
 
+describe('prompt score', () => {
+  it('stores the rule-based score on create and recomputes it on edit', async () => {
+    const t = await as(dev).tasks.create({ ...base(), title: 'Fix login', descriptionMd: 'It breaks.' });
+    expect(t.promptScore).toBe(10);
+    expect(t.promptScoreDetails).toEqual({ version: 1, flags: ['missing_repro', 'missing_acceptance_criteria', 'missing_file_hints', 'vague_scope'] });
+    expect(t.promptCheckedAt).toBeInstanceOf(Date);
+
+    const edited = await as(dev).tasks.update({
+      key: t.key,
+      title: 'Fix login redirect after sign-in',
+      descriptionMd: 'Users land on /dashboard instead of the page they came from.\n\n1. Open /settings signed out\n2. Sign in\n\nExpected: back on /settings. See `src/auth/callback.ts`.',
+      acceptanceCriteriaMd: '- Signing in from /settings returns to /settings',
+    });
+    expect(edited.promptScore).toBe(100);
+    expect(edited.promptScoreDetails).toEqual({ version: 1, flags: [] });
+  });
+});
+
 describe('task lifecycle', () => {
   it('refuses to start without a working LLM key, then queues a job once one exists', async () => {
     const t = await as(dev).tasks.create(base());

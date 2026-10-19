@@ -4,7 +4,7 @@ import type { TaskMode, TaskPriority } from '@autodev/db/schema';
 import { Alert, Button, Input, Label, NativeSelect } from '@autodev/ui';
 import { useDeferredValue, useState, type ReactNode } from 'react';
 import { trpc } from '@/lib/trpc';
-import { PromptGuidePanel } from './prompt-guide';
+import { PromptGuidePanel, type Rewrite } from './prompt-guide';
 import { MODE_LABEL } from './task-bits';
 
 export interface TaskFormValues {
@@ -57,8 +57,21 @@ export function TaskForm({
   actions: (submit: (start: boolean) => void) => ReactNode;
 }) {
   const [v, setV] = useState(initial);
-  const set = <K extends keyof TaskFormValues>(k: K, val: TaskFormValues[K]) => setV({ ...v, [k]: val });
-  const review = trpc.promptGuide.review.useMutation();
+  const set = <K extends keyof TaskFormValues>(k: K, val: TaskFormValues[K]) => {
+    if (k === 'title' || k === 'descriptionMd' || k === 'acceptanceCriteriaMd') setBeforeRewrite(null);
+    setV({ ...v, [k]: val });
+  };
+  const applyTemplate = (id: string) => {
+    const t = templates.data?.find((x) => x.id === id);
+    if (!t) return;
+    const hasText = v.descriptionMd.trim() || v.acceptanceCriteriaMd.trim();
+    if (hasText && !confirm(`Replace the description and acceptance criteria with the “${t.name}” template?`)) return;
+    setBeforeRewrite(null);
+    setV({ ...v, descriptionMd: t.descriptionMd, acceptanceCriteriaMd: t.acceptanceCriteriaMd });
+  };
+  // What a rewrite replaced, so it can be undone until the author edits those fields again.
+  const [beforeRewrite, setBeforeRewrite] = useState<Rewrite | null>(null);
+  const templates = trpc.promptGuide.templates.list.useQuery(undefined, { staleTime: 5 * 60_000 });
   const branches = trpc.repos.branches.useQuery({ repoId: repo.id }, { enabled: v.branchMode === 'existing', staleTime: 5 * 60_000 });
   const [relatedQ, setRelatedQ] = useState('');
   const deferredQ = useDeferredValue(relatedQ);
@@ -73,6 +86,33 @@ export function TaskForm({
         submit(false);
       }}
     >
+      {templates.data && (
+        <Field id="template" label="Start from a template (optional)" hint="Fills in the description and acceptance criteria. Replace each [TODO: …] with the details.">
+          <NativeSelect id="template" value="" onChange={(e) => applyTemplate(e.target.value)}>
+            <option value="">Choose a template…</option>
+            <optgroup label="Built-in">
+              {templates.data
+                .filter((t) => t.builtIn)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </optgroup>
+            {templates.data.some((t) => !t.builtIn) && (
+              <optgroup label="Your organization">
+                {templates.data
+                  .filter((t) => !t.builtIn)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
+          </NativeSelect>
+        </Field>
+      )}
       <Field id="title" label="Title">
         <Input id="title" required maxLength={200} value={v.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Redirect to the original page after login" />
       </Field>
@@ -185,24 +225,20 @@ export function TaskForm({
       </label>
 
       <PromptGuidePanel
-        canReview={v.title.trim().length > 0}
-        busy={review.isPending}
-        error={review.error?.message ?? null}
-        review={review.data ?? null}
-        onReview={() =>
-          review.mutate({
-            repoId: repo.id,
-            title: v.title,
-            descriptionMd: v.descriptionMd,
-            acceptanceCriteriaMd: v.acceptanceCriteriaMd,
-            extraContext: v.extraContext || undefined,
-          })
-        }
-        onApply={(rw) => {
-          setV({ ...v, title: rw.title, descriptionMd: rw.descriptionMd, acceptanceCriteriaMd: rw.acceptanceCriteriaMd });
-          review.reset();
+        repoId={repo.id}
+        draft={{ title: v.title, descriptionMd: v.descriptionMd, acceptanceCriteriaMd: v.acceptanceCriteriaMd, extraContext: v.extraContext, scopePath: v.scopePath }}
+        onRewrite={(rw) => {
+          setBeforeRewrite({ title: v.title, descriptionMd: v.descriptionMd, acceptanceCriteriaMd: v.acceptanceCriteriaMd });
+          setV({ ...v, ...rw });
         }}
-        onDismiss={() => review.reset()}
+        onUndo={
+          beforeRewrite
+            ? () => {
+                setV({ ...v, ...beforeRewrite });
+                setBeforeRewrite(null);
+              }
+            : null
+        }
       />
 
       {error && <Alert tone="destructive">{error}</Alert>}

@@ -159,7 +159,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 
 | Phase | Scope (from brief) | Status | Notes |
 |---|---|---|---|
-| B-1 Prompt guide | Templates (bug fix, feature, refactor, add tests, UI change), org-owned templates, live checker that scores 0–100 and flags missing repro, acceptance criteria, file hints, vague scope, one-click rewrite; score stored on the task; policy `prompt_check` | **partial, not to spec** | Built a one-shot "Review prompt" button with issues and a rewrite. No templates, no 0–100 score, nothing stored on the task, and the use case is named `prompt_guide`, not `prompt_check`. Built before a plan was approved. |
+| B-1 Prompt guide | Templates (bug fix, feature, refactor, add tests, UI change), org-owned templates, live checker that scores 0–100 and flags missing repro, acceptance criteria, file hints, vague scope, one-click rewrite; score stored on the task; policy `prompt_check` | **done** | See "B-1 notes" below. |
 | B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **partial, not to spec** | Built: private chat per user, answers from live reads (read_file, list_dir, search_code), file citations, RLS. Not built: team channel, RAG and indexing, `store_code_index`, one-click to task, repo agent memory, GitHub links on citations. Built before a plan was approved. |
 | B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | not started | |
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | not started | |
@@ -170,18 +170,25 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 ### What exists in code but is not in the phase list
 
 - `packages/llm` already has the provider interface for OpenAI, Azure OpenAI and Bedrock. Only Anthropic is implemented.
-- `chat` and `prompt_guide` LLM use cases exist in the enum. Using `chat` for repo chat is consistent with B-2, but `prompt_guide` should be renamed to `prompt_check` if B-1 follows the brief.
+- The `chat` LLM use case exists for repo chat, consistent with B-2. `prompt_guide` was renamed to `prompt_check` in B-1.
 
 ---
 
+### B-1 notes
+
+Approved decisions: the live score is rule-based (no AI cost per keystroke); the model runs only on **Check deeper** and **Rewrite**; the old **Review prompt** button is replaced.
+
+- **Schema (0021):** `prompt_templates` (RLS `tenant_isolation`, kind checked against the five kinds, unique name per org); `tasks.prompt_score`, `prompt_score_details` (`{version, flags}`), `prompt_checked_at`; enum value `prompt_guide` renamed to `prompt_check` with `RENAME VALUE`.
+- **Rules and built-ins:** `packages/protocol/src/prompt-check.ts`, shared by the form and the API so the shown score is the saved one. Penalties: acceptance criteria 30, repro 25, vague scope 20, file hints 15, unfilled `[TODO]` 10.
+- **API:** `promptGuide.check`, `promptGuide.rewrite` (push access, org key and budgets), `promptGuide.templates.list/create/update/delete` (changes admin only, audited). `tasks.create` and `tasks.update` store the score.
+- **Web:** template picker on the task form, live score with flags, Check deeper, Rewrite with Undo, score on the task page, Settings → Task templates (add, edit, delete, copy a built-in).
+- **Tests:** rule tests (protocol), model check and rewrite with a scripted model (agent), endpoints, permissions, cross-org isolation and metering under `prompt_check` (API), score stored on create and edit (API), RLS (db), and an end-to-end test of the whole flow.
+
+**Deviations from the brief:**
+- "Templates for org" with `org_id` nullable for built-ins (as first proposed) became built-ins in code plus an org-only table, so built-ins can change with releases without a migration.
+- Admin-only template changes are enforced in the API, not in RLS (RLS has no role function), the same as other admin settings.
+- Bug detection is a heuristic (bug words in the title, or strong ones like "crash" in the description). It can miss or over-flag, and the flag is advice only: it never blocks saving or starting.
+
 ## Next step
 
-**B-1 Prompt guide, to be approved before coding.** Proposed plan:
-
-- **Schema:** add `tasks.prompt_score` (int 0–100), `tasks.prompt_score_details` (jsonb: flags and suggestions), `tasks.prompt_checked_at`. New table `prompt_templates` (org_id nullable for built-ins, name, kind, body_md, created_by). Rename the enum value `prompt_guide` → `prompt_check` with `ALTER TYPE ... RENAME VALUE`, so no data is lost.
-- **Built-in templates:** bug fix, feature, refactor, add tests, UI change, in code. Org admins can add and edit their own in `prompt_templates`.
-- **Endpoints:** `promptGuide.check` returns score, flags, and rewrite (replacing `review`). `promptGuide.templates.list`, `create`, `update`, `delete` (admin only). `tasks.create` and `tasks.update` store the score.
-- **Web:** template picker on the task form, a live checker (debounced, about 1 s after the user stops typing), a score badge, and a one-click rewrite.
-- **Tests:** scoring and flags with a scripted model, template permissions, the score being stored on the task, and an RLS check on `prompt_templates`.
-
-Decision needed: keep the built-in review button as an extra, or replace it with the live checker?
+**B-2 Repo chat and Repo Agent memory, to be planned and approved before coding.**

@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection, TestsSection } from '@/components/task-agent';
+import { FlagList, PromptScoreBadge } from '@/components/prompt-guide';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
+import { PROMPT_FLAGS, type PromptFlag } from '@autodev/protocol/prompt-check';
 import { TaskForm, toTaskInput, type TaskFormValues } from '@/components/task-form';
 import { relativeTime } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
@@ -70,6 +72,12 @@ export default function TaskPage() {
               </span>
             </Meta>
             <Meta label="Workflow">{MODE_LABEL[t.mode]}</Meta>
+            {t.promptScore !== null && (
+              <Meta label="Prompt score">
+                <PromptScoreBadge score={t.promptScore} />
+                <FlagList className="mt-1.5 text-xs" flags={(t.promptScoreDetails?.flags ?? []).filter((f): f is PromptFlag => (PROMPT_FLAGS as readonly string[]).includes(f))} />
+              </Meta>
+            )}
             <Meta label="Branch">
               <span className="break-all font-mono text-xs">{t.workBranch}</span>
               <span className="block text-xs text-muted-foreground">{t.branchMode === 'new' ? `new, from ${t.repo.defaultBranch}` : 'existing branch'}</span>

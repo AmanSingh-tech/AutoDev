@@ -10,6 +10,7 @@ const TABS = [
   { href: '/ai-keys', label: 'AI keys' },
   { href: '/models', label: 'Models & prices' },
   { href: '/budgets', label: 'Budgets' },
+  { href: '/templates', label: 'Task templates' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
