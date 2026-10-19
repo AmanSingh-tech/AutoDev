@@ -17,7 +17,9 @@ export const llmProvider = pgEnum('llm_provider', ['anthropic', 'openai', 'azure
 export const credentialScope = pgEnum('credential_scope', ['org', 'team', 'user']);
 export const credentialStatus = pgEnum('credential_status', ['active', 'invalid', 'superseded', 'revoked']);
 /** Section B adds more use cases (repo chat, prompt guide…). Postgres enums can be extended in place. */
-export const llmUseCase = pgEnum('llm_use_case', ['agent']);
+export const llmUseCase = pgEnum('llm_use_case', ['agent', 'chat']);
+export const chatRole = pgEnum('chat_role', ['user', 'assistant']);
+export const chatMessageStatus = pgEnum('chat_message_status', ['pending', 'done', 'failed']);
 export const budgetScope = pgEnum('budget_scope', ['org', 'user']);
 export const taskStatus = pgEnum('task_status', [
   'draft',

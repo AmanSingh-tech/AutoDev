@@ -1,4 +1,5 @@
 import { agentRouter } from './routers/agent';
+import { chatRouter } from './routers/chat';
 import { budgetsRouter } from './routers/budgets';
 import { buildersRouter } from './routers/builders';
 import { llmKeysRouter } from './routers/llm-keys';
@@ -29,6 +30,7 @@ export const appRouter = router({
   tasks: tasksRouter,
   agent: agentRouter,
   builders: buildersRouter,
+  chat: chatRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -67,6 +67,15 @@ Also added: `orgs.allow_user_keys`, `org_members.primary_team_id`.
 
 Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale_notified_at`.
 
+## Repo chat (B-1)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ repo_chats | org, repo, user (author), title | Private to the author (RLS `chats_owner`, migration 0015) |
+| ✅ repo_chat_messages | chat, user, role user/assistant, status pending/done/failed, content, reply_to, sources, error | Pending assistant row per question, filled in by the `chat` worker queue. RLS `chat_messages_owner` |
+
+`llm_use_case` gained `chat` (default: `claude-sonnet-5-5`, no per-task cap; monthly budgets apply).
+
 ## Section A tables still to come
 
 None: every Section A table exists. Section B (repo chat, prompt guide, sync, leaderboard, group

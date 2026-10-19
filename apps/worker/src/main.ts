@@ -1,5 +1,5 @@
-import { AgentOrchestrator, BuilderJobs, PgBlobStore, Publisher, publishBus } from '@autodev/agent';
-import { agentJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
+import { AgentOrchestrator, BuilderJobs, PgBlobStore, Publisher, publishBus, RepoChatRunner } from '@autodev/agent';
+import { agentJob, chatJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
 import { githubConfigFromEnv, TokenVault, type KvCache } from '@autodev/github';
@@ -38,10 +38,12 @@ const builderJobs = new BuilderJobs({
   enqueueAgent: (data, jobId) => agentQueue.add('run', data, { jobId }),
 });
 const vault = new TokenVault(sys.db, kms, cfg);
+const gateway = new LlmGateway({ sys: sys.db, providers, credentials });
 const publisher = new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL });
+const repoChat = new RepoChatRunner({ sys: sys.db, gateway, vault, cfg, cache });
 const orchestrator = new AgentOrchestrator({
   sys: sys.db,
-  gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
+  gateway,
   vault,
   cfg,
   cache,
@@ -78,6 +80,11 @@ const workers = [
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
   new Worker(QUEUES.maintenance, createMaintenanceProcessor(sys.db), { connection, concurrency: 1 }),
   new Worker(QUEUES.staleBranch, () => sweepStaleBranches({ sys: sys.db, publisher }), { connection, concurrency: 1 }),
+  // Chat answers read several files, so they can take a minute or two.
+  new Worker(QUEUES.chat, (job) => {
+    const data = chatJob.parse(job.data);
+    return repoChat.answer(data.orgId, data.messageId);
+  }, { connection, concurrency: 4, lockDuration: 5 * 60_000 }),
 ];
 
 for (const w of workers) {

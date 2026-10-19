@@ -48,6 +48,9 @@ export default function RepoBoardPage() {
               </button>
             ))}
           </div>
+          <Button asChild variant="outline">
+            <Link href={`/o/${slug}/repos/${name}/chat`}>Ask the repo</Link>
+          </Button>
           {repo.data.canCreate && (
             <Button asChild>
               <Link href={`/o/${slug}/repos/${name}/new`}>New task</Link>

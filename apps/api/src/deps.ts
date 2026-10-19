@@ -1,4 +1,4 @@
-import { QUEUES, type AgentJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
+import { QUEUES, type AgentJob, type ChatJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
 import { createKeyWrapper, type KeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb, type AppDb, type SystemDb } from '@autodev/db';
 import {
@@ -25,7 +25,7 @@ export interface Deps {
   vault: TokenVault;
   cache: KvCache;
   repoAccess: RepoAccessService;
-  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob> };
+  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob> };
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
@@ -55,6 +55,10 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     // Retries cover provider outages; each retry resumes the run from its saved transcript.
     defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 4, backoff: { type: 'exponential', delay: 15_000 } },
   });
+  const chat = new Queue<ChatJob>(QUEUES.chat, {
+    connection: redis,
+    defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 2, backoff: { type: 'fixed', delay: 5000 } },
+  });
   const blobs = new PgBlobStore(sys.db);
   const taskChanges = new TaskChangeHub(env.DATABASE_URL);
   const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
@@ -68,7 +72,11 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     vault,
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg }),
-    queues: { repoSync: repoSync as unknown as JobQueue<RepoSyncJob>, agent: agent as unknown as JobQueue<AgentJob> },
+    queues: {
+      repoSync: repoSync as unknown as JobQueue<RepoSyncJob>,
+      agent: agent as unknown as JobQueue<AgentJob>,
+      chat: chat as unknown as JobQueue<ChatJob>,
+    },
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
@@ -85,7 +93,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     liveLogs: async (jobId) =>
       (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {
-      await Promise.all([repoSync.close(), agent.close()]);
+      await Promise.all([repoSync.close(), agent.close(), chat.close()]);
       await Promise.all([app.close(), sys.close(), taskChanges.close()]);
       redis.disconnect();
     },

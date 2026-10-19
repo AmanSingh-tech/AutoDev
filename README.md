@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B is not started.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 is repo chat.
 
 ## Layout
 
@@ -202,5 +202,22 @@ Without a `.autodev.yml` on the base branch, tests are skipped and the task says
 - **Webhooks** (`pull_request`): a merge marks the task **Resolved**; close/reopen/synchronize
   keep the mirror in sync; a PR opened by hand on a pushed task's branch is linked to it.
 - Pushes, PRs and merges are in the audit log. There's no AI code review in this version.
+
+## Repo chat (B-1)
+
+- Each repo page has **Ask the repo**. You ask a question, and the answer comes from the repo's
+  code: the model lists directories, reads files with line numbers and searches code, then cites
+  `path:line`. Every answer lists the files it read.
+- Reads happen at the default branch's current commit, with **your own** GitHub token. A chat can't
+  show anything you couldn't already see on GitHub.
+- Chats are private to their author, enforced by RLS as well as the router. Other members of the
+  org can't read them.
+- Answers are produced by the `chat` worker queue, through the LLM gateway. They use the org's key
+  and the monthly budgets (`claude-sonnet-5-5`; the Models screen doesn't edit this policy yet). A question is
+  refused up front when no working key or budget is left, and a hard budget is checked again on
+  every model turn.
+- Limits: at most 12 tool turns per answer and 4,000 characters per question. The chat page polls
+  while an answer is pending (chat isn't on the realtime stream yet). No edits to the repo, and no
+  chat deletion yet.
 
 See [docs/schema.md](docs/schema.md) and [docs/github-app.md](docs/github-app.md).

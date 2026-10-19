@@ -11,3 +11,4 @@ export * from './orchestrator';
 export * from './builder-jobs';
 export * from './pr-body';
 export * from './publisher';
+export * from './repo-chat';

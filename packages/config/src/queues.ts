@@ -6,6 +6,8 @@ export const QUEUES = {
   agent: 'agent',
   keyValidation: 'key-validation',
   staleBranch: 'stale-branch',
+  /** Repo chat: answers one question at a time, reading the repo with the asker's token. */
+  chat: 'chat',
   /** Housekeeping (token_usage partitions). Not in the original queue list; small and separate. */
   maintenance: 'maintenance',
 } as const;
@@ -22,6 +24,14 @@ export const agentJob = z.object({
   taskId: z.string().uuid(),
 });
 export type AgentJob = z.infer<typeof agentJob>;
+
+/** Enqueued when someone asks a repo chat question. The job answers the pending assistant message. */
+export const chatJob = z.object({
+  kind: z.literal('answer'),
+  orgId: z.string().uuid(),
+  messageId: z.string().uuid(),
+});
+export type ChatJob = z.infer<typeof chatJob>;
 
 /** Just enough of a BullMQ Queue for producers, so they can be faked in tests. */
 export interface JobQueue<T> {

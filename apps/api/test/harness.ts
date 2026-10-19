@@ -1,4 +1,4 @@
-import type { AgentJob, JobQueue, RepoSyncJob } from '@autodev/config';
+import type { AgentJob, ChatJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
@@ -47,6 +47,12 @@ export function createTestDeps() {
       agentJobs.push({ name, data, jobId: opts?.jobId });
     },
   };
+  const chatJobs: { name: string; data: ChatJob; jobId?: string }[] = [];
+  const chat: JobQueue<ChatJob> = {
+    add: async (name, data, opts) => {
+      chatJobs.push({ name, data, jobId: opts?.jobId });
+    },
+  };
   const blobs = new MemoryBlobStore();
   const taskChanges = new TaskChangeHub(TEST_APP_URL);
   const sentToBuilders: { builderId: string; msg: GatewayMessage }[] = [];
@@ -66,7 +72,7 @@ export function createTestDeps() {
     vault,
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg: testCfg }),
-    queues: { repoSync, agent },
+    queues: { repoSync, agent, chat },
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
@@ -76,7 +82,7 @@ export function createTestDeps() {
     liveLogs: async () => 'live log so far\n',
     taskChanges,
   };
-  return { deps, jobs, agentJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close(), taskChanges.close()]) };
+  return { deps, jobs, agentJobs, chatJobs, sentToBuilders, close: () => Promise.all([app.close(), sys.close(), taskChanges.close()]) };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

@@ -8,3 +8,4 @@ export * from './tasks';
 export * from './agent';
 export * from './builders';
 export * from './pull-requests';
+export * from './chat';

@@ -19,4 +19,13 @@ export const DEFAULT_POLICIES: Record<LlmUseCase, ModelPolicy> = {
     // Claude Opus 5.5 defaults to medium; agentic coding benefits from high.
     effort: 'high',
   },
+  chat: {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5-5',
+    // Chats have no task, so the per-task cap doesn't apply. Monthly budgets still do.
+    maxTokensPerTask: 3_000_000,
+    maxOutputTokens: 4_000,
+    // Answers are short, and reading files doesn't need deep reasoning.
+    effort: null,
+  },
 };
