@@ -1,0 +1,1 @@
+ALTER TYPE "public"."llm_use_case" ADD VALUE 'prompt_guide';

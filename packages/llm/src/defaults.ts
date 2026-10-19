@@ -28,4 +28,12 @@ export const DEFAULT_POLICIES: Record<LlmUseCase, ModelPolicy> = {
     // Answers are short, and reading files doesn't need deep reasoning.
     effort: null,
   },
+  prompt_guide: {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5-5',
+    // One short review per click. Nothing here is per task, so the task cap doesn't apply.
+    maxTokensPerTask: 3_000_000,
+    maxOutputTokens: 2_000,
+    effort: null,
+  },
 };

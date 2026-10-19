@@ -76,6 +76,11 @@ Also added on tasks: `change_notes`, `last_pushed_sha`, `last_pushed_at`, `stale
 
 `llm_use_case` gained `chat` (default: `claude-sonnet-5-5`, no per-task cap; monthly budgets apply).
 
+## Prompt guide (B-2)
+
+No tables: the review is stateless. `llm_use_case` gained `prompt_guide` (migration 0016, `claude-sonnet-5-5`).
+
+
 ## Section A tables still to come
 
 None: every Section A table exists. Section B (repo chat, prompt guide, sync, leaderboard, group

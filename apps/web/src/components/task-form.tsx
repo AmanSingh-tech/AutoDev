@@ -4,6 +4,7 @@ import type { TaskMode, TaskPriority } from '@autodev/db/schema';
 import { Alert, Button, Input, Label, NativeSelect } from '@autodev/ui';
 import { useDeferredValue, useState, type ReactNode } from 'react';
 import { trpc } from '@/lib/trpc';
+import { PromptGuidePanel } from './prompt-guide';
 import { MODE_LABEL } from './task-bits';
 
 export interface TaskFormValues {
@@ -57,6 +58,7 @@ export function TaskForm({
 }) {
   const [v, setV] = useState(initial);
   const set = <K extends keyof TaskFormValues>(k: K, val: TaskFormValues[K]) => setV({ ...v, [k]: val });
+  const review = trpc.promptGuide.review.useMutation();
   const branches = trpc.repos.branches.useQuery({ repoId: repo.id }, { enabled: v.branchMode === 'existing', staleTime: 5 * 60_000 });
   const [relatedQ, setRelatedQ] = useState('');
   const deferredQ = useDeferredValue(relatedQ);
@@ -181,6 +183,27 @@ export function TaskForm({
         <input type="checkbox" checked={v.createPrOnCompletion} onChange={(e) => set('createPrOnCompletion', e.target.checked)} />
         Open a pull request when tests pass
       </label>
+
+      <PromptGuidePanel
+        canReview={v.title.trim().length > 0}
+        busy={review.isPending}
+        error={review.error?.message ?? null}
+        review={review.data ?? null}
+        onReview={() =>
+          review.mutate({
+            repoId: repo.id,
+            title: v.title,
+            descriptionMd: v.descriptionMd,
+            acceptanceCriteriaMd: v.acceptanceCriteriaMd,
+            extraContext: v.extraContext || undefined,
+          })
+        }
+        onApply={(rw) => {
+          setV({ ...v, title: rw.title, descriptionMd: rw.descriptionMd, acceptanceCriteriaMd: rw.acceptanceCriteriaMd });
+          review.reset();
+        }}
+        onDismiss={() => review.reset()}
+      />
 
       {error && <Alert tone="destructive">{error}</Alert>}
       <div className="flex flex-wrap gap-2">{actions(submit)}</div>

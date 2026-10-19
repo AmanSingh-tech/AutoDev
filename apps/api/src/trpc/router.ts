@@ -7,6 +7,7 @@ import { meRouter } from './routers/me';
 import { membersRouter } from './routers/members';
 import { modelsRouter } from './routers/models';
 import { notificationsRouter } from './routers/notifications';
+import { promptGuideRouter } from './routers/prompt-guide';
 import { orgsRouter } from './routers/orgs';
 import { githubRouter, installationsRouter, reposRouter } from './routers/repos';
 import { tasksRouter } from './routers/tasks';
@@ -31,6 +32,7 @@ export const appRouter = router({
   agent: agentRouter,
   builders: buildersRouter,
   chat: chatRouter,
+  promptGuide: promptGuideRouter,
 });
 
 export type AppRouter = typeof appRouter;
