@@ -24,6 +24,7 @@ export const chatMessageStatus = pgEnum('chat_message_status', ['pending', 'done
 export const channelAuthor = pgEnum('channel_author', ['user', 'agent']);
 /** The Repo Agent's editable memory, one note per section per repo. */
 export const memorySection = pgEnum('memory_section', ['conventions', 'architecture', 'rules', 'fragile_areas']);
+export const codeIndexStatus = pgEnum('code_index_status', ['pending', 'indexing', 'ready', 'failed']);
 export const budgetScope = pgEnum('budget_scope', ['org', 'user']);
 export const taskStatus = pgEnum('task_status', [
   'draft',
@@ -63,6 +64,7 @@ export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion
 export const ORG_ROLES = orgRole.enumValues;
 export const MEMORY_SECTIONS = memorySection.enumValues;
 export type MemorySection = (typeof memorySection.enumValues)[number];
+export type CodeIndexStatus = (typeof codeIndexStatus.enumValues)[number];
 export type LlmProviderId = (typeof llmProvider.enumValues)[number];
 export type CredentialScope = (typeof credentialScope.enumValues)[number];
 export const LLM_USE_CASES = llmUseCase.enumValues;

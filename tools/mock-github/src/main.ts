@@ -18,11 +18,34 @@ const json = (res: ServerResponse, status: number, body: unknown) => {
   res.end(JSON.stringify(body));
 };
 
+/** What the App's installation token reads with (background jobs such as the code index). */
+const INSTALLATION_TOKEN = 'ghs_mock_installation';
+const tokenOf = (req: IncomingMessage) => req.headers.authorization?.replace(/^(token|bearer)\s+/i, '');
+
 const userFromAuth = (req: IncomingMessage): Login | null => {
   const token = req.headers.authorization?.replace(/^(token|bearer)\s+/i, '');
   const login = token?.startsWith('ghu_mock_') ? token.slice('ghu_mock_'.length) : null;
   return login && login in USERS ? (login as Login) : null;
 };
+
+/** Trees, blobs and branches: what both people and the installation token may read. */
+function readContents(api: string): { status: number; body: unknown } | null {
+  const tree = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/trees\/(.+)$/);
+  if (tree) return { status: 200, body: { sha: tree[1], truncated: false, tree: repoTree() } };
+  const blob = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/blobs\/(.+)$/);
+  if (blob) {
+    const content = repoBlob(blob[1]!);
+    return content ? { status: 200, body: { sha: blob[1], encoding: 'base64', content: content.toString('base64') } } : { status: 404, body: { message: 'Not Found' } };
+  }
+  const branches = api.match(/^\/repos\/([^/]+)\/([^/]+)\/branches(?:\/(.+))?$/);
+  if (branches) {
+    const all = ['main', 'develop', 'feature/sso-login'].map((name) => ({ name, commit: { sha: headSha(name) }, protected: name === 'main' }));
+    if (!branches[3]) return { status: 200, body: all };
+    const b = all.find((x) => x.name === decodeURIComponent(branches[3]!));
+    return b ? { status: 200, body: b } : { status: 404, body: { message: 'Branch not found' } };
+  }
+  return null;
+}
 
 async function readBody(req: IncomingMessage) {
   let raw = '';
@@ -87,6 +110,17 @@ createServer(async (req, res) => {
   }
 
   if (!path.startsWith('/api/')) return json(res, 404, { message: 'Not Found' });
+
+  // The App exchanges its JWT for an installation token. The JWT isn't checked: the mock trusts the App.
+  if (req.method === 'POST' && /^\/api\/app\/installations\/\d+\/access_tokens$/.test(path)) {
+    return json(res, 201, { token: INSTALLATION_TOKEN, expires_at: new Date(Date.now() + 3_600_000).toISOString(), permissions: { contents: 'read' } });
+  }
+  // The installation token reads repo contents only.
+  if (tokenOf(req) === INSTALLATION_TOKEN && req.method === 'GET') {
+    const out = readContents(path.slice('/api'.length));
+    return out ? json(res, out.status, out.body) : json(res, 404, { message: 'Not Found' });
+  }
+
   const login = userFromAuth(req);
   if (!login) return json(res, 401, { message: 'Bad credentials' });
   const user = USERS[login];
@@ -125,20 +159,10 @@ createServer(async (req, res) => {
   if (api === `/user/memberships/orgs/${ORG.login}` || api === `/user/memberships/orgs/${WORST_ORG.login}`) {
     return json(res, 200, { state: 'active', role: user.orgRole });
   }
-  const tree = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/trees\/(.+)$/);
-  if (tree) return json(res, 200, { sha: tree[1], truncated: false, tree: repoTree() });
-  const blob = api.match(/^\/repos\/[^/]+\/[^/]+\/git\/blobs\/(.+)$/);
-  if (blob) {
-    const content = repoBlob(blob[1]!);
-    return content ? json(res, 200, { sha: blob[1], encoding: 'base64', content: content.toString('base64') }) : json(res, 404, { message: 'Not Found' });
-  }
-  const branches = api.match(/^\/repos\/([^/]+)\/([^/]+)\/branches(?:\/(.+))?$/);
-  if (branches) {
-    const all = ['main', 'develop', 'feature/sso-login'].map((name) => ({ name, commit: { sha: headSha(name) }, protected: name === 'main' }));
-    if (!branches[3]) return json(res, 200, all);
-    const b = all.find((x) => x.name === decodeURIComponent(branches[3]!));
-    return b ? json(res, 200, b) : json(res, 404, { message: 'Branch not found' });
-  }
+  const contents = readContents(api);
+  if (contents) return json(res, contents.status, contents.body);
+  // Code search finds the one source file of the demo repo.
+  if (api === '/search/code') return json(res, 200, { total_count: 1, incomplete_results: false, items: [{ name: 'app.ts', path: 'src/app.ts', sha: 'x' }] });
   const repo = api.match(/^\/repos\/([^/]+)\/([^/]+)$/);
   if (repo) {
     const r = reposFor(login).find((x) => x.full_name === `${repo[1]}/${repo[2]}`);

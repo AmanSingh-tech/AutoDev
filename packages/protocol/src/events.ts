@@ -131,6 +131,7 @@ export const eventPayloads = {
   'task.deleted': z.object(taskBase),
   'channel.message': z.object({ channelId: id, messageId: id, author: z.enum(['user', 'agent']), status: z.string() }),
   'repo_agent.memory_updated': z.object({ repoId: id, section: z.string() }),
+  'code_index.status': z.object({ repoId: id, status: z.enum(['pending', 'indexing', 'ready', 'failed']), commitSha: z.string().nullable() }),
   // user:<userId> (budget events also go to org:admin)
   notification: z.object({ notificationId: id, type: z.string(), title: z.string() }),
   'builder.presence': z.object({ builderId: id, online: z.boolean() }),
@@ -183,6 +184,7 @@ const REPO_EVENTS = [
   'task.deleted',
   'channel.message',
   'repo_agent.memory_updated',
+  'code_index.status',
 ] as const satisfies readonly EventType[];
 const USER_EVENTS = [
   'notification',

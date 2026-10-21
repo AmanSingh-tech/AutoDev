@@ -36,6 +36,14 @@ export const storageEnv = z.object({
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
 });
 
+/** The code index's local embedding model (worker only). */
+export const codeIndexEnv = z.object({
+  /** Where the model (about 160 MB) is downloaded on first use. Defaults to transformers.js' cache inside node_modules. */
+  EMBEDDINGS_CACHE_DIR: z.string().optional(),
+  /** `fake` (tests and e2e only): a bag-of-words stand-in, so no model is downloaded. */
+  EMBEDDINGS_PROVIDER: z.enum(['local', 'fake']).default('local'),
+});
+
 export const cryptoEnv = z.object({
   KMS_PROVIDER: z.enum(['local']).default('local'),
   /** Local KMS master key. Never used directly on data, only to wrap data keys. */

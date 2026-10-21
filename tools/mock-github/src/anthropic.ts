@@ -7,7 +7,8 @@ import type { ServerResponse } from 'node:http';
  *   DESIGN → submit_design
  *   CODE   → edit src/app.ts, then finish
  * The prompt guide's calls are recognized by their tool (submit_check, submit_rewrite), and repo
- * chat and the Repo Agent by git_log: they read src/app.ts, then answer citing it.
+ * chat and the Repo Agent by git_log: they read src/app.ts, then answer citing it. A chat question
+ * about "the greeting" searches first, and the answer says whether the code index found it.
  */
 interface Req {
   model: string;
@@ -55,6 +56,10 @@ function respond(req: Req) {
   const flat = JSON.stringify(req.messages);
   const tools = (req.tools ?? []).map((t) => t.name);
   if (tools.includes('submit_rewrite')) return [tool('submit_rewrite', REWRITE)];
+  if (tools.includes('git_log') && flat.includes('Where is the greeting made'))
+    return flat.includes('tool_result')
+      ? [{ type: 'text', text: flat.includes('src/app.ts:1-') ? 'Found with the code index: `src/app.ts:1`.' : 'Found with GitHub search: `src/app.ts:1`.' }]
+      : [tool('search_code', { query: 'where is the greeting made' })];
   if (tools.includes('git_log'))
     return flat.includes('tool_result')
       ? [{ type: 'text', text: '`greet()` returns "hi" (`src/app.ts:1`).' }]

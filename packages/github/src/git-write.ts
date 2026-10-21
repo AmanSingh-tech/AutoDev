@@ -104,3 +104,8 @@ export async function createPr(gh: Octokit, input: { owner: string; repo: string
 export async function updatePrBody(gh: Octokit, owner: string, repo: string, number: number, body: string) {
   await gh.rest.pulls.update({ owner, repo, pull_number: number, body });
 }
+
+export async function getPr(gh: Octokit, owner: string, repo: string, number: number): Promise<PrInfo> {
+  const { data } = await gh.rest.pulls.get({ owner, repo, pull_number: number });
+  return toInfo(data);
+}

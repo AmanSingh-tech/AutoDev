@@ -28,8 +28,13 @@ GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App*
 There's deliberately **no Workflows permission**, so AutoDev can't change `.github/workflows/*`.
 GitHub rejects such pushes, and the agent is told not to try.
 
-**Subscribe to events:** Member, Membership, Organization, Pull request, Repository, Team,
+**Subscribe to events:** Member, Membership, Organization, Pull request, Push, Repository, Team,
 Team add. Installation events are always sent.
+
+Push keeps the code index (B-2) current: a push to a repo's default branch queues a re-index
+when the org has the index on. For an App created before Push was added, add the event in the
+App's settings; each installation's owner then has to accept it on GitHub. Until they do, the
+nightly run (05:00 UTC) keeps the index at most a day behind.
 
 ## 2. Fill in `.env`
 

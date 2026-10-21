@@ -15,3 +15,4 @@ export * from './repo-agent';
 export { citationsFor, loadMemory, MEMORY_TITLES } from './repo-qa';
 export * from './prompt-guide';
 export * from './blob-retention';
+export * from './cross-repo';

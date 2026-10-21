@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createSystemDb } from './client';
 import { insertOrgWithOwner } from './ops/orgs';
 import { uuidv7 } from 'uuidv7';
-import { budgets, installations, orgMembers, orgs, repos, tasks, taskEvents, tokenUsage, userRepoAccess, users } from './schema';
+import { budgets, installations, orgMembers, orgs, repos, tasks, taskEvents, tokenUsage, userRepoAccess, users, workspaceFiles, workspaces } from './schema';
 import type { TaskStatus } from './schema/enums';
 import type { OrgRole, RepoPermission } from './schema/enums';
 
@@ -40,6 +40,7 @@ async function main() {
     if (existing.length) {
       await seedUsage(db, existing[0]!.id);
       await seedTasks(db, existing[0]!.id);
+      await seedChange(db, existing[0]!.id);
       console.log('demo org already seeded');
       return;
     }
@@ -119,6 +120,7 @@ async function main() {
     const [org] = await db.select().from(orgs).where(eq(orgs.slug, 'acme-demo'));
     await seedUsage(db, org!.id);
     await seedTasks(db, org!.id);
+    await seedChange(db, org!.id);
     console.log('seeded demo org acme-demo');
   } finally {
     await close();
@@ -212,6 +214,26 @@ async function seedTasks(db: ReturnType<typeof createSystemDb>['db'], orgId: str
     }
     await tx.update(orgs).set({ taskSeq: demo.length }).where(eq(orgs.id, orgId));
   });
+}
+
+/**
+ * The open-PR demo task gets the agent's change (one new file), so it can be applied to a linked
+ * repo (B-3) in the demo and e2e. Idempotent: skipped once the task has a workspace.
+ */
+async function seedChange(db: ReturnType<typeof createSystemDb>['db'], orgId: string) {
+  const [t] = await db.select().from(tasks).where(eq(tasks.title, 'Paginate the audit log endpoint'));
+  if (!t || t.orgId !== orgId) return;
+  const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.taskId, t.id));
+  if (ws) return;
+  const [made] = await db.insert(workspaces).values({ orgId, taskId: t.id, repoId: t.repoId, baseSha: 'f'.repeat(40), baseRef: 'main' }).returning();
+  await db.insert(workspaceFiles).values({
+    workspaceId: made!.id,
+    orgId,
+    path: 'src/audit/paginate.ts',
+    op: 'create',
+    content: 'export function paginate<T>(rows: T[], cursor: number, limit = 50) {\n  return { items: rows.slice(cursor, cursor + limit), next: cursor + limit < rows.length ? cursor + limit : null };\n}\n',
+  });
+  await db.update(tasks).set({ summaryMd: 'The audit log endpoint returns 50 entries per page with a cursor.' }).where(eq(tasks.id, t.id));
 }
 
 await main();

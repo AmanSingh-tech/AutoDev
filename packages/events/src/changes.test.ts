@@ -53,7 +53,7 @@ const SPEC: Record<string, EventType[]> = {
     'usage.tick',
     'task.blocked_on_key',
   ],
-  repo: ['task.created', 'task.moved', 'task.deleted', 'channel.message', 'repo_agent.memory_updated'],
+  repo: ['task.created', 'task.moved', 'task.deleted', 'channel.message', 'repo_agent.memory_updated', 'code_index.status'],
   user: [
     'notification',
     'builder.presence',
@@ -444,6 +444,16 @@ describe('eventsForChange', () => {
     const memory = change('repo_agent_memory', 'UPDATE', { id: ROW, repo_id: REPO, section: 'rules' });
     expect(eventsForChange(memory)).toMatchObject([{ type: 'repo_agent.memory_updated', topic: `repo:${REPO}`, payload: { repoId: REPO, section: 'rules' } }]);
     for (const e of [chat, room, memory].flatMap(eventsForChange)) expect(eventPayloads[e.type].safeParse(e.payload).success).toBe(true);
+  });
+
+  it('maps code index state to code_index.status, only when the status or commit changes', () => {
+    const started = change('code_index_state', 'INSERT', { repo_id: REPO, status: 'indexing', commit_sha: null });
+    expect(eventsForChange(started)).toMatchObject([{ type: 'code_index.status', topic: `repo:${REPO}`, payload: { repoId: REPO, status: 'indexing', commitSha: null } }]);
+    const done = change('code_index_state', 'UPDATE', { repo_id: REPO, status: 'ready', commit_sha: 'abc' }, { repo_id: REPO, status: 'indexing', commit_sha: null });
+    expect(eventsForChange(done)).toMatchObject([{ payload: { status: 'ready', commitSha: 'abc' } }]);
+    const progress = change('code_index_state', 'UPDATE', { repo_id: REPO, status: 'indexing', commit_sha: 'abc' }, { repo_id: REPO, status: 'indexing', commit_sha: 'abc' });
+    expect(eventsForChange(progress)).toEqual([]);
+    for (const e of [started, done].flatMap(eventsForChange)) expect(eventPayloads[e.type].safeParse(e.payload).success).toBe(true);
   });
 
   it('ignores rows with no org, and every planned payload passes its schema', () => {

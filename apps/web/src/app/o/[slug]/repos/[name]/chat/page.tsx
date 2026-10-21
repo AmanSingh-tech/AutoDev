@@ -4,6 +4,7 @@ import { Alert, Button, cn, Pending } from '@autodev/ui';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Markdown } from '@/components/markdown';
+import { CodeIndexStatus } from '@/components/code-index-status';
 import { Citations, MakeTaskButton } from '@/components/repo-chat-bits';
 import { RepoNav } from '@/components/repo-nav';
 import { trpc } from '@/lib/trpc';
@@ -64,6 +65,7 @@ export default function RepoChatPage() {
         <div>
           <h1 className="text-xl font-semibold">Ask the repo</h1>
           <p className="text-sm text-muted-foreground">Private to you. For questions the team should see, use the team room.</p>
+          <CodeIndexStatus orgId={org.orgId} repoId={r.id} />
         </div>
         <Button onClick={() => create.mutate({ repoId })} disabled={create.isPending}>
           New chat

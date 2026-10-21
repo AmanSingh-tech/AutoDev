@@ -32,7 +32,8 @@ test('an owner adds the company LLM key; it is checked first and shown only by i
 test('the owner sees org usage and the budget meter', async ({ page }) => {
   await signInAs(page, 'demo-owner');
   await page.getByRole('link', { name: 'Usage' }).click();
-  await expect(page.getByRole('heading', { name: 'AI usage' })).toBeVisible();
+  // The first visit compiles the page in Next dev.
+  await expect(page.getByRole('heading', { name: 'AI usage' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('Usage across the organization.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Daily cost (UTC)' })).toBeVisible();
   await page.screenshot({ path: 'test-results/usage.png', fullPage: true });

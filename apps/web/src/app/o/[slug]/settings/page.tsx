@@ -30,7 +30,11 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (org.data && !form) setForm(org.data as Form);
+    // The code index has its own card and save; keep it out of this form so saving here can't undo it.
+    if (org.data && !form) {
+      const { storeCodeIndex: _ignored, ...fields } = org.data;
+      setForm(fields as Form);
+    }
   }, [org.data, form]);
 
   if (!org.data || !form) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -118,6 +122,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <CodeIndexCard enabled={org.data.storeCodeIndex} readOnly={readOnly} />
+
       <Card>
         <CardHeader>
           <CardTitle>GitHub installation</CardTitle>
@@ -132,6 +138,41 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Saved on its own (not with the form above), because turning it off deletes data. */
+function CodeIndexCard({ enabled, readOnly }: { enabled: boolean; readOnly: boolean }) {
+  const utils = trpc.useUtils();
+  const save = trpc.orgs.updateSettings.useMutation({
+    onSuccess: (data) => {
+      utils.orgs.current.setData(undefined, (prev) => (prev ? { ...prev, storeCodeIndex: data.storeCodeIndex } : prev));
+      toast.success(data.storeCodeIndex ? 'Code index turned on. Repositories are being indexed.' : 'Code index turned off and deleted');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const toggle = (on: boolean) => {
+    if (!on && !confirm('Turn off the code index? The stored index of every repository is deleted, and repo chat goes back to GitHub code search.')) return;
+    save.mutate({ storeCodeIndex: on });
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Code index</CardTitle>
+        <CardDescription>
+          Repo chat finds code by meaning (“where are sessions created?”) as well as by name. AutoDev stores your repositories’ default-branch code, split into
+          chunks, in its database. Embeddings are made on AutoDev’s servers; no code is sent to another service. Members only see chunks of repositories they
+          can access on GitHub.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={enabled} disabled={readOnly || save.isPending} onChange={(e) => toggle(e.target.checked)} />
+          Store a searchable index of our code
+        </label>
+        <p className="mt-2 text-xs text-muted-foreground">Updated on every push to the default branch, and nightly. Turning it off deletes the index.</p>
+      </CardContent>
+    </Card>
   );
 }
 

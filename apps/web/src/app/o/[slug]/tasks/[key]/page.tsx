@@ -1,11 +1,12 @@
 'use client';
 
 import { STATUS_LABEL } from '@autodev/db/task-machine';
-import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from '@autodev/ui';
+import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle, NativeSelect } from '@autodev/ui';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection, TestsSection } from '@/components/task-agent';
+import { Markdown } from '@/components/markdown';
 import { FlagList, PromptScoreBadge } from '@/components/prompt-guide';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { PROMPT_FLAGS, type PromptFlag } from '@autodev/protocol/prompt-check';
@@ -55,6 +56,7 @@ export default function TaskPage() {
           </div>
         </div>
         <Actions task={t} onEdit={() => setEditing(true)} />
+        {t.linkedTargets.length > 0 && <ApplyToLinked task={t} slug={slug} />}
         <AttentionPanel task={t} />
         {editing ? <EditTask task={t} onDone={() => setEditing(false)} /> : <Details task={t} />}
         <DocumentsSection task={t} />
@@ -95,6 +97,28 @@ export default function TaskPage() {
                 'Created with the Create PR button'
               )}
             </Meta>
+            {t.source && (
+              <Meta label="Ported from">
+                <Link href={`/o/${slug}/tasks/${t.source.key}`} className="[overflow-wrap:anywhere] hover:underline">
+                  <span className="font-mono text-xs">{t.source.key}</span> {t.source.title}
+                </Link>
+                <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{t.source.repoFullName}</span>
+              </Meta>
+            )}
+            {t.ports.length > 0 && (
+              <Meta label="Ported to">
+                <ul className="space-y-1">
+                  {t.ports.map((p) => (
+                    <li key={p.key}>
+                      <Link href={`/o/${slug}/tasks/${p.key}`} className="hover:underline">
+                        <span className="font-mono text-xs">{p.key}</span> <span className="[overflow-wrap:anywhere]">{p.repoFullName}</span>
+                      </Link>
+                      <span className="block text-xs text-muted-foreground">{STATUS_LABEL[p.status]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Meta>
+            )}
             {t.related && (
               <Meta label="Related task">
                 <Link href={`/o/${slug}/tasks/${t.related.key}`} className="hover:underline">
@@ -152,6 +176,39 @@ function Actions({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
   );
 }
 
+/** Cross-repo sync (B-3): a draft in a linked repo that ports this change. Opens it when made. */
+function ApplyToLinked({ task: t, slug }: { task: Task; slug: string }) {
+  const router = useRouter();
+  const utils = trpc.useUtils();
+  const [target, setTarget] = useState(t.linkedTargets[0]!.id);
+  const apply = trpc.tasks.applyToLinked.useMutation({
+    onSuccess: async (port) => {
+      toast.success(`${port.key} created as a draft. Review it, then start it.`);
+      await utils.tasks.invalidate();
+      router.push(`/o/${slug}/tasks/${port.key}`);
+    },
+  });
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {t.linkedTargets.length > 1 && (
+          <NativeSelect aria-label="Linked repository" value={target} onChange={(e) => setTarget(e.target.value)} className="w-auto max-w-full">
+            {t.linkedTargets.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.fullName}
+              </option>
+            ))}
+          </NativeSelect>
+        )}
+        <Button variant="outline" onClick={() => apply.mutate({ key: t.key, targetRepoId: target })} disabled={apply.isPending}>
+          {apply.isPending ? 'Reading the change…' : `Apply to ${t.linkedTargets.length > 1 ? 'linked repo' : t.linkedTargets[0]!.fullName}`}
+        </Button>
+      </div>
+      {apply.error && <Alert tone="destructive">{apply.error.message}</Alert>}
+    </div>
+  );
+}
+
 function Details({ task: t }: { task: Task }) {
   return (
     <div className="space-y-4">
@@ -165,6 +222,16 @@ function Details({ task: t }: { task: Task }) {
       {t.related?.summaryMd && (
         <Section title={`From ${t.related.key}`}>
           <Prose text={t.related.summaryMd} />
+        </Section>
+      )}
+      {t.sourceContextMd && (
+        <Section title="The change to port">
+          <details className="rounded-md border px-3 py-2">
+            <summary className="cursor-pointer text-sm">What the agent gets from {t.source?.key ?? 'the source task'}, as it was when this task was created</summary>
+            <div className="mt-2 min-w-0 overflow-x-auto">
+              <Markdown text={t.sourceContextMd} />
+            </div>
+          </details>
         </Section>
       )}
     </div>
@@ -237,7 +304,9 @@ function Timeline({ task: t }: { task: Task }) {
                   ? 'edited the task'
                   : e.type === 'status_changed'
                     ? `moved it to ${STATUS_LABEL[e.toStatus!]}`
-                    : (EVENT_LABEL[e.type] ?? e.type)}
+                    : e.type === 'ported'
+                      ? `applied it to ${String(e.payload.repo)} as ${String(e.payload.portKey)}`
+                      : (EVENT_LABEL[e.type] ?? e.type)}
               {typeof e.payload.reason === 'string' && `: ${e.payload.reason}`}
             </span>
             <span className="text-xs text-muted-foreground">{relativeTime(e.createdAt)}</span>
@@ -257,6 +326,8 @@ const EVENT_LABEL: Record<string, string> = {
   'pr.closed': 'saw the pull request closed',
   'pr.reopened': 'saw the pull request reopened',
   'pr.failed': 'could not open the pull request',
+  'source_pr.updated': 'linked this PR from the source task’s PR',
+  'source_pr.not_updated': 'could not link this PR from the source task’s PR',
 };
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (

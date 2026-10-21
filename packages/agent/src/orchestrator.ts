@@ -448,6 +448,10 @@ export class AgentOrchestrator {
     const [related] = task.relatedTaskId
       ? await this.deps.sys.select({ key: tasks.key, title: tasks.title, summaryMd: tasks.summaryMd }).from(tasks).where(eq(tasks.id, task.relatedTaskId))
       : [];
+    const [source] =
+      task.sourceTaskId && task.sourceContextMd
+        ? await this.deps.sys.select({ key: tasks.key, repoFullName: repos.fullName }).from(tasks).innerJoin(repos, eq(repos.id, tasks.repoId)).where(eq(tasks.id, task.sourceTaskId))
+        : [];
     return {
       key: task.key,
       title: task.title,
@@ -459,6 +463,7 @@ export class AgentOrchestrator {
       workBranch: task.workBranch,
       extraContext: task.extraContext,
       related: related ?? null,
+      source: source && task.sourceContextMd ? { ...source, contextMd: task.sourceContextMd } : null,
       approvedPlan: docs.plan,
       approvedDesign: docs.lld,
     };

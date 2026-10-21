@@ -35,6 +35,10 @@ export const tasks = pgTable(
     /** Commit the virtual workspace is based on, pinned when the agent starts (A-4). */
     baseSha: text('base_sha'),
     relatedTaskId: uuid('related_task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
+    /** Cross-repo sync (B-3): the task in a linked repo whose change this one ports. */
+    sourceTaskId: uuid('source_task_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
+    /** What is being ported, frozen when the task was created: source task, PR, mapping notes and diff. */
+    sourceContextMd: text('source_context_md'),
     extraContext: text('extra_context'),
     createPrOnCompletion: boolean('create_pr_on_completion').notNull().default(true),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
@@ -69,6 +73,9 @@ export const tasks = pgTable(
     check('tasks_scope_path_relative', sql`${t.scopePath} is null or (${t.scopePath} !~ '(^/|\\.\\.)')`),
     check('tasks_prompt_score_range', sql`${t.promptScore} is null or ${t.promptScore} between 0 and 100`),
     check('tasks_not_self_related', sql`${t.relatedTaskId} is distinct from ${t.id}`),
+    check('tasks_not_self_source', sql`${t.sourceTaskId} is distinct from ${t.id}`),
+    check('tasks_source_context_length', sql`${t.sourceContextMd} is null or char_length(${t.sourceContextMd}) <= 60000`),
+    index('tasks_source_idx').on(t.sourceTaskId),
   ],
 );
 

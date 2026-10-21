@@ -1,5 +1,6 @@
 import { agentRouter } from './routers/agent';
 import { chatRouter } from './routers/chat';
+import { codeIndexRouter } from './routers/code-index';
 import { budgetsRouter } from './routers/budgets';
 import { buildersRouter } from './routers/builders';
 import { llmKeysRouter } from './routers/llm-keys';
@@ -9,6 +10,7 @@ import { modelsRouter } from './routers/models';
 import { notificationsRouter } from './routers/notifications';
 import { promptGuideRouter } from './routers/prompt-guide';
 import { repoAgentRouter } from './routers/repo-agent';
+import { repoLinksRouter } from './routers/repo-links';
 import { roomRouter } from './routers/room';
 import { orgsRouter } from './routers/orgs';
 import { githubRouter, installationsRouter, reposRouter } from './routers/repos';
@@ -37,6 +39,8 @@ export const appRouter = router({
   promptGuide: promptGuideRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
+  codeIndex: codeIndexRouter,
+  repoLinks: repoLinksRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -10,3 +10,5 @@ export * from './builders';
 export * from './pull-requests';
 export * from './chat';
 export * from './prompts';
+export * from './code-index';
+export * from './repo-links';

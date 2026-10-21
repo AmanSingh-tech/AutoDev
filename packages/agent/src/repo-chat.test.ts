@@ -10,6 +10,7 @@ import { RepoAgent } from './repo-agent';
 import { CHAT_TOOLS, RepoChatRunner } from './repo-chat';
 import { citationsFor } from './repo-qa';
 import type { RepoReader } from './repo-reader';
+import type { CodeSearch } from '@autodev/code-index';
 
 const API = 'http://github.test/api';
 const cfg: GitHubConfig = {
@@ -185,6 +186,47 @@ describe('RepoChatRunner', () => {
 
     expect(turns.requests).toHaveLength(1);
     expect((await reply(replyId)).content).toBe('Once.');
+  });
+});
+
+describe('search_code with the code index', () => {
+  const hit = (path: string) => ({ path, startLine: 1, endLine: 1, symbol: 'greet', content: 'export const greet = () => "hi";', score: 1 });
+
+  async function searchResult(codeSearch: CodeSearch) {
+    await grantAccess(fx.owner.id);
+    turns = scripted([[toolUse('search_code', { query: 'where is the greeting made?' })], [text('In `src/app.ts:1`.')]]);
+    const { replyId } = await askQuestion('Where is the greeting made?');
+    await new RepoChatRunner({ ...deps, codeSearch }).answer(fx.org.id, replyId);
+    return JSON.stringify(turns.requests[1]!.messages.at(-1));
+  }
+
+  it('returns indexed hits with lines and a snippet, and drops files gone at the answer commit', async () => {
+    const out = await searchResult({ search: async () => ({ commitSha: 'head-sha-0001', hits: [hit('src/app.ts'), hit('src/deleted.ts')] }) });
+    expect(out).toContain('src/app.ts:1-1 (greet)');
+    expect(out).toContain('1: export const greet');
+    expect(out).not.toContain('src/deleted.ts');
+    expect(out).not.toContain('code index is at commit');
+  });
+
+  it('says when the index is behind the answer commit', async () => {
+    const out = await searchResult({ search: async () => ({ commitSha: 'old-sha-9999', hits: [hit('src/app.ts')] }) });
+    expect(out).toContain('The code index is at commit old-sha');
+  });
+
+  it('falls back to GitHub search without an index, with no hits, or when the index fails', async () => {
+    for (const codeSearch of [
+      { search: async () => null },
+      { search: async () => ({ commitSha: 'head-sha-0001', hits: [hit('src/deleted.ts')] }) },
+      { search: async () => Promise.reject(new Error('index down')) },
+    ] satisfies CodeSearch[]) {
+      await truncateAll(sys.db);
+      fx = await makeOrg(sys.db, 'acme');
+      await vault.store(fx.owner.id, { accessToken: 'ghu_owner', refreshToken: null, accessExpiresAt: null, refreshExpiresAt: null });
+      const out = await searchResult(codeSearch);
+      // GitHub search (the reader) returns paths only.
+      expect(out).toContain('src/app.ts');
+      expect(out).not.toContain('(greet)');
+    }
   });
 });
 

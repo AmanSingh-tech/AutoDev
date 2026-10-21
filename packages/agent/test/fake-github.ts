@@ -1,3 +1,4 @@
+import { createTwoFilesPatch } from 'diff';
 import { createHash } from 'node:crypto';
 import { http, HttpResponse } from 'msw';
 
@@ -39,15 +40,18 @@ export function fakeGitHub(api: string, owner: string, repo: string, base: { sha
       const head = refs.get(decodeURIComponent(params.ref as string).replace(/^heads\//, ''));
       return head ? HttpResponse.json({ object: { sha: head } }) : new HttpResponse(null, { status: 404 });
     }),
-    http.get(`${R}/compare/:range`, ({ params }) => {
+    http.get(`${R}/compare/:range`, ({ params, request }) => {
       const [b, h] = (params.range as string).split('...');
       let cur: string | undefined = h;
       while (cur && cur !== b) cur = commits.get(cur)?.parents[0];
       if (cur !== b) return HttpResponse.json({ status: 'diverged', files: [] });
       const before = files(b!);
       const after = files(h!);
-      const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((p) => before[p] !== after[p]).map((filename) => ({ filename }));
-      return HttpResponse.json({ status: 'ahead', files: changed });
+      const changedPaths = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((p) => before[p] !== after[p]);
+      // `Accept: application/vnd.github.diff`: the raw diff, as GitHub renders it.
+      if (request.headers.get('accept')?.includes('diff'))
+        return new HttpResponse(changedPaths.map((p) => `diff --git a/${p} b/${p}\n${createTwoFilesPatch(`a/${p}`, `b/${p}`, before[p] ?? '', after[p] ?? '').split('\n').slice(2).join('\n')}`).join(''), { headers: { 'content-type': 'text/plain' } });
+      return HttpResponse.json({ status: 'ahead', files: changedPaths.map((filename) => ({ filename })) });
     }),
     http.get(`${R}/git/commits/:sha`, ({ params }) => HttpResponse.json({ sha: params.sha, tree: { sha: commits.get(params.sha as string)!.tree } })),
     http.post(`${R}/git/blobs`, async ({ request }) => {
@@ -94,6 +98,10 @@ export function fakeGitHub(api: string, owner: string, repo: string, base: { sha
       const pr = { id: 5000 + pulls.length, number: pulls.length + 1, ...body, state: 'open', author: who(request) };
       pulls.push(pr);
       return HttpResponse.json(toApi(pr), { status: 201 });
+    }),
+    http.get(`${R}/pulls/:n`, ({ params }) => {
+      const pr = pulls.find((p) => p.number === Number(params.n));
+      return pr ? HttpResponse.json(toApi(pr)) : new HttpResponse(null, { status: 404 });
     }),
     http.patch(`${R}/pulls/:n`, async ({ request, params }) => {
       const pr = pulls.find((p) => p.number === Number(params.n))!;

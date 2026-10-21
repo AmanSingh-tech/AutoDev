@@ -160,8 +160,8 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | Phase | Scope (from brief) | Status | Notes |
 |---|---|---|---|
 | B-1 Prompt guide | Templates (bug fix, feature, refactor, add tests, UI change), org-owned templates, live checker that scores 0–100 and flags missing repro, acceptance criteria, file hints, vague scope, one-click rewrite; score stored on the task; policy `prompt_check` | **done** | See "B-1 notes" below. |
-| B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **part 1 done; part 2 (code index) next** | See "B-2 notes" below. |
-| B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | not started | |
+| B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **done** (part 2 awaiting review) | See "B-2 notes" below. |
+| B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | **built, awaiting review** | See "B-3 notes" below. |
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | not started | |
 | B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | not started | |
 | B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | not started | |
@@ -207,7 +207,47 @@ Approved decisions (2026-10-20): embeddings from an open code model run in the w
 - Citations come from `path:start-end` references in the answer, kept only when the file exists at the answer commit; line numbers aren't checked against the file length.
 - Found while testing: two end-to-end specs could leave an AI key behind when cleanup ran before the key list loaded. Both now wait for the list first.
 
-**Part 2 (next, after go-ahead): code index** — `code_chunks` with pgvector + HNSW, tree-sitter chunking, local embeddings, full index on connect and incremental re-index on push (GitHub App `push` event), hybrid search in chat, `store_code_index` org setting with purge.
+**Part 2 (built, awaiting review): code index**
+
+Approved decisions (2026-10-21): `storeCodeIndex` is **off by default**; tree-sitter for TS/JS, Python, Go, Java, Rust, Ruby, C# (other files in line windows); at most 20,000 files per repo.
+
+- **Package `packages/code-index`:** file filter (vendored/build folders, lockfiles, binaries, minified, > 200 KB), tree-sitter chunker (`web-tree-sitter` 0.22 + `tree-sitter-wasms`; definitions get their own chunk, named like `Store.get`; neighbours merged up to 80 lines / 4,000 characters; big ones split into windows; every line covered), `Embedder` interface with `LocalEmbedder` (`jina-embeddings-v2-base-code`, 8-bit, transformers.js, in-process) and `FakeEmbedder` (tests and e2e), `CodeIndexer`, hybrid search.
+- **Schema (0024):** `code_chunks` (vector(768) with HNSW cosine, tsvector with GIN), `code_index_state` (one row per repo), enum `code_index_status`. RLS `repo_readers`; the app role can only read; realtime trigger on the state table.
+- **Indexing:** reads with the **installation token**. Incremental by blob sha: only new or changed files are read and embedded, gone files lose their chunks; a file's chunks are written in one INSERT, so it is never half indexed. A push during a run triggers up to two more runs. A different model in the state row means a full re-index. Checks the setting during and after a run, and deletes what it wrote if it was turned off.
+- **Queue `code-index`:** jobs `repo` (one job id per repo), `org` (fans out), `nightly` (05:00 UTC, every org with the index on), `purge`. Triggered by turning the setting on, by repo sync (new repos), by a push to the default branch (30 s delay, so a burst shares a run), by admins (Rebuild), and nightly.
+- **Search:** pgvector nearest neighbours (with `hnsw.iterative_scan`, since the index is shared by all repos) and full-text over words with identifiers split (`totalInvoice` → total, invoice), merged by reciprocal rank fusion. Chat's `search_code` returns `path:start-end (symbol)` with an 8-line snippet, drops files gone at the answer commit, says when the index is behind, and falls back to GitHub code search when there's no index, no hits or an error.
+- **API:** `orgs.updateSettings({ storeCodeIndex })` (admin, audited; queues a build or a purge), `codeIndex.status`, `codeIndex.reindex` (admin, audited), `push` webhook.
+- **Web:** status line under "Ask the repo" (live via `code_index.status`, Rebuild for admins); Settings → Code index card, saved on its own with a confirm before deleting.
+- **Event:** `code_index.status` on `repo:<id>` (38th event in the catalogue).
+- **GitHub App:** `push` added to the manifest and `docs/github-app.md`.
+- **Tests:** code-index 21 (chunking per language, filters, incremental runs, push mid-run, cap, model change, failure, purge, search, RLS), agent +3 (indexed search, behind-commit note, fallbacks), API +4 (setting, status, reindex, push webhook), worker +4, events +1, and e2e `code-index.spec.ts` (turn on → worker indexes through the mock's installation token → chat finds code with the index → turn off → back to GitHub search). Full run: 33 typecheck and test tasks green.
+
+**Deviations and limits, to confirm:**
+1. **The index can lag the answer commit.** It follows the default branch through pushes and the nightly run; chat reads files at the live head, drops hits for deleted files and tells the model when line numbers may have moved.
+2. **Old installations need to accept the Push event** on GitHub. Until then, repos are re-indexed nightly only.
+3. **Binary or empty files with no chunks are read again on every run.** The extension filter makes them rare; recording them would need another table.
+4. **The setting lives in `orgs.settings` JSON** (as the schema comment intended), not a column; the API presents it as `storeCodeIndex`.
+5. **e2e now uses a generated App key** and the mock issues installation tokens, so background jobs that use the installation token can be tested end to end.
+6. **The first index of a repo is slow on CPU.** Measured on this repo (418 files → 4,285 chunks, 1,030 characters on average) on a 12-thread laptop CPU: chunking takes 2 s, embedding runs at about 3 chunks a second, so the first index takes about 25 minutes. Later pushes only re-embed changed files (seconds). The worker peaks at about 1 GB. The first test, with 4,000-character chunks in batches of 16, ran out of memory, so chunks are now at most 1,500 characters and batches 8, sorted by length. A hosted embedder (Voyage) behind the same interface would make first runs fast, at the cost of sending code to that service.
+7. **The model download (about 160 MB) happens on the worker's first index**, not at deploy. Set `EMBEDDINGS_CACHE_DIR` to a persistent volume so restarts don't download it again.
+
+### B-3 notes
+
+Approved decisions (2026-10-20): the original PR is edited with the **port owner's** GitHub account; Apply creates a **draft** task directly; only **admins** manage links.
+
+- **Schema (0025):** `repo_links` (source, target, `two_way`, `mapping_notes_md` ≤ 8,000, one link per pair in either direction, no self-links); `tasks.source_task_id` and `tasks.source_context_md` (≤ 60,000, frozen at creation). RLS `repo_readers`: read if you can access either repo, write only with access to both; admin-only changes are enforced in the API and audited.
+- **The change:** from GitHub's compare of the task's base and pushed commits (so commits people added to the branch count), otherwise the agent's own workspace patch. Frozen into `source_context_md` with the source task, its PR and the mapping notes.
+- **API:** `repoLinks.list/create/update/delete`; `tasks.applyToLinked({ key, targetRepoId })` checks the link direction, the caller's live push access to the target and that the source has a change, then creates a draft "Port AD-12: …" with the description and acceptance criteria copied, recorded on both timelines. `tasks.get` returns `source` and `ports`.
+- **Agent:** the task message gets a "Port this change" section (notes and diff wrapped as data) and an instruction to adapt the change rather than copy it.
+- **PRs:** the port's PR body has a Source section; when the port's PR opens, a "Ported to" line is added to the original PR as the port's owner. If they can't edit that repo it's skipped and recorded on the task (`source_pr.not_updated`); publishing never fails because of it.
+- **Web:** Settings → Linked repositories (admins add, edit, remove); task page: "Apply to <repo>" buttons, "Ported from" / "Ported to", and the frozen change in a collapsible section.
+- **Tests:** RLS (`rls-repo-links.test.ts`), API 7 (permissions, direction, both diff sources, size cap, org isolation), agent (context, prompt section, PR body), publisher (source PR edit and the skip), e2e `cross-repo.spec.ts`.
+
+**Deviations and limits, to confirm:**
+1. **Only pushed work can be applied** (pushed, PR open or resolved). The plan said "when the task has changes"; unpushed drafts can't be ported yet. The workspace-patch fallback covers pushed tasks whose compare is empty.
+2. **The frozen change can go stale** if the source branch moves after the port is created; apply again for a fresh copy.
+3. **Very large diffs are cut** to fit the 60,000-character context; the cut is marked so the agent knows.
+4. Finished in this session after the earlier one hit its usage limit: the e2e spec needed an exact label match and to cancel the port it creates, so reruns against the dev DB start clean. `byok` and `prompt-guide` waits now allow for Next dev compiling a page on first visit.
 
 ### Frontend polish and Vercel (2026-10-20)
 
@@ -227,4 +267,4 @@ Approved: polish and motion, toasts, phone feel and a robustness pass, using Emi
 
 ## Next step
 
-**B-2 part 2 (code index), waiting for the go-ahead.**
+**Review B-2 part 2 (code index) and B-3 (cross-repo sync), then commit.** Next phase: B-4 (insights and leaderboard), plan first.

@@ -1,5 +1,6 @@
 import { and, asc, eq, schema, type Citation, type MemorySection, type SystemDb } from '@autodev/db';
 import { getBranchHead, userOctokit, type GitHubConfig, type KvCache, type TokenVault } from '@autodev/github';
+import type { CodeSearch } from '@autodev/code-index';
 import type { ContentBlock, LlmGateway, Message, ToolDef } from '@autodev/llm';
 import { GitHubRepoReader, type RepoReader } from './repo-reader';
 
@@ -16,6 +17,8 @@ export const CHAT_MAX_TURNS = 12;
 const MAX_LINES_PER_READ = 400;
 const MAX_RESULT_CHARS = 30_000;
 const MAX_CITATIONS = 20;
+const SEARCH_HITS = 10;
+const SNIPPET_LINES = 8;
 
 export const CHAT_TOOLS: ToolDef[] = [
   {
@@ -34,7 +37,8 @@ export const CHAT_TOOLS: ToolDef[] = [
   },
   {
     name: 'search_code',
-    description: 'Search the default branch for code matching a query. Returns matching file paths only.',
+    description:
+      'Search the code for a query: a question in plain words ("where are sessions created?") or exact names. Returns matching places as path:start-end with a short snippet when the repository is indexed, otherwise matching file paths only. Read a file before relying on it.',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
   },
   {
@@ -61,6 +65,8 @@ export interface RepoQaDeps {
   vault: TokenVault;
   cfg: GitHubConfig;
   cache: KvCache;
+  /** The code index (B-2). Without it, or for a repo with no index, search_code uses GitHub code search. */
+  codeSearch?: CodeSearch;
   /** Test seam: the reader an answer uses. Production reads GitHub with the asker's token. */
   readerFor?: (args: { repoId: string; owner: string; name: string; baseSha: string; userId: string }) => RepoReader;
 }
@@ -139,7 +145,7 @@ Answer in Markdown, and keep it short.`;
 
 /** The tool loop: model turn, run any reads, feed the results back, until it answers. */
 export async function converse(
-  deps: Pick<RepoQaDeps, 'gateway'>,
+  deps: Pick<RepoQaDeps, 'gateway' | 'codeSearch'>,
   scope: AnswerScope,
   system: string,
   messages: Message[],
@@ -170,7 +176,7 @@ export async function converse(
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue;
       try {
-        const out = await runTool(block.name, block.input, scope.reader, blobs, reads);
+        const out = await runTool(block.name, block.input, scope, blobs, reads, deps.codeSearch);
         results.push({ type: 'tool_result', toolUseId: block.id, content: out });
       } catch (e) {
         results.push({ type: 'tool_result', toolUseId: block.id, content: e instanceof Error ? e.message : String(e), isError: true });
@@ -181,7 +187,8 @@ export async function converse(
   throw new RepoChatError('That question needed too many file reads. Try a narrower question.');
 }
 
-async function runTool(name: string, input: unknown, reader: RepoReader, blobs: Map<string, string>, reads: Citation[]): Promise<string> {
+async function runTool(name: string, input: unknown, scope: AnswerScope, blobs: Map<string, string>, reads: Citation[], codeSearch?: CodeSearch): Promise<string> {
+  const { reader } = scope;
   const args = (input ?? {}) as Record<string, unknown>;
   if (name === 'list_dir') {
     const entries = await reader.listDir(cleanPath(String(args.path ?? '')));
@@ -203,7 +210,10 @@ async function runTool(name: string, input: unknown, reader: RepoReader, blobs: 
     return truncate(`${path} (lines ${start}-${end} of ${lines.length})\n${numbered}${note}`);
   }
   if (name === 'search_code') {
-    const hits = await reader.search(String(args.query ?? ''));
+    const query = String(args.query ?? '');
+    const indexed = codeSearch ? await indexedSearch(codeSearch, scope, query, blobs) : null;
+    if (indexed) return truncate(indexed);
+    const hits = await reader.search(query);
     return truncate(hits.length === 0 ? 'No matches.' : hits.slice(0, 30).join('\n'));
   }
   if (name === 'git_log') {
@@ -213,6 +223,40 @@ async function runTool(name: string, input: unknown, reader: RepoReader, blobs: 
     return truncate(commits.length === 0 ? 'No commits.' : commits.map((c) => `${c.sha.slice(0, 7)} ${c.date.slice(0, 10)} ${c.author}: ${c.title}`).join('\n'));
   }
   throw new Error(`Unknown tool ${name}`);
+}
+
+/**
+ * Search through the code index, as text for the model. Null means "use GitHub search instead": no
+ * index, no hits that still exist at the answer commit, or the index failed to answer.
+ */
+async function indexedSearch(codeSearch: CodeSearch, scope: AnswerScope, query: string, blobs: Map<string, string>): Promise<string | null> {
+  let result: Awaited<ReturnType<CodeSearch['search']>>;
+  try {
+    result = await codeSearch.search(scope.orgId, scope.repo.id, query, SEARCH_HITS);
+  } catch {
+    return null;
+  }
+  // The index can be behind the answer commit; a file that's gone since can't be read or cited.
+  const hits = result?.hits.filter((h) => blobs.has(h.path)) ?? [];
+  if (!result || hits.length === 0) return null;
+  const behind =
+    result.commitSha !== scope.baseSha
+      ? `(The code index is at commit ${result.commitSha.slice(0, 7)}; this answer reads ${scope.baseSha.slice(0, 7)}. Line numbers may have moved: read the file to check.)\n\n`
+      : '';
+  return (
+    behind +
+    hits
+      .map((h) => {
+        const lines = h.content.split('\n');
+        const snippet = lines
+          .slice(0, SNIPPET_LINES)
+          .map((l, i) => `${h.startLine + i}: ${l}`)
+          .join('\n');
+        const more = lines.length > SNIPPET_LINES ? `\n(… ${lines.length - SNIPPET_LINES} more lines)` : '';
+        return `${h.path}:${h.startLine}-${h.endLine}${h.symbol ? ` (${h.symbol})` : ''}\n${snippet}${more}`;
+      })
+      .join('\n\n')
+  );
 }
 
 /** `path:12`, `path:12-30`, `path#L12-L30`. */

@@ -1,0 +1,23 @@
+{
+  "name": "@autodev/code-index",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@autodev/db": "workspace:*",
+    "@autodev/github": "workspace:*",
+    "@huggingface/transformers": "^3.8.1",
+    "tree-sitter-wasms": "0.1.13",
+    "web-tree-sitter": "0.22.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

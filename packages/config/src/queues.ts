@@ -8,6 +8,8 @@ export const QUEUES = {
   staleBranch: 'stale-branch',
   /** Repo chat: answers one question at a time, reading the repo with the asker's token. */
   chat: 'chat',
+  /** The code index (B-2): chunk and embed a repo's default branch, or delete an org's index. */
+  codeIndex: 'code-index',
   /** Housekeeping (token_usage partitions). Not in the original queue list; small and separate. */
   maintenance: 'maintenance',
 } as const;
@@ -35,6 +37,22 @@ export const chatJob = z.object({
   messageId: z.string().uuid(),
 });
 export type ChatJob = z.infer<typeof chatJob>;
+
+/**
+ * `repo` brings one repo's index up to date; `org` queues a `repo` job for each repo of an org;
+ * `nightly` does that for every org with the index on; `purge` deletes an org's index.
+ */
+export const codeIndexJob = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('repo'), orgId: z.string().uuid(), repoId: z.string().uuid() }),
+  z.object({ kind: z.literal('org'), orgId: z.string().uuid() }),
+  z.object({ kind: z.literal('nightly') }),
+  z.object({ kind: z.literal('purge'), orgId: z.string().uuid() }),
+]);
+export type CodeIndexJob = z.infer<typeof codeIndexJob>;
+
+/** One waiting run per repo. Pushes within this window share a run. */
+export const CODE_INDEX_PUSH_DELAY_MS = 30_000;
+export const codeIndexRepoJobId = (repoId: string) => `repo-${repoId}`;
 
 /** Just enough of a BullMQ Queue for producers, so they can be faked in tests. */
 export interface JobQueue<T> {

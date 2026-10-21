@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import { generateKeyPairSync } from 'node:crypto';
 import { FIXTURE_DIR } from './global-setup';
 
 const MOCK = 'http://localhost:4010';
+
+/** A throwaway App key: background jobs sign a JWT with it to get an installation token from the mock. */
+const appKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 
 /** The API and web app talk to tools/mock-github instead of GitHub. Uses the dev DB with the demo seed. */
 const githubEnv = {
@@ -11,10 +15,12 @@ const githubEnv = {
   GITHUB_APP_SLUG: 'autodev-e2e',
   GITHUB_APP_CLIENT_ID: 'Iv1.e2e',
   GITHUB_APP_CLIENT_SECRET: 'e2e-secret',
-  GITHUB_APP_PRIVATE_KEY: 'unused-in-e2e',
+  GITHUB_APP_PRIVATE_KEY: appKey.replace(/\n/g, '\\n'),
   GITHUB_WEBHOOK_SECRET: 'e2e-webhook-secret-123',
   ANTHROPIC_BASE_URL: `${MOCK}/anthropic`,
   LOG_LEVEL: 'warn',
+  // The code index uses a stand-in embedder, so no model is downloaded.
+  EMBEDDINGS_PROVIDER: 'fake',
 };
 
 export default defineConfig({

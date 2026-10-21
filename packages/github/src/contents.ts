@@ -69,3 +69,9 @@ export async function listCommits(gh: Octokit, owner: string, repo: string, sha:
     date: c.commit.author?.date ?? c.commit.committer?.date ?? '',
   }));
 }
+
+/** The unified diff from `base` to `head` (what the commits in between changed), as GitHub renders it. */
+export async function compareDiff(gh: Octokit, owner: string, repo: string, base: string, head: string): Promise<string> {
+  const res = await gh.rest.repos.compareCommits({ owner, repo, base, head, mediaType: { format: 'diff' } });
+  return res.data as unknown as string;
+}

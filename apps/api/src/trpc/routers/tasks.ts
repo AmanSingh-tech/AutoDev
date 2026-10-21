@@ -15,7 +15,8 @@ import {
   type TaskStatus,
   type Tx,
 } from '@autodev/db';
-import { getBranch, isValidBranchName, newBranchName, userOctokit } from '@autodev/github';
+import { buildSourceContext, latestPr, readSourceChange } from '@autodev/agent';
+import { assertCanPush, getBranch, isValidBranchName, newBranchName, PushNotAllowed, userOctokit } from '@autodev/github';
 import { LlmBlocked } from '@autodev/llm';
 import { PROMPT_SCORE_VERSION, scorePrompt, type PromptDraft } from '@autodev/protocol';
 import { TRPCError } from '@trpc/server';
@@ -23,6 +24,7 @@ import { z } from 'zod';
 import type { Deps } from '../../deps';
 import { normalizeScopePath, recordEvent, transition } from '../../services/tasks';
 import { orgProcedure, requireRole, roleAtLeast, router } from '../trpc';
+import { linkedTargets } from './repo-links';
 
 const { orgs, pullRequests, repoPolicies, repos, taskEvents, tasks, users } = schema;
 
@@ -39,6 +41,9 @@ const fields = z.object({
   extraContext: z.string().max(10_000).nullish(),
   createPrOnCompletion: z.boolean().default(true),
 });
+
+/** Finished, pushed work: what "Apply to linked repo" can port. */
+const PORTABLE = new Set<TaskStatus>(['pushed', 'pr_open', 'resolved']);
 
 const keyInput = z.object({ key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}-\d+$/) });
 
@@ -106,6 +111,48 @@ const canManage = (ctx: Ctx, t: { ownerId: string }) => t.ownerId === ctx.userId
  * Draft → queued. Refused up front if the owner has no working LLM key or hit a hard budget,
  * so a task never queues only to fail. The agent worker (A-4) picks up the job.
  */
+type NewTask = z.infer<typeof fields> & { scopePath: string | null; targetBranch: string | null; relatedTaskId: string | null; sourceTaskId?: string; sourceContextMd?: string };
+
+/** Mints the next key and inserts a draft task owned by the caller. Inputs are already validated. */
+async function insertTask(tx: Tx, ctx: Ctx, repoId: string, input: NewTask) {
+  const mode = await resolveMode(tx, ctx.orgId, repoId, input.mode);
+  // Row lock on the org serializes key minting, so numbers are gap-free and unique.
+  const [seq] = await tx
+    .update(orgs)
+    .set({ taskSeq: sql`${orgs.taskSeq} + 1` })
+    .where(eq(orgs.id, ctx.orgId))
+    .returning({ n: orgs.taskSeq, prefix: orgs.taskKeyPrefix });
+  const key = `${seq!.prefix}-${seq!.n}`;
+  const [t] = await tx
+    .insert(tasks)
+    .values({
+      orgId: ctx.orgId,
+      repoId,
+      number: seq!.n,
+      key,
+      title: input.title,
+      descriptionMd: input.descriptionMd,
+      acceptanceCriteriaMd: input.acceptanceCriteriaMd,
+      priority: input.priority,
+      mode,
+      scopePath: input.scopePath,
+      branchMode: input.branchMode,
+      targetBranch: input.targetBranch,
+      workBranch: input.targetBranch ?? newBranchName(key, input.title),
+      relatedTaskId: input.relatedTaskId,
+      sourceTaskId: input.sourceTaskId ?? null,
+      sourceContextMd: input.sourceContextMd ?? null,
+      extraContext: input.extraContext?.trim() || null,
+      createPrOnCompletion: input.createPrOnCompletion,
+      createdBy: ctx.userId,
+      ownerId: ctx.userId,
+      ...promptScoreFields({ ...input, scopePath: input.scopePath }),
+    })
+    .returning();
+  await recordEvent(tx, { orgId: ctx.orgId, taskId: t!.id, actor: { type: 'user', userId: ctx.userId }, type: 'created', payload: { mode, branchMode: input.branchMode, ...(input.sourceTaskId ? { sourceTaskId: input.sourceTaskId } : {}) } });
+  return t!;
+}
+
 async function startTask(ctx: Ctx, key: string) {
   const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, key));
   if (!canManage(ctx, t)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the task owner or an admin can start it' });
@@ -201,10 +248,23 @@ export const tasksRouter = router({
         .where(eq(pullRequests.taskId, t.id))
         .orderBy(desc(pullRequests.createdAt));
       const lastFail = events.find((e) => e.toStatus === 'failed');
+      const [source] = t.sourceTaskId
+        ? await tx.select({ key: tasks.key, title: tasks.title, status: tasks.status, repoFullName: repos.fullName, repoName: repos.name }).from(tasks).innerJoin(repos, eq(repos.id, tasks.repoId)).where(eq(tasks.id, t.sourceTaskId))
+        : [];
+      const ports = await tx
+        .select({ key: tasks.key, title: tasks.title, status: tasks.status, repoFullName: repos.fullName, repoName: repos.name })
+        .from(tasks)
+        .innerJoin(repos, eq(repos.id, tasks.repoId))
+        .where(eq(tasks.sourceTaskId, t.id))
+        .orderBy(tasks.createdAt);
+      const targets = PORTABLE.has(t.status) && roleAtLeast(ctx.role, 'developer') ? await linkedTargets(tx, ctx.orgId, t.repoId) : [];
       return {
         ...t,
         ...extra!,
         related: related ?? null,
+        source: source ?? null,
+        ports,
+        linkedTargets: targets.map((l) => l.repo),
         events,
         pullRequests: prs,
         failure: t.status === 'failed' && lastFail ? (lastFail.payload as { reason?: string; message?: string; kind?: string }) : null,
@@ -228,43 +288,63 @@ export const tasksRouter = router({
       const targetBranch = await validateBranch(ctx, repo, input.branchMode, input.targetBranch);
 
       const created = await ctx.inOrg(async (tx) => {
-        const mode = await resolveMode(tx, ctx.orgId, repo.id, input.mode);
         const relatedTaskId = await validateRelated(tx, ctx.orgId, input.relatedTaskId);
-        // Row lock on the org serializes key minting, so numbers are gap-free and unique.
-        const [seq] = await tx
-          .update(orgs)
-          .set({ taskSeq: sql`${orgs.taskSeq} + 1` })
-          .where(eq(orgs.id, ctx.orgId))
-          .returning({ n: orgs.taskSeq, prefix: orgs.taskKeyPrefix });
-        const key = `${seq!.prefix}-${seq!.n}`;
-        const [t] = await tx
-          .insert(tasks)
-          .values({
-            orgId: ctx.orgId,
-            repoId: repo.id,
-            number: seq!.n,
-            key,
-            title: input.title,
-            descriptionMd: input.descriptionMd,
-            acceptanceCriteriaMd: input.acceptanceCriteriaMd,
-            priority: input.priority,
-            mode,
-            scopePath,
-            branchMode: input.branchMode,
-            targetBranch,
-            workBranch: targetBranch ?? newBranchName(key, input.title),
-            relatedTaskId,
-            extraContext: input.extraContext?.trim() || null,
-            createPrOnCompletion: input.createPrOnCompletion,
-            createdBy: ctx.userId,
-            ownerId: ctx.userId,
-            ...promptScoreFields({ ...input, scopePath }),
-          })
-          .returning();
-        await recordEvent(tx, { orgId: ctx.orgId, taskId: t!.id, actor: { type: 'user', userId: ctx.userId }, type: 'created', payload: { mode, branchMode: input.branchMode } });
-        return t!;
+        return insertTask(tx, ctx, repo.id, { ...input, scopePath, targetBranch, relatedTaskId });
       });
       return input.start ? startTask(ctx, created.key) : created;
+    }),
+
+  /**
+   * Cross-repo sync (B-3): a draft task in a linked repo that ports this task's change. The change
+   * (pushed commits, or the agent's work) is read now with the caller's access and frozen on the new
+   * task, with the link's mapping notes. Needs push access to the target, checked live.
+   */
+  applyToLinked: requireRole('developer')
+    .input(keyInput.extend({ targetRepoId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // First, so the caller's access rows (which RLS reads for links) are current.
+      const target = await assertCanWork(ctx, input.targetRepoId);
+      const { source, sourceRepo, link } = await ctx.inOrg(async (tx) => {
+        const source = await loadTask(tx, ctx.orgId, input.key);
+        if (!PORTABLE.has(source.status)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only pushed work can be applied to a linked repository' });
+        const link = (await linkedTargets(tx, ctx.orgId, source.repoId)).find((l) => l.repo.id === input.targetRepoId);
+        if (!link) throw new TRPCError({ code: 'BAD_REQUEST', message: 'That repository is not linked to this one' });
+        const [sourceRepo] = await tx.select().from(repos).where(eq(repos.id, source.repoId));
+        return { source, sourceRepo: sourceRepo!, link };
+      });
+      try {
+        await ctx.deps.vault.withToken(ctx.userId, (tok) => assertCanPush(userOctokit(ctx.deps.cfg, tok), target.owner, target.name));
+      } catch (e) {
+        if (e instanceof PushNotAllowed) throw new TRPCError({ code: 'FORBIDDEN', message: e.message });
+        throw e;
+      }
+      const change = await readSourceChange(ctx.deps, ctx.userId, source);
+      if (!change) throw new TRPCError({ code: 'BAD_REQUEST', message: `${source.key} has no changes to apply` });
+      const [org] = await ctx.deps.sys.select({ slug: orgs.slug }).from(orgs).where(eq(orgs.id, ctx.orgId));
+      const contextMd = buildSourceContext({
+        source: { key: source.key, title: source.title, url: `${ctx.deps.env.WEB_URL}/o/${org!.slug}/tasks/${source.key}`, repoFullName: sourceRepo.fullName, descriptionMd: source.descriptionMd, summaryMd: source.summaryMd },
+        pr: await latestPr(ctx.deps.sys, source.id),
+        mappingNotesMd: link.mappingNotesMd,
+        change,
+      });
+      return ctx.inOrg(async (tx) => {
+        const port = await insertTask(tx, ctx, target.id, {
+          title: `Port ${source.key}: ${source.title}`.slice(0, 200),
+          descriptionMd: `Bring the change from ${source.key} in \`${sourceRepo.fullName}\` to this repository.\n\n${source.descriptionMd}`.slice(0, 20_000),
+          acceptanceCriteriaMd: source.acceptanceCriteriaMd,
+          priority: source.priority,
+          scopePath: null,
+          branchMode: 'new',
+          targetBranch: null,
+          relatedTaskId: null,
+          createPrOnCompletion: source.createPrOnCompletion,
+          sourceTaskId: source.id,
+          sourceContextMd: contextMd,
+        });
+        await recordEvent(tx, { orgId: ctx.orgId, taskId: source.id, actor: { type: 'user', userId: ctx.userId }, type: 'ported', payload: { portKey: port.key, repo: target.fullName } });
+        await ctx.audit(tx, { action: 'task.applied_to_linked', targetType: 'task', targetId: source.id, metadata: { port: port.key, target: target.fullName, from: change.from } });
+        return port;
+      });
     }),
 
   /** Edits are allowed while the task is a draft; once queued the agent may already be reading it. */

@@ -92,6 +92,23 @@ a `user_repo_access` row for the repo. `llm_use_case` value `chat` (default `cla
 per-task cap; monthly budgets apply). Realtime: `chat.message` (to the author), `channel.message`
 and `repo_agent.memory_updated` (to the repo topic).
 
+## Code index (B-2 part 2)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ code_chunks | org, repo, path, blob_sha, start_line, end_line (1-based), language, symbol, content, tsv (tsvector, `simple`), embedding vector(768) | One function, class or line window of a default-branch file. HNSW (cosine) on embedding, GIN on tsv. Written only by the worker; RLS `repo_readers`, app role has SELECT only |
+| ✅ code_index_state | repo (pk), org, status pending/indexing/ready/failed, commit_sha, model, files, chunks, skipped_files, error, started_at, finished_at | One row per indexed repo. Realtime trigger → `code_index.status`. RLS `repo_readers`, SELECT only |
+
+Both are stored only while `orgs.settings.storeCodeIndex` is true; turning it off deletes every
+row of the org. A different embedding `model` than the one recorded means a full re-index.
+
+## Cross-repo sync (B-3)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ repo_links | org, source_repo, target_repo, two_way, mapping_notes_md ≤ 8000, created_by | One link per pair in either direction (unique on least/greatest), no self-links. RLS `repo_readers`: read with access to either repo, write with access to both; admin-only in the API |
+| ✅ tasks (added) | source_task_id, source_context_md ≤ 60000 | The task a port came from, and the frozen change, PR and mapping notes it was created with (migration 0025) |
+
 ## Prompt guide (B-1)
 
 | Table | Columns that matter | Notes |

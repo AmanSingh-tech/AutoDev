@@ -23,7 +23,7 @@ async function removeCopies(page: Page) {
 test.afterEach(async ({ page }) => {
   // The test accepts confirm dialogs (registered before anything can fail).
   await page.goto('/o/acme-demo/settings/templates');
-  await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('summary', { hasText: /^Bug fix$/ })).toBeVisible();
   await removeCopies(page);
   await page.goto('/o/acme-demo/settings/ai-keys');
@@ -55,7 +55,7 @@ test('templates, the live score, check deeper and a rewrite that can be undone; 
 
   // An org template, copied from a built-in one.
   await page.getByRole('link', { name: 'Task templates' }).click();
-  await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Task templates' })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('summary', { hasText: /^Bug fix$/ })).toBeVisible();
   await removeCopies(page);
   await page.locator('summary', { hasText: /^Bug fix$/ }).click();

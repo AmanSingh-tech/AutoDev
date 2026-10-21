@@ -1,4 +1,4 @@
-import { QUEUES, type AgentJob, type ChatJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
+import { QUEUES, type AgentJob, type ChatJob, type CodeIndexJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
 import { createKeyWrapper, type KeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb, type AppDb, type SystemDb } from '@autodev/db';
 import {
@@ -27,7 +27,7 @@ export interface Deps {
   vault: TokenVault;
   cache: KvCache;
   repoAccess: RepoAccessService;
-  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob> };
+  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob>; codeIndex: JobQueue<CodeIndexJob> };
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
@@ -66,6 +66,11 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     connection: redis,
     defaultJobOptions: { removeOnComplete: 1000, removeOnFail: 1000, attempts: 2, backoff: { type: 'fixed', delay: 5000 } },
   });
+  // Finished and failed jobs are removed so the per-repo job id frees up (see apps/worker/src/code-index.ts).
+  const codeIndex = new Queue<CodeIndexJob>(QUEUES.codeIndex, {
+    connection: redis,
+    defaultJobOptions: { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 60_000 } },
+  });
   const blobs = createBlobStore(env, sys.db);
   const events = new EventHub(redis.duplicate());
   const bridge = new ChangeBridge({ databaseUrl: env.DATABASE_URL, redis });
@@ -84,6 +89,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       repoSync: repoSync as unknown as JobQueue<RepoSyncJob>,
       agent: agent as unknown as JobQueue<AgentJob>,
       chat: chat as unknown as JobQueue<ChatJob>,
+      codeIndex: codeIndex as unknown as JobQueue<CodeIndexJob>,
     },
     providers,
     credentials,
@@ -103,7 +109,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     liveLogs: async (jobId) =>
       (await redis.lrange(liveLogsKey(jobId), 0, -1)).map((e) => (JSON.parse(e) as { data: string }).data).join(''),
     close: async () => {
-      await Promise.all([repoSync.close(), agent.close(), chat.close()]);
+      await Promise.all([repoSync.close(), agent.close(), chat.close(), codeIndex.close()]);
       await bridge.close();
       await events.close();
       await Promise.all([app.close(), sys.close()]);

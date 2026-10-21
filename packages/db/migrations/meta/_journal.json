@@ -169,6 +169,20 @@
       "when": 1792443400000,
       "tag": "0023_repo_team_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792533765336,
+      "tag": "0024_code_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792537031682,
+      "tag": "0025_repo_links",
+      "breakpoints": true
     }
   ]
 }

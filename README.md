@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 part 1 (repo chat, team room, Repo Agent memory) is done.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 (repo chat, team room, Repo Agent memory, and the code index) and B-3 (cross-repo sync) are built.
 
 ## Layout
 
@@ -22,6 +22,7 @@ packages/db           Drizzle schema, migrations, RLS, withOrg(), seed
 packages/github       Octokit clients, token vault, repo access cache, webhooks, login
 packages/ui           shadcn-style components + Tailwind preset
 packages/llm          Provider interface, Anthropic provider, LLM gateway (keys, metering, budgets)
+packages/code-index   Code index: tree-sitter chunking, local embeddings, incremental indexing, hybrid search
 packages/agent        Virtual workspace, tools, prompts, agent loop, orchestrator
 packages/protocol     Builder ⇄ gateway messages and the .autodev.yml schema (Zod)
 tools/mock-github     Fake GitHub for e2e tests
@@ -57,6 +58,32 @@ pnpm --filter @autodev/e2e e2e # Playwright against tools/mock-github (needs doc
 ```
 
 GitHub and LLM calls are always mocked in tests (msw for unit tests, mock-github for e2e).
+
+## Code index (B-2)
+
+Off by default. An admin turns it on in **Settings → Code index**; the worker then indexes every
+repo's default branch, re-indexes on each push to it (needs the App's Push event, see
+[docs/github-app.md](docs/github-app.md)) and catches up nightly at 05:00 UTC. Repo chat's
+`search_code` then searches by meaning and by name; without an index it uses GitHub code search.
+
+- Files are split with tree-sitter (TypeScript/JavaScript, Python, Go, Java, Rust, Ruby, C#) or
+  into line windows (everything else). Lockfiles, vendored and build folders, binaries and files
+  over 200 KB are skipped, and at most 20,000 files per repo are indexed.
+- Embeddings come from `jina-embeddings-v2-base-code` (8-bit), run inside the worker with
+  transformers.js. The model (about 160 MB) downloads on first use into `EMBEDDINGS_CACHE_DIR`.
+  No code is sent to another service.
+- Turning the setting off deletes the org's whole index.
+
+## Cross-repo sync (B-3)
+
+- Admins link repositories in **Settings → Linked repositories**: source → target (or both ways), with
+  notes on how the code maps (e.g. "`web/src/api/*` ↔ `mobile/lib/api/*`").
+- On a task whose work is pushed, **Apply to <repo>** creates a draft task in the linked repo
+  ("Port AD-12: …"). It carries a frozen copy of the change (the pushed diff), the source PR and the
+  mapping notes; the agent adapts the change to the target repo through the normal workflow.
+- When the port's PR opens, a "Ported to" line is added to the source PR as the port's owner. If
+  they can't edit the source repo, that step is skipped and noted on the task.
+- Both task pages link to each other ("Ported from", "Ported to").
 
 ## Deploying and frontend conventions
 

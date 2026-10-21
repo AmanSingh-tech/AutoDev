@@ -3,6 +3,8 @@ import { steps, type AutodevConfig } from '@autodev/protocol';
 export interface PrContext {
   task: { key: string; title: string; url: string; summaryMd: string | null; acceptanceCriteriaMd: string; mode: 'plan_lld' | 'plan_only' | 'direct' };
   ownerLogin: string;
+  /** Cross-repo sync (B-3): the task in a linked repo this PR ports. */
+  source?: { key: string; title: string; url: string; repoFullName: string; pr: { number: number; url: string } | null } | null;
   plan: { version: number; contentMd: string; reviewerLogin: string | null } | null;
   lld: { version: number; contentMd: string; reviewerLogin: string | null } | null;
   changes: { path: string; op: 'create' | 'modify' | 'delete'; note: string | null }[];
@@ -49,6 +51,8 @@ export function buildPrBody(ctx: PrContext): string {
   const sections = [
     `## Summary\n${ctx.task.summaryMd ?? '_No summary._'}`,
     `## Task\n[${ctx.task.key}: ${ctx.task.title}](${ctx.task.url})\n\n**Acceptance criteria**\n${ctx.task.acceptanceCriteriaMd.trim() || '_None given._'}`,
+    ctx.source &&
+      `## Source\nPorts [${ctx.source.key}: ${ctx.source.title}](${ctx.source.url}) from \`${ctx.source.repoFullName}\`${ctx.source.pr ? ` (${ctx.source.pr.url})` : ''}.`,
     `## Approved Plan\n${doc('Plan', ctx.plan) ?? '_No plan step for this task._'}`,
     `## Approved LLD\n${doc('Low-level design', ctx.lld) ?? '_No design step for this task._'}`,
     `## Changes\n${changesSection(ctx.changes)}`,
@@ -56,7 +60,7 @@ export function buildPrBody(ctx: PrContext): string {
     `## AI usage\n${usageSection(ctx)}`,
     `<sub>Opened by [AutoDev](${ctx.task.url}) on behalf of @${ctx.ownerLogin}. Every commit in this PR was pushed with their GitHub account.</sub>`,
   ];
-  return sections.join('\n\n').slice(0, MAX_BODY_CHARS);
+  return sections.filter(Boolean).join('\n\n').slice(0, MAX_BODY_CHARS);
 }
 
 /** What gets appended when new commits land on a branch whose PR is already open. */

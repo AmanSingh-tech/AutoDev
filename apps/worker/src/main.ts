@@ -2,7 +2,8 @@ import { AgentOrchestrator, BuilderJobs, Publisher, publishBus, RepoAgent, RepoC
 import { emit } from '@autodev/events';
 import { ORG_ADMIN_TOPIC } from '@autodev/protocol';
 import { createBlobStore } from '@autodev/storage';
-import { agentJob, chatJob, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv, storageEnv } from '@autodev/config';
+import { CodeIndexer, FakeEmbedder, githubSource, IndexedCodeSearch, LocalEmbedder, type Embedder } from '@autodev/code-index';
+import { agentJob, chatJob, codeIndexEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, QUEUES, redisEnv, storageEnv, type CodeIndexJob } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
 import { githubConfigFromEnv, TokenVault, type KvCache } from '@autodev/github';
@@ -10,12 +11,13 @@ import { createProviderRegistry, CredentialService, LlmGateway } from '@autodev/
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import pino from 'pino';
+import { createCodeIndexProcessor } from './code-index';
 import { createKeyValidationProcessor } from './key-validation';
 import { createMaintenanceProcessor } from './maintenance';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
-const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv).merge(storageEnv));
+const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv).merge(storageEnv).merge(codeIndexEnv));
 const log = pino({ level: env.LOG_LEVEL });
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sys = createSystemDb(env.DATABASE_URL_SYSTEM);
@@ -43,8 +45,16 @@ const builderJobs = new BuilderJobs({
 const vault = new TokenVault(sys.db, kms, cfg);
 const gateway = new LlmGateway({ sys: sys.db, providers, credentials });
 const publisher = new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL });
-const repoChat = new RepoChatRunner({ sys: sys.db, gateway, vault, cfg, cache });
-const repoAgent = new RepoAgent({ sys: sys.db, gateway, vault, cfg, cache });
+// One model instance per worker process, shared by indexing and chat searches.
+if (env.EMBEDDINGS_PROVIDER === 'fake' && env.NODE_ENV === 'production') throw new Error('EMBEDDINGS_PROVIDER=fake is for tests only');
+const embedder: Embedder =
+  env.EMBEDDINGS_PROVIDER === 'fake' ? new FakeEmbedder() : new LocalEmbedder({ ...(env.EMBEDDINGS_CACHE_DIR ? { cacheDir: env.EMBEDDINGS_CACHE_DIR } : {}) });
+const indexer = new CodeIndexer({ sys: sys.db, embedder, sourceFor: (repo) => githubSource(cfg, repo) });
+const codeSearch = new IndexedCodeSearch({ sys: sys.db, embedder });
+// Finished and failed jobs are removed so their per-repo job id frees up; failures are kept in code_index_state.
+const codeIndexQueue = new Queue<CodeIndexJob>(QUEUES.codeIndex, { connection, defaultJobOptions: { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 60_000 } } });
+const repoChat = new RepoChatRunner({ sys: sys.db, gateway, vault, cfg, cache, codeSearch });
+const repoAgent = new RepoAgent({ sys: sys.db, gateway, vault, cfg, cache, codeSearch });
 const orchestrator = new AgentOrchestrator({
   sys: sys.db,
   gateway,
@@ -64,6 +74,7 @@ await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 *
 await staleBranch.upsertJobScheduler('nightly-stale-branches', { pattern: '0 2 * * *', tz: 'UTC' }, { name: 'sweep' });
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
 await maintenance.upsertJobScheduler('daily-blob-retention', { pattern: '0 4 * * *', tz: 'UTC' }, { name: 'blob-retention' });
+await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 
 const agentWorker = new Worker(QUEUES.agent, (job) => orchestrator.process(agentJob.parse(job.data)), {
@@ -81,7 +92,13 @@ agentWorker.on('failed', async (job, err) => {
 
 const workers = [
   agentWorker,
-  new Worker(QUEUES.repoSync, createRepoSyncProcessor({ sys: sys.db, cfg }), { connection, concurrency: 5 }),
+  new Worker(
+    QUEUES.repoSync,
+    createRepoSyncProcessor({ sys: sys.db, cfg, onSynced: (orgId) => codeIndexQueue.add('org', { kind: 'org', orgId }, { jobId: `org-${orgId}` }) }),
+    { connection, concurrency: 5 },
+  ),
+  // Embedding is CPU-bound and the model runs one batch at a time, so two repos at once is plenty.
+  new Worker(QUEUES.codeIndex, createCodeIndexProcessor({ indexer, queue: codeIndexQueue }), { connection, concurrency: 2, lockDuration: 10 * 60_000 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
   new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs }), { connection, concurrency: 1 }),
   new Worker(
@@ -111,7 +128,7 @@ log.info({ queues: workers.map((w) => w.name) }, 'worker started');
 
 const shutdown = async () => {
   await Promise.all(workers.map((w) => w.close()));
-  await Promise.all([keyValidation.close(), maintenance.close(), staleBranch.close(), agentQueue.close()]);
+  await Promise.all([keyValidation.close(), maintenance.close(), staleBranch.close(), agentQueue.close(), codeIndexQueue.close()]);
   await Promise.all([sys.close(), app.close()]);
   connection.disconnect();
   process.exit(0);

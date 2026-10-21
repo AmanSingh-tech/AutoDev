@@ -4,6 +4,7 @@ import {
   commitToBranch,
   createPr,
   findOpenPr,
+  getPr,
   GitHubReauthRequired,
   PushConflict,
   PushNotAllowed,
@@ -14,6 +15,7 @@ import {
   type TokenVault,
 } from '@autodev/github';
 import { DEFAULT_DOCKER_IMAGE, type AutodevConfig } from '@autodev/protocol';
+import { addPortedTo, latestPr, portedToLine } from './cross-repo';
 import { PgOverlayStore } from './overlay';
 import { appendToBody, buildPrBody, buildUpdateSection, type PrContext } from './pr-body';
 import { GitHubRepoReader } from './repo-reader';
@@ -135,7 +137,33 @@ export class Publisher {
       await tx.insert(auditLog).values({ orgId: task.orgId, actorType: opts.createdBy === 'user' ? 'user' : 'agent', actorUserId: opts.actorUserId, action: created ? 'pr.opened' : 'pr.updated', targetType: 'task', targetId: task.id, metadata: { repo: repo.fullName, number: pr.number, createdBy: opts.createdBy } });
     });
     await this.notify(task, created ? 'pr.opened' : 'pr.updated', `${created ? 'PR opened' : 'PR updated'} for ${task.key}`, pr.url);
+    if (created && task.sourceTaskId) await this.linkSourcePr(task, repo.fullName, pr);
     return { url: pr.url, number: pr.number, created };
+  }
+
+  /**
+   * Cross-repo sync (B-3): notes the port's PR on the source task's PR, as the port's owner. Skipped,
+   * with a task event saying why, when the owner can't edit the source PR. Never fails the publish.
+   */
+  private async linkSourcePr(task: Task, repoFullName: string, pr: { number: number; url: string }) {
+    const { sys } = this.deps;
+    const [source] = await sys.select({ id: tasks.id, key: tasks.key, owner: repos.owner, name: repos.name }).from(tasks).innerJoin(repos, eq(repos.id, tasks.repoId)).where(eq(tasks.id, task.sourceTaskId!));
+    const sourcePr = source ? await latestPr(sys, source.id) : null;
+    const event = (type: string, payload: Record<string, unknown>) => sys.insert(taskEvents).values({ orgId: task.orgId, taskId: task.id, actorType: 'agent', type, payload });
+    if (!source || !sourcePr) return;
+    const line = portedToLine({ key: task.key, url: this.taskUrl(await this.orgSlug(task.orgId), task.key), repoFullName, prNumber: pr.number, prUrl: pr.url });
+    try {
+      await this.deps.vault.withToken(task.ownerId, async (token) => {
+        const gh = userOctokit(this.deps.cfg, token);
+        const current = await getPr(gh, source.owner, source.name, sourcePr.number);
+        await updatePrBody(gh, source.owner, source.name, sourcePr.number, addPortedTo(current.body, line));
+      });
+      await event('source_pr.updated', { sourceKey: source.key, number: sourcePr.number });
+    } catch (e) {
+      const s = (e as { status?: number }).status;
+      const reason = s === 403 || s === 404 ? 'the owner cannot edit that repository' : e instanceof Error ? e.message : String(e);
+      await event('source_pr.not_updated', { sourceKey: source.key, number: sourcePr.number, reason });
+    }
   }
 
   private async context(task: Task): Promise<PrContext> {
@@ -169,7 +197,12 @@ export class Publisher {
       })
       .from(tokenUsage)
       .where(and(eq(tokenUsage.orgId, task.orgId), eq(tokenUsage.taskId, task.id)));
+    const [source] = task.sourceTaskId
+      ? await sys.select({ id: tasks.id, key: tasks.key, title: tasks.title, repoFullName: repos.fullName }).from(tasks).innerJoin(repos, eq(repos.id, tasks.repoId)).where(eq(tasks.id, task.sourceTaskId))
+      : [];
+    const sourcePr = source ? await latestPr(sys, source.id) : null;
     return {
+      source: source ? { key: source.key, title: source.title, url: this.taskUrl(slug, source.key), repoFullName: source.repoFullName, pr: sourcePr && { number: sourcePr.number, url: sourcePr.url } } : null,
       task: { key: task.key, title: task.title, url: this.taskUrl(slug, task.key), summaryMd: task.summaryMd, acceptanceCriteriaMd: task.acceptanceCriteriaMd, mode: task.mode },
       ownerLogin: owner?.login ?? 'unknown',
       plan: docs.find((d) => d.kind === 'plan') ?? null,

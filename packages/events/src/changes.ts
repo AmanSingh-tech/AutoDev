@@ -247,6 +247,15 @@ export function eventsForChange(c: RowChange): PlannedEvent[] {
         section: String(n.section),
       });
       break;
+    case 'code_index_state':
+      // Progress updates change neither column; only a new status or commit is worth a message.
+      if (c.op === 'INSERT' || changed(n, o, 'status') || changed(n, o, 'commit_sha'))
+        add('code_index.status', repoTopic(String(n.repo_id)), {
+          repoId: String(n.repo_id),
+          status: String(n.status) as 'pending' | 'indexing' | 'ready' | 'failed',
+          commitSha: str(n.commit_sha),
+        });
+      break;
     case 'llm_credentials':
       if (c.op === 'INSERT' || changed(n, o, 'status'))
         add('credential.status', ORG_ADMIN_TOPIC, {

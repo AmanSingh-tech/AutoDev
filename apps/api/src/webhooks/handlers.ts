@@ -1,7 +1,9 @@
+import { CODE_INDEX_PUSH_DELAY_MS, codeIndexRepoJobId } from '@autodev/config';
 import { and, eq, inArray, isNull, schema, transitionTask } from '@autodev/db';
+import { codeIndexEnabled } from '../services/code-index';
 import type { Deps } from '../deps';
 
-const { auditLog, installations, orgMembers, pullRequests, repos, taskEvents, tasks, users } = schema;
+const { auditLog, installations, orgMembers, orgs, pullRequests, repos, taskEvents, tasks, users } = schema;
 
 type HandlerDeps = Pick<Deps, 'sys' | 'repoAccess' | 'queues'>;
 
@@ -11,6 +13,7 @@ interface Payload {
   member?: { id: number };
   pull_request?: { id: number; number: number; html_url: string; merged: boolean; draft?: boolean; head: { ref: string; sha: string }; base: { ref: string } };
   repository?: { id: number };
+  ref?: string;
   sender?: { id: number };
   membership?: { user?: { id: number } };
   [k: string]: unknown;
@@ -55,6 +58,9 @@ export async function handleWebhook(deps: HandlerDeps, event: string, p: Payload
 
     case 'pull_request':
       return handlePullRequest(deps, inst.orgId, p);
+
+    case 'push':
+      return handlePush(deps, inst.orgId, p);
 
     case 'membership':
     case 'team':
@@ -168,6 +174,24 @@ async function handlePullRequest(deps: HandlerDeps, orgId: string, p: Payload): 
     return 'pr:updated';
   }
   return 'ignored:action';
+}
+
+/**
+ * A push to a repo's default branch queues a code index run, when the org has the index on. Runs
+ * are per repo and delayed a little, so a burst of pushes shares one run.
+ */
+async function handlePush(deps: HandlerDeps, orgId: string, p: Payload): Promise<string> {
+  if (!p.repository || !p.ref) return 'ignored:payload';
+  const [row] = await deps.sys
+    .select({ repoId: repos.id, defaultBranch: repos.defaultBranch, deletedAt: repos.deletedAt, settings: orgs.settings })
+    .from(repos)
+    .innerJoin(orgs, eq(orgs.id, repos.orgId))
+    .where(and(eq(repos.orgId, orgId), eq(repos.githubRepoId, p.repository.id)));
+  if (!row || row.deletedAt) return 'ignored:unknown_repo';
+  if (p.ref !== `refs/heads/${row.defaultBranch}`) return 'ignored:not_default_branch';
+  if (!codeIndexEnabled(row.settings)) return 'ignored:code_index_off';
+  await deps.queues.codeIndex.add('repo', { kind: 'repo', orgId, repoId: row.repoId }, { jobId: codeIndexRepoJobId(row.repoId), delay: CODE_INDEX_PUSH_DELAY_MS });
+  return 'code_index:queued';
 }
 
 async function findInstallation(deps: HandlerDeps, ghId: number, opts: { includeDeleted?: boolean } = {}) {
