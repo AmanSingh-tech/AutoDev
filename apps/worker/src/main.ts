@@ -74,6 +74,7 @@ await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 *
 await staleBranch.upsertJobScheduler('nightly-stale-branches', { pattern: '0 2 * * *', tz: 'UTC' }, { name: 'sweep' });
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
 await maintenance.upsertJobScheduler('daily-blob-retention', { pattern: '0 4 * * *', tz: 'UTC' }, { name: 'blob-retention' });
+await maintenance.upsertJobScheduler('nightly-insights', { pattern: '30 0 * * *', tz: 'UTC' }, { name: 'insights' });
 await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 

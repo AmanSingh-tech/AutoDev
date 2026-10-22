@@ -106,6 +106,8 @@ export const teamMembers = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
+    /** Team leads may see insights for their team (B-4). Set by admins. */
+    isLead: boolean('is_lead').notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [

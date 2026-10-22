@@ -1,4 +1,4 @@
-import { QUEUES, type AgentJob, type ChatJob, type CodeIndexJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
+import { QUEUES, type AgentJob, type ChatJob, type CodeIndexJob, type InsightsJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
 import { createKeyWrapper, type KeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb, type AppDb, type SystemDb } from '@autodev/db';
 import {
@@ -27,7 +27,7 @@ export interface Deps {
   vault: TokenVault;
   cache: KvCache;
   repoAccess: RepoAccessService;
-  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob>; codeIndex: JobQueue<CodeIndexJob> };
+  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob>; codeIndex: JobQueue<CodeIndexJob>; insights: JobQueue<InsightsJob> };
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
@@ -71,6 +71,8 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
     connection: redis,
     defaultJobOptions: { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 60_000 } },
   });
+  // Insights jobs run on the worker's maintenance queue; finished ones are removed so the per-org id frees up.
+  const maintenance = new Queue<InsightsJob>(QUEUES.maintenance, { connection: redis, defaultJobOptions: { removeOnComplete: true, removeOnFail: true } });
   const blobs = createBlobStore(env, sys.db);
   const events = new EventHub(redis.duplicate());
   const bridge = new ChangeBridge({ databaseUrl: env.DATABASE_URL, redis });
@@ -90,6 +92,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       agent: agent as unknown as JobQueue<AgentJob>,
       chat: chat as unknown as JobQueue<ChatJob>,
       codeIndex: codeIndex as unknown as JobQueue<CodeIndexJob>,
+      insights: maintenance as unknown as JobQueue<InsightsJob>,
     },
     providers,
     credentials,

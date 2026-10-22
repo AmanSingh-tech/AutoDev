@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 (repo chat, team room, Repo Agent memory, and the code index) and B-3 (cross-repo sync) are built.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 (repo chat, team room, Repo Agent memory, and the code index) B-3 (cross-repo sync) and B-4 (insights and leaderboard) are built.
 
 ## Layout
 
@@ -84,6 +84,20 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
 - When the port's PR opens, a "Ported to" line is added to the source PR as the port's owner. If
   they can't edit the source repo, that step is skipped and noted on the task.
 - Both task pages link to each other ("Ported from", "Ported to").
+
+## Insights and leaderboard (B-4)
+
+- **Insights** (admins, and team leads for their teams): cost and tokens over time, merged PRs, cost
+  per merged PR, first-pass approval rate of plans and designs, median time from task to merge,
+  average prompt score, spend by repo and model, and a breakdown by person, team and repo.
+- **Leaderboard** per week, month or quarter, for the org, a team or a repo. Ranked by **Impact** =
+  merged PRs × (0.5 + 0.5 × first-pass approval rate), ties to the lower cost per PR; a Tokens tab
+  ranks raw usage. Optional badges.
+- **Private by default.** Settings → Insights decides who sees the leaderboard (admins, team leads,
+  or everyone) and whether cost is hidden from non-admins. Team leads are marked per team on the
+  Members page.
+- Figures are rebuilt nightly at 00:30 UTC by the worker (the first run backfills 90 days);
+  admins can **Recompute now**.
 
 ## Deploying and frontend conventions
 

@@ -17,7 +17,7 @@ export const teamsRouter = router({
     ctx.inOrg(async (tx) => {
       const rows = await tx.select().from(teams).where(eq(teams.orgId, ctx.orgId)).orderBy(asc(teams.name));
       const members = await tx
-        .select({ teamId: teamMembers.teamId, userId: users.id, githubLogin: users.githubLogin, avatarUrl: users.avatarUrl })
+        .select({ teamId: teamMembers.teamId, userId: users.id, githubLogin: users.githubLogin, avatarUrl: users.avatarUrl, isLead: teamMembers.isLead })
         .from(teamMembers)
         .innerJoin(users, eq(users.id, teamMembers.userId))
         .where(eq(teamMembers.orgId, ctx.orgId));
@@ -56,6 +56,22 @@ export const teamsRouter = router({
       return { ok: true };
     }),
   ),
+
+  /** Team leads may see their team's insights and, if the org allows it, its leaderboard (B-4). */
+  setLead: adminProcedure
+    .input(z.object({ teamId: z.string().uuid(), userId: z.string().uuid(), isLead: z.boolean() }))
+    .mutation(({ ctx, input }) =>
+      ctx.inOrg(async (tx) => {
+        const [row] = await tx
+          .update(teamMembers)
+          .set({ isLead: input.isLead })
+          .where(and(eq(teamMembers.orgId, ctx.orgId), eq(teamMembers.teamId, input.teamId), eq(teamMembers.userId, input.userId)))
+          .returning();
+        if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'That person is not in this team' });
+        await ctx.audit(tx, { action: input.isLead ? 'team.lead_added' : 'team.lead_removed', targetType: 'team', targetId: input.teamId, metadata: { userId: input.userId } });
+        return { ok: true };
+      }),
+    ),
 
   addMember: adminProcedure
     .input(z.object({ teamId: z.string().uuid(), userId: z.string().uuid() }))

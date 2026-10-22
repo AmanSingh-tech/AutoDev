@@ -162,7 +162,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | B-1 Prompt guide | Templates (bug fix, feature, refactor, add tests, UI change), org-owned templates, live checker that scores 0–100 and flags missing repro, acceptance criteria, file hints, vague scope, one-click rewrite; score stored on the task; policy `prompt_check` | **done** | See "B-1 notes" below. |
 | B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **done** (part 2 awaiting review) | See "B-2 notes" below. |
 | B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | **built, awaiting review** | See "B-3 notes" below. |
-| B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | not started | |
+| B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | **built, awaiting review** | See "B-4 notes" below. |
 | B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | not started | |
 | B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | not started | |
 | B-7 Enterprise pack | SSO (WorkOS), SCIM, extra roles, retention, SIEM export, IP allowlist, data region, more LLM providers, self-hosted Helm chart, Jira sync (`jira_issue_key`) | not started | |
@@ -249,6 +249,23 @@ Approved decisions (2026-10-20): the original PR is edited with the **port owner
 3. **Very large diffs are cut** to fit the 60,000-character context; the cut is marked so the agent knows.
 4. Finished in this session after the earlier one hit its usage limit: the e2e spec needed an exact label match and to cancel the port it creates, so reruns against the dev DB start clean. `byok` and `prompt-guide` waits now allow for Next dev compiling a page on first visit.
 
+### B-4 notes
+
+Approved decisions (2026-10-21): Impact = merged PRs × (0.5 + 0.5 × first-pass approval rate), ties to the lower cost per PR, a neutral 0.75 rate for people with nothing reviewed; a per-team **lead** flag now (B-7 roles can build on it); teams counted by **current** membership; defaults private (leaderboard admins-only, cost hidden from non-admins, badges off); badges First merge, 10 merged PRs, Clean first pass (5 v1s in a row), Efficient (lowest cost per PR, ≥ 3 PRs).
+
+- **Schema (0026):** `user_metrics_daily` (org, UTC day, person, repo: cost, tokens, calls, tasks created/resolved, PRs merged, v1 plans/designs reviewed and approved first time, per-merge minutes as an array for exact medians, prompt-score sum/count; unique with NULLS NOT DISTINCT), `leaderboard_snapshots` (period week/month/quarter, scope org/team/repo, rank, impact, inputs, tokens, badges), `team_members.is_lead`, aggregate `array_cat_agg`. RLS: read inside the org; the app role can't write (only the worker does).
+- **Attribution:** task numbers (created, resolved, merges, reviews, prompt scores) count for the task's **owner**; cost and tokens for whoever made the call. Boards include active members only.
+- **Worker:** `insights` job on the maintenance queue, nightly 00:30 UTC for every org (or one org on Recompute). Rebuilds the last 3 days (90 the first time), delete-and-insert so re-runs are safe, then the current and previous week, month and quarter for the org, every team and every repo. Stores `insightsComputedAt` in `orgs.settings`.
+- **API:** `insights.settings`, `updateSettings` (admin, audited), `recompute` (admin, audited, one queued job per org), `overview` (admins: org or a team; team leads: their teams only; cost hidden from non-admins when set), `leaderboard` (visibility enforced on the server; team leads see only teams they lead when visibility is "team leads"; Tokens tab re-sorts), `teams.setLead` (admin, audited).
+- **Web:** Insights (filters in one row; KPI tiles; one-series trend chart with a measure switch and a table view; spend by repo and model as bar lists; breakdown by people, teams, repos), Leaderboard (Impact/Tokens tabs, period and scope pickers, "(you)", badges), Settings → Insights, a Lead checkbox per team member. Insights appears in the nav only for people who can open part of it. Charts reuse the validated `viz-accent` single hue (no new palette).
+- **Tests:** worker 8 (periods, ranking and tie-break, badges, rollup numbers, boards, backfill and idempotence), API 9 (all visibility modes, cost hiding, badges, tokens tab, overview for admins and leads, settings, recompute, leads), RLS 3, e2e `insights.spec.ts`.
+
+**Deviations and limits, to confirm:**
+1. **Figures lag by up to a day** (nightly). Admins can Recompute; pages say when they were last rebuilt.
+2. **Spend by model** is read from metered usage directly (the rollup has no model column), so it's live rather than nightly.
+3. **Leaderboards only exist for periods the job has seen**: the current and previous ones each night. History builds up from the first run; older periods aren't backfilled.
+4. **People with no activity** in a period aren't on that period's board.
+
 ### Frontend polish and Vercel (2026-10-20)
 
 Approved: polish and motion, toasts, phone feel and a robustness pass, using Emil Kowalski's skills (read, not installed); Vercel for the web app only; option (a), sign-in stays in the web app.
@@ -267,4 +284,4 @@ Approved: polish and motion, toasts, phone feel and a robustness pass, using Emi
 
 ## Next step
 
-**Review B-2 part 2 (code index) and B-3 (cross-repo sync), then commit.** Next phase: B-4 (insights and leaderboard), plan first.
+**Review B-4 (insights and leaderboard), then commit.** Next phase: B-5 (Group Agent), plan first.

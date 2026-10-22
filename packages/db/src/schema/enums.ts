@@ -61,6 +61,13 @@ export const jobConsent = pgEnum('job_consent', ['not_needed', 'pending', 'grant
 export const prState = pgEnum('pr_state', ['open', 'closed', 'merged']);
 export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job']);
 
+/** Leaderboard periods and scopes (B-4). */
+export const leaderboardPeriod = pgEnum('leaderboard_period', ['week', 'month', 'quarter']);
+export const leaderboardScope = pgEnum('leaderboard_scope', ['org', 'team', 'repo']);
+export const LEADERBOARD_PERIODS = leaderboardPeriod.enumValues;
+export type LeaderboardPeriod = (typeof leaderboardPeriod.enumValues)[number];
+export type LeaderboardScope = (typeof leaderboardScope.enumValues)[number];
+
 export const ORG_ROLES = orgRole.enumValues;
 export const MEMORY_SECTIONS = memorySection.enumValues;
 export type MemorySection = (typeof memorySection.enumValues)[number];

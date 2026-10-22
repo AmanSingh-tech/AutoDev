@@ -12,3 +12,4 @@ export * from './chat';
 export * from './prompts';
 export * from './code-index';
 export * from './repo-links';
+export * from './insights';

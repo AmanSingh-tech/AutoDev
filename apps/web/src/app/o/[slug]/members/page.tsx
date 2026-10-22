@@ -173,13 +173,15 @@ function Teams({
   const del = trpc.teams.delete.useMutation({ onSuccess: invalidate, onError });
   const add = trpc.teams.addMember.useMutation({ onSuccess: invalidate, onError });
   const removeMember = trpc.teams.removeMember.useMutation({ onSuccess: invalidate, onError });
+  const setLead = trpc.teams.setLead.useMutation({ onSuccess: invalidate, onError });
 
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Teams</h2>
         <p className="text-sm text-muted-foreground">
-          A team can have its own AI key. For someone in several teams with keys, their primary team’s key is used.
+          A team can have its own AI key. For someone in several teams with keys, their primary team’s key is used. Team leads
+          see Insights for their team.
         </p>
       </div>
       {canManage && (
@@ -214,18 +216,28 @@ function Teams({
               <CardContent className="space-y-3">
                 <ul className="space-y-1 text-sm">
                   {t.members.map((m) => (
-                    <li key={m.userId} className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <Avatar src={m.avatarUrl} alt={m.githubLogin} className="h-5 w-5" />
-                        {m.githubLogin}
+                    <li key={m.userId} className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Avatar src={m.avatarUrl} alt={m.githubLogin} className="h-5 w-5 shrink-0" />
+                        <span className="truncate">{m.githubLogin}</span>
+                        {m.isLead && !canManage && <span className="shrink-0 text-xs text-muted-foreground">lead</span>}
                       </span>
                       {canManage && (
-                        <button
-                          className="text-xs text-muted-foreground hover:underline"
-                          onClick={() => removeMember.mutate({ teamId: t.id, userId: m.userId })}
-                        >
-                          remove
-                        </button>
+                        <span className="flex shrink-0 items-center gap-3">
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <input
+                              type="checkbox"
+                              checked={m.isLead}
+                              disabled={setLead.isPending}
+                              onChange={(e) => setLead.mutate({ teamId: t.id, userId: m.userId, isLead: e.target.checked })}
+                              aria-label={`${m.githubLogin} leads ${t.name}`}
+                            />
+                            Lead
+                          </label>
+                          <button className="text-xs text-muted-foreground hover:underline" onClick={() => removeMember.mutate({ teamId: t.id, userId: m.userId })}>
+                            remove
+                          </button>
+                        </span>
                       )}
                     </li>
                   ))}

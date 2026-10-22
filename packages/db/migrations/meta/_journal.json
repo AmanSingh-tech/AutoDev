@@ -183,6 +183,13 @@
       "when": 1792537031682,
       "tag": "0025_repo_links",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792599101845,
+      "tag": "0026_insights",
+      "breakpoints": true
     }
   ]
 }

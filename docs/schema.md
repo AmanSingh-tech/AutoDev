@@ -109,6 +109,18 @@ row of the org. A different embedding `model` than the one recorded means a full
 | ✅ repo_links | org, source_repo, target_repo, two_way, mapping_notes_md ≤ 8000, created_by | One link per pair in either direction (unique on least/greatest), no self-links. RLS `repo_readers`: read with access to either repo, write with access to both; admin-only in the API |
 | ✅ tasks (added) | source_task_id, source_context_md ≤ 60000 | The task a port came from, and the frozen change, PR and mapping notes it was created with (migration 0025) |
 
+## Insights and leaderboard (B-4)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ user_metrics_daily | org, day (UTC), user, repo, cost, tokens, llm_calls, tasks_created, tasks_resolved, prs_merged, docs_reviewed, docs_first_pass, merge_minutes[], prompt_score_sum/count | Rebuilt nightly by the worker; unique per org/day/user/repo (NULLS NOT DISTINCT). App role read-only |
+| ✅ leaderboard_snapshots | org, period (week/month/quarter), period_start, scope (org/team/repo), scope_id, user, rank, impact_score, prs_merged, approval_rate, cost, cost_per_pr, tokens, badges[] | Current and previous period rebuilt nightly. App role read-only |
+| ✅ team_members (added) | is_lead | Team leads see their team's insights (migration 0026) |
+
+Settings `leaderboardVisibility`, `hideCostFromNonAdmins`, `badgesEnabled` and `insightsComputedAt`
+live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatenates
+`merge_minutes` for medians.
+
 ## Prompt guide (B-1)
 
 | Table | Columns that matter | Notes |

@@ -50,6 +50,12 @@ export const codeIndexJob = z.discriminatedUnion('kind', [
 ]);
 export type CodeIndexJob = z.infer<typeof codeIndexJob>;
 
+/** Insights (B-4) on the maintenance queue: one org on an admin's Recompute (nightly runs have no orgId). */
+export const insightsJob = z.object({ orgId: z.string().uuid().optional() });
+export type InsightsJob = z.infer<typeof insightsJob>;
+/** One waiting run per org, so repeated Recompute clicks share it. */
+export const insightsJobId = (orgId: string) => `insights-${orgId}`;
+
 /** One waiting run per repo. Pushes within this window share a run. */
 export const CODE_INDEX_PUSH_DELAY_MS = 30_000;
 export const codeIndexRepoJobId = (repoId: string) => `repo-${repoId}`;

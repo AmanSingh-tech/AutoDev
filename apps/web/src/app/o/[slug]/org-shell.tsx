@@ -26,6 +26,14 @@ const NAV = [
   { href: 'settings', label: 'Settings' },
 ];
 
+/** The nav, with Insights only for people who can open some of it. */
+function navFor(insights: { canSeeOverview: boolean; canSeeLeaderboard: boolean } | undefined) {
+  if (!insights || !(insights.canSeeOverview || insights.canSeeLeaderboard)) return NAV;
+  const item = { href: insights.canSeeOverview ? 'insights' : 'insights/leaderboard', label: 'Insights' };
+  const at = NAV.findIndex((n) => n.href === 'usage');
+  return [...NAV.slice(0, at), item, ...NAV.slice(at)];
+}
+
 export function OrgShell({ slug, signOut, children }: { slug: string; signOut: ReactNode; children: ReactNode }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -33,6 +41,8 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
   const org = me.data?.orgs.find((o) => o.slug === slug) ?? null;
   // Set synchronously during render, so the children's first queries already carry x-org-id.
   const [boundOrg, setBoundOrg] = useState<string | null>(null);
+  // Insights shows for admins and team leads (dashboard) and for whoever may see the leaderboard.
+  const insights = trpc.insights.settings.useQuery(undefined, { enabled: !!org && boundOrg === org.orgId, staleTime: 60_000 });
   if (org && boundOrg !== org.orgId) {
     // Query keys don't include the org, so drop org-scoped cache from the previous org.
     if (boundOrg) queryClient.removeQueries({ predicate: (q) => JSON.stringify(q.queryKey[0]) !== '["me","get"]' });
@@ -73,7 +83,7 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
             </span>
             {/* Phones: its own row that scrolls sideways, instead of wrapping into a block of links. */}
             <nav aria-label="Main" className="no-scrollbar -mx-4 order-last flex w-[calc(100%+2rem)] gap-1 overflow-x-auto whitespace-nowrap px-4 text-sm md:order-none md:mx-0 md:w-auto md:overflow-visible md:px-0">
-              {NAV.map((n) => {
+              {navFor(insights.data).map((n) => {
                 const href = `/o/${slug}/${n.href}`;
                 return (
                   <Link
