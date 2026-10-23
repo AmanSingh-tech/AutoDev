@@ -9,7 +9,8 @@ import pino from 'pino';
 import { z } from 'zod';
 import { createGateway, redisBus } from './gateway';
 
-const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(storageEnv).merge(z.object({ GATEWAY_PORT: z.coerce.number().int().default(4100) })));
+// Hosts (Railway, Fly, Render) set PORT; GATEWAY_PORT wins when both are set.
+const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(storageEnv).merge(z.object({ GATEWAY_PORT: z.coerce.number().int().default(Number(process.env.PORT ?? 4100)) })));
 const log = pino({ level: env.LOG_LEVEL });
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sub = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });

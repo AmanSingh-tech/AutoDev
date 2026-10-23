@@ -1,0 +1,18 @@
+# fly deploy --config deploy/fly/worker.toml --dockerfile Dockerfile   (from the repository root)
+app = "autodev-worker"       # change to your app name
+primary_region = "iad"
+
+[build]
+  build-target = "worker"
+
+[env]
+  AUTODEV_SERVICE = "worker"
+
+# No public port. A volume keeps the code index's embedding model across restarts:
+#   fly volumes create embeddings --size 1 --config deploy/fly/worker.toml
+[mounts]
+  source = "embeddings"
+  destination = "/var/cache/autodev/embeddings"
+
+[[vm]]
+  memory = "2gb"

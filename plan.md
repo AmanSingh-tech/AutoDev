@@ -305,6 +305,16 @@ Approved: polish and motion, toasts, phone feel and a robustness pass, using Emi
 - On phones the members table and task list scroll sideways inside their box rather than becoming stacked cards.
 - Not checked on a real phone: sticky hover, tap delay, safe areas and input zoom need hardware.
 
+### Backend hosting (2026-10-23, auto-approved while you were away)
+
+- **One Docker image** (`Dockerfile`) for api, worker, gateway and migrations, chosen by `AUTODEV_SERVICE` or the first argument (`docker/entrypoint.sh`); named targets for local builds and `--target web` for self-hosting the web app. Verified: each service starts from the image, migrations apply, health checks answer.
+- **Fixed:** the production bundles (`tsup`) crashed at start ("Dynamic require … not supported") because transitively bundled CommonJS packages call `require`; a `createRequire` banner fixes it. The gateway now also reads the host's `PORT`.
+- **`docker-compose.prod.yml`** (single machine: Postgres with pgvector and generated roles, Redis, migrate, api, worker, gateway, web). Verified end to end with throwaway settings, then torn down.
+- **Managed Postgres:** `docker/postgres/init-hosted.sql` creates the roles (needs `BYPASSRLS`), the `vector` extension and default privileges.
+- **Railway** (`deploy/railway/*.json`) and **Fly.io** (`deploy/fly/*.toml`, migrations as the release command) configs; **guide** `docs/deploy-backend.md` with every setting per service.
+- **Not done (needs your accounts):** creating the Railway/Fly apps, the database and Redis, and setting the secrets. Not verified on Railway or Fly themselves.
+- **Follow-up:** the image is 1.9 GB (all workspace dependencies); `pnpm deploy` per service would shrink it.
+
 ## Next step
 
 **Review B-5 part 1 (Group Agent scans), then commit.** Next: B-5 part 2 (bot pull requests).

@@ -1,7 +1,7 @@
 # Deploying the web app on Vercel
 
-Vercel hosts **only `apps/web`** (Next.js). The rest of AutoDev runs elsewhere, and the web app
-needs all of it:
+Vercel hosts **only `apps/web`** (Next.js). The rest of AutoDev runs elsewhere (one Docker image, see
+[deploy-backend.md](deploy-backend.md)), and the web app needs all of it:
 
 | Piece | Where | Notes |
 |---|---|---|

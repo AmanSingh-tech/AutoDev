@@ -1,0 +1,15 @@
+# Built inside the image; never copied from the host.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/tsconfig.tsbuildinfo
+apps/web/public/monaco
+.git
+.env
+.env.*
+!.env.example
+tools/e2e/test-results
+tools/e2e/.fixture
+tools/demo/logs
+apps/runner-cli/dist

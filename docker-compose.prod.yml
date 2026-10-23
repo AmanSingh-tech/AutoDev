@@ -1,0 +1,103 @@
+# Self-hosting AutoDev on one machine: Postgres, Redis, migrations, API, worker, builder gateway and
+# the web app. Settings come from .env.production (copy .env.example; see docs/deploy-backend.md).
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Put a TLS-terminating proxy (Caddy, nginx, a load balancer) in front of web (3000) and gateway (4100).
+name: autodev-prod
+
+x-backend: &backend
+  build: { context: ., target: backend }
+  image: autodev-backend
+  env_file: .env.production
+  environment: &backend-env
+    DATABASE_URL: postgres://autodev_app:${AUTODEV_APP_PASSWORD}@postgres:5432/autodev
+    DATABASE_URL_SYSTEM: postgres://autodev_system:${AUTODEV_SYSTEM_PASSWORD}@postgres:5432/autodev
+    REDIS_URL: redis://redis:6379
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD}
+      AUTODEV_SYSTEM_PASSWORD: ${AUTODEV_SYSTEM_PASSWORD:?set AUTODEV_SYSTEM_PASSWORD}
+      AUTODEV_APP_PASSWORD: ${AUTODEV_APP_PASSWORD:?set AUTODEV_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-prod.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d autodev']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      AUTODEV_SERVICE: migrate
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      AUTODEV_SERVICE: api
+    ports: ['4000:4000']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      AUTODEV_SERVICE: worker
+    volumes:
+      - embeddings:/var/cache/autodev/embeddings
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  gateway:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      AUTODEV_SERVICE: gateway
+    ports: ['4100:4100']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  web:
+    build:
+      context: .
+      target: web
+      args: { API_URL: 'http://api:4000' }
+    env_file: .env.production
+    environment:
+      API_URL: http://api:4000
+      DATABASE_URL_SYSTEM: postgres://autodev_system:${AUTODEV_SYSTEM_PASSWORD}@postgres:5432/autodev
+    ports: ['3000:3000']
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  embeddings:

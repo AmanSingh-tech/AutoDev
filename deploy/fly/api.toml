@@ -1,0 +1,27 @@
+# fly deploy --config deploy/fly/api.toml --dockerfile Dockerfile   (from the repository root)
+app = "autodev-api"          # change to your app name
+primary_region = "iad"
+
+[build]
+  build-target = "api"
+
+[deploy]
+  # Migrations run once per deploy, before new machines start.
+  release_command = "/usr/local/bin/autodev migrate"
+
+[env]
+  AUTODEV_SERVICE = "api"
+  PORT = "4000"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"

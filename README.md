@@ -117,8 +117,9 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
 
 ## Deploying and frontend conventions
 
-- **Vercel** hosts the web app only; the API, worker, builder gateway, Postgres and Redis run
-  elsewhere. Settings, environment variables and GitHub App URLs: [docs/deploy-vercel.md](docs/deploy-vercel.md).
+- **Vercel** hosts the web app only: [docs/deploy-vercel.md](docs/deploy-vercel.md).
+- **The backend** (API, worker, builder gateway) is one Docker image, with configs for Railway, Fly.io
+  and a single machine (`docker-compose.prod.yml`): [docs/deploy-backend.md](docs/deploy-backend.md).
 - **Frontend rules** (motion tokens, toasts, phone baseline, worst-case data):
   [docs/frontend.md](docs/frontend.md). `pnpm db:seed:worst` seeds an org of realistic extreme data
   for checking layouts; `--remove` deletes it.
