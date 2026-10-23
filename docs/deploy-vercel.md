@@ -59,6 +59,10 @@ Serverless functions open a connection per instance, so use a pooled URL for
 - Set `WEB_URL` on the API and worker to the same Vercel URL (it's used for links in PRs and
   notifications, and for redirects after installing the app).
 
+Until the required variables are set, every page shows **Setup needed** with the names of the
+missing ones (never values) instead of a server error. `API_URL` is read at build time, so redeploy
+after changing it.
+
 ## 4. Check it
 
 1. Open `{WEB_URL}/login` and sign in with GitHub. You should land on your organizations.
