@@ -6,7 +6,7 @@ tests on the developer's own machine, and opens a GitHub PR **as the developer**
 **Status:** Section A is complete: A-1 (monorepo, schema, GitHub App sign-in, orgs and roles,
 write-access repo list), A-2 (bring-your-own LLM key, model policies, metering, budgets), A-3
 (task board), A-4 (agent runtime, virtual workspace, Plan and LLD gates), A-5 (local builder) and
-A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 (repo chat, team room, Repo Agent memory, and the code index) B-3 (cross-repo sync) and B-4 (insights and leaderboard) are built.
+A-6 (push, PR, stale branches, PR webhooks). Section B has started: B-1 (prompt guide) is done; B-2 (repo chat, team room, Repo Agent memory, and the code index) B-3 (cross-repo sync) and B-4 (insights and leaderboard) are built; B-5 (Group Agent) part 1 is built.
 
 ## Layout
 
@@ -98,6 +98,22 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
   Members page.
 - Figures are rebuilt nightly at 00:30 UTC by the worker (the first run backfills 90 days);
   admins can **Recompute now**.
+
+## Group Agent (B-5)
+
+- **Off by default.** An admin turns it on in **Settings → Group Agent**; it then scans every
+  repository nightly at 03:30 UTC and sends owners and admins a digest on Mondays at 08:00 UTC.
+- **What it checks:** vulnerable and outdated dependencies (npm, pnpm, Yarn, Python, Go lockfiles,
+  checked against OSV.dev and the package registries; only package names and versions leave AutoDev),
+  failing and flaky tests (from builder runs), the same failure across repositories, work merged in
+  a linked repo but not ported, unusual AI spend, and tasks stuck too long.
+- **Recommendations:** one per finding, on the **Group Agent** page (admins). **Create task** turns
+  one into a draft task; **Dismiss** keeps it out of the way with a reason. Findings resolve on their
+  own when a later scan no longer sees them.
+- **Health score per repo:** 100 minus 30/15/7/2 points per open critical/high/medium/low finding.
+- Coming next: pull requests opened by the agent itself, with a safety level per repo.
+- `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL` and `GOPROXY_URL` (worker) default to the public
+  services; tests point them at the mock.
 
 ## Deploying and frontend conventions
 

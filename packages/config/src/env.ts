@@ -44,6 +44,14 @@ export const codeIndexEnv = z.object({
   EMBEDDINGS_PROVIDER: z.enum(['local', 'fake']).default('local'),
 });
 
+/** Group Agent (B-5, worker only): where dependency scans look up advisories and latest versions. */
+export const groupAgentEnv = z.object({
+  OSV_API_URL: z.string().url().default('https://api.osv.dev'),
+  NPM_REGISTRY_URL: z.string().url().default('https://registry.npmjs.org'),
+  PYPI_URL: z.string().url().default('https://pypi.org'),
+  GOPROXY_URL: z.string().url().default('https://proxy.golang.org'),
+});
+
 export const cryptoEnv = z.object({
   KMS_PROVIDER: z.enum(['local']).default('local'),
   /** Local KMS master key. Never used directly on data, only to wrap data keys. */

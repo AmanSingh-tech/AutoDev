@@ -18,6 +18,12 @@ const githubEnv = {
   GITHUB_APP_PRIVATE_KEY: appKey.replace(/\n/g, '\\n'),
   GITHUB_WEBHOOK_SECRET: 'e2e-webhook-secret-123',
   ANTHROPIC_BASE_URL: `${MOCK}/anthropic`,
+  // The seed keeps the demo budget warning-only, so usage from earlier runs never blocks AI calls.
+  SEED_SOFT_BUDGET: '1',
+  OSV_API_URL: `${MOCK}/osv`,
+  NPM_REGISTRY_URL: `${MOCK}/npm`,
+  PYPI_URL: `${MOCK}/pypi`,
+  GOPROXY_URL: `${MOCK}/goproxy`,
   LOG_LEVEL: 'warn',
   // The code index uses a stand-in embedder, so no model is downloaded.
   EMBEDDINGS_PROVIDER: 'fake',

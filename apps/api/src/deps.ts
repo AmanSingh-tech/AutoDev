@@ -1,4 +1,4 @@
-import { QUEUES, type AgentJob, type ChatJob, type CodeIndexJob, type InsightsJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
+import { QUEUES, type AgentJob, type ChatJob, type CodeIndexJob, type GroupAgentJob, type InsightsJob, type JobQueue, type RepoSyncJob } from '@autodev/config';
 import { createKeyWrapper, type KeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb, type AppDb, type SystemDb } from '@autodev/db';
 import {
@@ -27,7 +27,7 @@ export interface Deps {
   vault: TokenVault;
   cache: KvCache;
   repoAccess: RepoAccessService;
-  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob>; codeIndex: JobQueue<CodeIndexJob>; insights: JobQueue<InsightsJob> };
+  queues: { repoSync: JobQueue<RepoSyncJob>; agent: JobQueue<AgentJob>; chat: JobQueue<ChatJob>; codeIndex: JobQueue<CodeIndexJob>; insights: JobQueue<InsightsJob>; groupAgent: JobQueue<GroupAgentJob> };
   providers: ProviderRegistry;
   credentials: CredentialService;
   gateway: LlmGateway;
@@ -73,6 +73,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
   });
   // Insights jobs run on the worker's maintenance queue; finished ones are removed so the per-org id frees up.
   const maintenance = new Queue<InsightsJob>(QUEUES.maintenance, { connection: redis, defaultJobOptions: { removeOnComplete: true, removeOnFail: true } });
+  const groupAgent = new Queue<GroupAgentJob>(QUEUES.groupAgent, { connection: redis, defaultJobOptions: { removeOnComplete: true, removeOnFail: 500 } });
   const blobs = createBlobStore(env, sys.db);
   const events = new EventHub(redis.duplicate());
   const bridge = new ChangeBridge({ databaseUrl: env.DATABASE_URL, redis });
@@ -93,6 +94,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       chat: chat as unknown as JobQueue<ChatJob>,
       codeIndex: codeIndex as unknown as JobQueue<CodeIndexJob>,
       insights: maintenance as unknown as JobQueue<InsightsJob>,
+      groupAgent: groupAgent as unknown as JobQueue<GroupAgentJob>,
     },
     providers,
     credentials,

@@ -163,7 +163,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | B-2 Repo chat | Private chat per user per repo, shared team channel per repo, RAG with tree-sitter chunks and pgvector, incremental re-index on push, file and line citations linked to GitHub, one-click "make this a task", `store_code_index` setting, tables chat_sessions, chat_messages, repo_channels, channel_messages, code_chunks; Repo Agent memory (B-2 includes it) | **done** (part 2 awaiting review) | See "B-2 notes" below. |
 | B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | **built, awaiting review** | See "B-3 notes" below. |
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | **built, awaiting review** | See "B-4 notes" below. |
-| B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | not started | |
+| B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | **part 1 built, awaiting review; part 2 (bot PRs) next** | See "B-5 notes" below. |
 | B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | not started | |
 | B-7 Enterprise pack | SSO (WorkOS), SCIM, extra roles, retention, SIEM export, IP allowlist, data region, more LLM providers, self-hosted Helm chart, Jira sync (`jira_issue_key`) | not started | |
 
@@ -266,6 +266,29 @@ Approved decisions (2026-10-21): Impact = merged PRs × (0.5 + 0.5 × first-pass
 3. **Leaderboards only exist for periods the job has seen**: the current and previous ones each night. History builds up from the first run; older periods aren't backfilled.
 4. **People with no activity** in a period aren't on that period's board.
 
+### B-5 notes
+
+Approved decisions (2026-10-23): OSV.dev for advisories; npm (npm, pnpm, Yarn), Python (requirements.txt, poetry.lock) and Go (go.mod) first; digest in-app until email exists; bot fixes through the normal agent pipeline (part 2); off by default; two parts with a stop after part 1.
+
+**Part 1 (built, awaiting review): scans, findings, recommendations, digest**
+- **Schema (0027):** `agent_policies` (org row: on/off, monthly budget, weekly PR cap; repo rows: scan on/off, safety level 1–3 default 2, maintainer), `group_agent_findings` (kind, severity, fingerprint unique per org, details, first/last seen, resolved), `recommendations` (one per finding: status open/dismissed/task_created/pr_opened/resolved, fix kind, task, dismissal), `group_agent_runs` (scans and digests). RLS inside the org; findings and runs are worker-only; the app can only change a recommendation's status and the policies.
+- **Checks (worker, `group-agent` queue, nightly 03:30 UTC for orgs that turned it on, or Scan now):** vulnerable dependencies (lockfiles at the default branch via the installation token, OSV batch API; severity from the advisory; fixed version and bump size in the recommendation), outdated direct dependencies (patch/minor, registries; at most 20 per repo), failing tests (3+ failed runs in 14 days), flaky tests (failed then passed on the same commit and patch), repeated failures across repos (same vulnerable package, or same normalised error signature in 2+ repos), linked-repo drift (merged in a linked source in 30 days, no port), unusual spend (yesterday > 3× the 14-day median and > $5, per person and repo), stuck tasks (waiting for a person > 2 days, for a builder > 1 day, otherwise unchanged > 5 days).
+- **Findings lifecycle:** one per fingerprint; reopened if it comes back; resolved when a later scan doesn't see it, but only for checks that completed (an OSV outage leaves vulnerabilities as they were and is shown on the page). Dismissed recommendations stay dismissed.
+- **Health:** per repo, 100 minus 30/15/7/2 per open critical/high/medium/low finding (cross-repo findings count for each repo they name).
+- **Digest (Mondays 08:00 UTC):** health per repo against the previous digest, top 5 risks, new and resolved counts; stored as a run; a notification to owners and admins linking to the Digest page.
+- **API:** `groupAgent.overview`, `recommendations` (filters), `dismiss` (reason, audited), `reopen` (dismissed, or its task was cancelled/rejected/failed), `createTask` (draft owned by the clicking admin, who needs push access; audited), `scanNow` (one queued run per org, audited), `digest`, `policies.get/update/updateRepo` (maintainer must have push access; audited).
+- **Web:** Group Agent page (admins; in the nav for admins): health per repo, recommendations with status tabs and kind filter, Create task / Dismiss / Reopen, Scan now, last-scan errors; Digest page; Settings → Group Agent.
+- **Tests:** lockfile parsers and version/signature helpers (8), scans and lifecycle against a mocked OSV and npm (7), API (7), RLS (2), e2e `group-agent.spec.ts` (scan → recommendation → task → cancel → reopen, digest, settings). The mock GitHub serves OSV and npm stand-ins, and the e2e fixture repo has a lockfile with a vulnerable lodash.
+- **Test infrastructure:** the e2e seed now keeps the demo org's budget warning-only (`SEED_SOFT_BUDGET=1`), because accumulated usage from repeated runs had reached its $25 hard limit and was failing every AI-backed test.
+
+**Limits, to confirm:**
+1. Only exact versions are checked: unpinned `requirements.txt` lines and range-only manifests without a lockfile are skipped.
+2. Yarn and poetry lockfiles don't say which packages are direct, so "outdated" only covers npm/pnpm lockfiles, pinned requirements and go.mod.
+3. Up to 150 registry look-ups and 20 lockfiles per repo per scan.
+4. Unusual spend uses a $5 floor, so small orgs with spiky but cheap days aren't flagged.
+
+**Part 2 (next, after go-ahead): bot pull requests** — patch dependency bumps and lint fixes as tasks owned by the repo's maintainer, run through the normal agent and builder, PRs opened as the GitHub App bot; safety levels 1/2/3; the agent's own budget (`group_agent` model policy) and weekly PR cap.
+
 ### Frontend polish and Vercel (2026-10-20)
 
 Approved: polish and motion, toasts, phone feel and a robustness pass, using Emil Kowalski's skills (read, not installed); Vercel for the web app only; option (a), sign-in stays in the web app.
@@ -284,4 +307,4 @@ Approved: polish and motion, toasts, phone feel and a robustness pass, using Emi
 
 ## Next step
 
-**Review B-4 (insights and leaderboard), then commit.** Next phase: B-5 (Group Agent), plan first.
+**Review B-5 part 1 (Group Agent scans), then commit.** Next: B-5 part 2 (bot pull requests).

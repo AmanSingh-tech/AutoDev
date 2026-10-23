@@ -121,6 +121,15 @@ Settings `leaderboardVisibility`, `hideCostFromNonAdmins`, `badgesEnabled` and `
 live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatenates
 `merge_minutes` for medians.
 
+## Group Agent (B-5)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ agent_policies | org, repo (null = the org's row), enabled, monthly_budget_usd, weekly_pr_cap, safety_level 1–3, maintainer_user | Unique per org and repo (NULLS NOT DISTINCT). No row = off for the org, scanned for a repo |
+| ✅ group_agent_findings | org, repo (null across repos), kind, severity, fingerprint, title, details, first_seen_at, last_seen_at, resolved_at, last_run_id | One per fingerprint per org. Worker-only writes |
+| ✅ recommendations | org, finding (unique), repo, status, title, body_md, fix_kind (dependency_bump, lint_fix, task, investigate), task, dismissed_by, dismissed_reason | The app may only update (status) |
+| ✅ group_agent_runs | org, kind (scan, digest), status, payload, started_at, finished_at | Scan counts and errors; digest health and top risks. Worker-only writes |
+
 ## Prompt guide (B-1)
 
 | Table | Columns that matter | Notes |

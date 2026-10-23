@@ -26,12 +26,13 @@ const NAV = [
   { href: 'settings', label: 'Settings' },
 ];
 
-/** The nav, with Insights only for people who can open some of it. */
-function navFor(insights: { canSeeOverview: boolean; canSeeLeaderboard: boolean } | undefined) {
-  if (!insights || !(insights.canSeeOverview || insights.canSeeLeaderboard)) return NAV;
-  const item = { href: insights.canSeeOverview ? 'insights' : 'insights/leaderboard', label: 'Insights' };
+/** The nav, with Insights only for people who can open some of it and Group Agent for admins. */
+function navFor(insights: { canSeeOverview: boolean; canSeeLeaderboard: boolean; isAdmin: boolean } | undefined) {
+  const extra: { href: string; label: string }[] = [];
+  if (insights && (insights.canSeeOverview || insights.canSeeLeaderboard)) extra.push({ href: insights.canSeeOverview ? 'insights' : 'insights/leaderboard', label: 'Insights' });
+  if (insights?.isAdmin) extra.push({ href: 'group-agent', label: 'Group Agent' });
   const at = NAV.findIndex((n) => n.href === 'usage');
-  return [...NAV.slice(0, at), item, ...NAV.slice(at)];
+  return [...NAV.slice(0, at), ...extra, ...NAV.slice(at)];
 }
 
 export function OrgShell({ slug, signOut, children }: { slug: string; signOut: ReactNode; children: ReactNode }) {

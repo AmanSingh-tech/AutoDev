@@ -12,6 +12,7 @@ export const QUEUES = {
   codeIndex: 'code-index',
   /** Housekeeping (token_usage partitions). Not in the original queue list; small and separate. */
   maintenance: 'maintenance',
+  groupAgent: 'group-agent',
 } as const;
 
 export const repoSyncJob = z.discriminatedUnion('kind', [
@@ -55,6 +56,11 @@ export const insightsJob = z.object({ orgId: z.string().uuid().optional() });
 export type InsightsJob = z.infer<typeof insightsJob>;
 /** One waiting run per org, so repeated Recompute clicks share it. */
 export const insightsJobId = (orgId: string) => `insights-${orgId}`;
+
+/** Group Agent (B-5): `scan` one org (or every enabled org nightly), `digest` the weekly report. */
+export const groupAgentJob = z.object({ kind: z.enum(['scan', 'digest']), orgId: z.string().uuid().optional() });
+export type GroupAgentJob = z.infer<typeof groupAgentJob>;
+export const groupAgentScanJobId = (orgId: string) => `scan-${orgId}`;
 
 /** One waiting run per repo. Pushes within this window share a run. */
 export const CODE_INDEX_PUSH_DELAY_MS = 30_000;

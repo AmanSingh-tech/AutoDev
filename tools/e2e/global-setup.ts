@@ -14,6 +14,8 @@ export default function globalSetup() {
   mkdirSync(join(FIXTURE_DIR, 'src'), { recursive: true });
   writeFileSync(join(FIXTURE_DIR, 'README.md'), '# Demo\nRun `pnpm test`.\n');
   writeFileSync(join(FIXTURE_DIR, 'src', 'app.ts'), 'export const greet = () => "hi";\n');
+  // A known-vulnerable lodash, for the Group Agent's dependency scan (the mock's OSV knows its advisory).
+  writeFileSync(join(FIXTURE_DIR, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { '': { dependencies: { lodash: '^4.17.0' } }, 'node_modules/lodash': { version: '4.17.20' } } }, null, 2));
   writeFileSync(join(FIXTURE_DIR, '.autodev.yml'), 'docker_image: alpine:3.20\ntest: grep -q hello src/app.ts && echo "1 passed"\ntimeout_min: 5\n');
   const git = (...args: string[]) => execFileSync('git', ['-c', 'user.email=e2e@test', '-c', 'user.name=e2e', ...args], { cwd: FIXTURE_DIR, stdio: 'pipe' });
   git('init', '-q', '-b', 'main');

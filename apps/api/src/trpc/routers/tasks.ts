@@ -49,7 +49,7 @@ const keyInput = z.object({ key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}-\d+$/) })
 
 const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`;
 
-type Ctx = { deps: Deps; orgId: string; userId: string; role: import('@autodev/db').OrgRole; inOrg: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
+export type Ctx = { deps: Deps; orgId: string; userId: string; role: import('@autodev/db').OrgRole; inOrg: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
 
 /** The prompt guide's rule-based score (B-1), the same one the form shows while typing. */
 function promptScoreFields(d: PromptDraft) {
@@ -58,7 +58,7 @@ function promptScoreFields(d: PromptDraft) {
 }
 
 /** Only someone who can push to the repo may create work for it. Uses the 15-minute cache. */
-async function assertCanWork(ctx: Ctx, repoId: string, userId = ctx.userId) {
+export async function assertCanWork(ctx: Ctx, repoId: string, userId = ctx.userId) {
   const writable = await ctx.deps.repoAccess.listWritable(ctx.orgId, userId);
   const repo = writable.find((r) => r.id === repoId);
   if (!repo) throw new TRPCError({ code: 'FORBIDDEN', message: 'You need push access to this repository on GitHub' });
@@ -111,10 +111,10 @@ const canManage = (ctx: Ctx, t: { ownerId: string }) => t.ownerId === ctx.userId
  * Draft → queued. Refused up front if the owner has no working LLM key or hit a hard budget,
  * so a task never queues only to fail. The agent worker (A-4) picks up the job.
  */
-type NewTask = z.infer<typeof fields> & { scopePath: string | null; targetBranch: string | null; relatedTaskId: string | null; sourceTaskId?: string; sourceContextMd?: string };
+export type NewTask = z.infer<typeof fields> & { scopePath: string | null; targetBranch: string | null; relatedTaskId: string | null; sourceTaskId?: string; sourceContextMd?: string };
 
 /** Mints the next key and inserts a draft task owned by the caller. Inputs are already validated. */
-async function insertTask(tx: Tx, ctx: Ctx, repoId: string, input: NewTask) {
+export async function insertTask(tx: Tx, ctx: Ctx, repoId: string, input: NewTask) {
   const mode = await resolveMode(tx, ctx.orgId, repoId, input.mode);
   // Row lock on the org serializes key minting, so numbers are gap-free and unique.
   const [seq] = await tx

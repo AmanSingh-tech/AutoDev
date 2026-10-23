@@ -71,6 +71,23 @@ createServer(async (req, res) => {
       : json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });
   }
 
+  // OSV.dev and the npm registry, for the Group Agent's dependency scan: lodash below 4.17.21 has one advisory.
+  if (path === '/osv/v1/querybatch' && req.method === 'POST') {
+    const body = (await readBody(req)) as { queries: { package: { name: string }; version: string }[] };
+    const vulnerable = (q: { package: { name: string }; version: string }) => q.package.name === 'lodash' && q.version.localeCompare('4.17.21', undefined, { numeric: true }) < 0;
+    return json(res, 200, { results: body.queries.map((q) => (vulnerable(q) ? { vulns: [{ id: 'GHSA-35jh-r3h4-6jhm' }] } : {})) });
+  }
+  if (path.startsWith('/osv/v1/vulns/')) {
+    return json(res, 200, {
+      id: 'GHSA-35jh-r3h4-6jhm',
+      aliases: ['CVE-2021-23337'],
+      summary: 'Command injection in lodash',
+      database_specific: { severity: 'HIGH' },
+      affected: [{ package: { name: 'lodash', ecosystem: 'npm' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '4.17.21' }] }] }],
+    });
+  }
+  const npmLatest = path.match(/^\/npm\/(.+)\/latest$/);
+  if (npmLatest) return json(res, 200, { version: decodeURIComponent(npmLatest[1]!) === 'lodash' ? '4.17.21' : '1.0.0' });
   if (path === '/anthropic/v1/messages' && req.method === 'POST') {
     let raw = '';
     for await (const chunk of req) raw += chunk;

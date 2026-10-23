@@ -61,6 +61,26 @@ export const jobConsent = pgEnum('job_consent', ['not_needed', 'pending', 'grant
 export const prState = pgEnum('pr_state', ['open', 'closed', 'merged']);
 export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job']);
 
+/** Group Agent (B-5). */
+export const findingKind = pgEnum('finding_kind', [
+  'vulnerable_dependency',
+  'outdated_dependency',
+  'failing_test',
+  'flaky_test',
+  'repeated_failure',
+  'linked_repo_drift',
+  'unusual_spend',
+  'stuck_task',
+]);
+export const findingSeverity = pgEnum('finding_severity', ['low', 'medium', 'high', 'critical']);
+export const recommendationStatus = pgEnum('recommendation_status', ['open', 'dismissed', 'task_created', 'pr_opened', 'resolved']);
+export const groupAgentRunKind = pgEnum('group_agent_run_kind', ['scan', 'digest']);
+export const FINDING_KINDS = findingKind.enumValues;
+export const FINDING_SEVERITIES = findingSeverity.enumValues;
+export type FindingKind = (typeof findingKind.enumValues)[number];
+export type FindingSeverity = (typeof findingSeverity.enumValues)[number];
+export type RecommendationStatus = (typeof recommendationStatus.enumValues)[number];
+
 /** Leaderboard periods and scopes (B-4). */
 export const leaderboardPeriod = pgEnum('leaderboard_period', ['week', 'month', 'quarter']);
 export const leaderboardScope = pgEnum('leaderboard_scope', ['org', 'team', 'repo']);

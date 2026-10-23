@@ -1,4 +1,4 @@
-import type { AgentJob, ChatJob, CodeIndexJob, InsightsJob, JobQueue, RepoSyncJob } from '@autodev/config';
+import type { AgentJob, ChatJob, CodeIndexJob, GroupAgentJob, InsightsJob, JobQueue, RepoSyncJob } from '@autodev/config';
 import { createAppDb, createSystemDb, schema } from '@autodev/db';
 import { testKms, TEST_APP_URL, TEST_SYSTEM_URL } from '@autodev/db/testing';
 import { MemoryCache, RepoAccessService, TokenVault, type GitHubConfig } from '@autodev/github';
@@ -68,6 +68,12 @@ export function createTestDeps() {
       insightsJobs.push({ name, data, jobId: opts?.jobId });
     },
   };
+  const groupAgentJobs: { name: string; data: GroupAgentJob; jobId?: string }[] = [];
+  const groupAgent: JobQueue<GroupAgentJob> = {
+    add: async (name, data, opts) => {
+      groupAgentJobs.push({ name, data, jobId: opts?.jobId });
+    },
+  };
   const blobs = new MemoryBlobStore();
   // Events need a real Redis. Tests use their own database number so nothing else is touched.
   const redis = new Redis(process.env.TEST_REDIS_URL ?? 'redis://localhost:6379/14', { maxRetriesPerRequest: 1 });
@@ -90,7 +96,7 @@ export function createTestDeps() {
     vault,
     cache,
     repoAccess: new RepoAccessService({ app: app.db, sys: sys.db, vault, cache, cfg: testCfg }),
-    queues: { repoSync, agent, chat, codeIndex, insights },
+    queues: { repoSync, agent, chat, codeIndex, insights, groupAgent },
     providers,
     credentials,
     gateway: new LlmGateway({ sys: sys.db, providers, credentials }),
@@ -108,7 +114,7 @@ export function createTestDeps() {
     redis.disconnect();
     await Promise.all([app.close(), sys.close()]);
   };
-  return { deps, redis, jobs, agentJobs, chatJobs, codeIndexJobs, insightsJobs, sentToBuilders, close };
+  return { deps, redis, jobs, agentJobs, chatJobs, codeIndexJobs, insightsJobs, groupAgentJobs, sentToBuilders, close };
 }
 
 export function callerFor(deps: Deps, userId: string | null, orgId: string | null) {

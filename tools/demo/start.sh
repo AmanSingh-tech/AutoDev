@@ -18,6 +18,8 @@ export GITHUB_API_URL=$MOCK/api GITHUB_WEB_URL=$MOCK GITHUB_APP_ID=1 GITHUB_APP_
   GITHUB_WEBHOOK_SECRET=e2e-webhook-secret-123 LOG_LEVEL=warn
 # The mock only scripts the agent's phases. Set REAL_ANTHROPIC=1 to call the real API with your own key.
 if [ -z "${REAL_ANTHROPIC:-}" ]; then export ANTHROPIC_BASE_URL=$MOCK/anthropic; fi
+# The Group Agent's dependency scan asks the mock instead of OSV.dev and the public registries.
+export OSV_API_URL=$MOCK/osv NPM_REGISTRY_URL=$MOCK/npm PYPI_URL=$MOCK/pypi GOPROXY_URL=$MOCK/goproxy
 
 LOGS="$ROOT/tools/demo/logs"; mkdir -p "$LOGS"
 PIDS=()

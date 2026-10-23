@@ -30,7 +30,8 @@ test('a developer creates a follow-up task on an existing branch; starting needs
   await page.getByLabel('Limit to folder (optional)').fill('./apps/web/');
   await page.getByRole('button', { name: 'Save as draft' }).click();
 
-  await expect(page).toHaveURL(/\/o\/acme-demo\/tasks\/AD-\d+/);
+  // The first visit compiles the task page in Next dev.
+  await expect(page).toHaveURL(/\/o\/acme-demo\/tasks\/AD-\d+/, { timeout: 30_000 });
   await expect(page.getByRole('heading', { name: 'Keep the return URL after SSO login' })).toBeVisible();
   await expect(page.getByText('feature/sso-login').first()).toBeVisible();
   await expect(page.getByText('apps/web', { exact: true })).toBeVisible();
@@ -50,7 +51,8 @@ test('a viewer can browse tasks but not create them', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
   await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
-  await expect(page.getByText('Add rate limiting to the public API')).toBeVisible();
+  // The first visit compiles the page in Next dev.
+  await expect(page.getByText('Add rate limiting to the public API')).toBeVisible({ timeout: 30_000 });
   await page.goto('/o/acme-demo/repos/api');
   await expect(page.getByRole('heading', { name: 'acme-demo/api' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'New task' })).toHaveCount(0);

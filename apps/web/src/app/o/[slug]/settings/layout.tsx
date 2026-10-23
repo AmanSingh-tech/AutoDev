@@ -12,6 +12,7 @@ const TABS = [
   { href: '/budgets', label: 'Budgets' },
   { href: '/templates', label: 'Task templates' },
   { href: '/insights', label: 'Insights' },
+  { href: '/group-agent', label: 'Group Agent' },
   { href: '/links', label: 'Linked repositories' },
 ];
 

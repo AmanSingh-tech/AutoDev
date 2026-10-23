@@ -5,7 +5,7 @@
 import { loadEnv, cryptoEnv, dbEnv } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { config } from 'dotenv';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { fileURLToPath } from 'node:url';
 import { createSystemDb } from './client';
 import { insertOrgWithOwner } from './ops/orgs';
@@ -41,6 +41,7 @@ async function main() {
       await seedUsage(db, existing[0]!.id);
       await seedTasks(db, existing[0]!.id);
       await seedChange(db, existing[0]!.id);
+      await softBudget(db, existing[0]!.id);
       console.log('demo org already seeded');
       return;
     }
@@ -121,10 +122,21 @@ async function main() {
     await seedUsage(db, org!.id);
     await seedTasks(db, org!.id);
     await seedChange(db, org!.id);
+    await softBudget(db, org!.id);
     console.log('seeded demo org acme-demo');
   } finally {
     await close();
   }
+}
+
+/**
+ * End-to-end runs keep adding (mock) usage, so the demo org's $25 budget would eventually block every
+ * AI call and fail unrelated tests. With SEED_SOFT_BUDGET=1 (set by tools/e2e only) the budget still
+ * exists, so its meter shows, but it only warns.
+ */
+async function softBudget(db: ReturnType<typeof createSystemDb>['db'], orgId: string) {
+  if (process.env.SEED_SOFT_BUDGET !== '1') return;
+  await db.update(budgets).set({ hardBlock: false }).where(and(eq(budgets.orgId, orgId), eq(budgets.scope, 'org')));
 }
 
 /** Sample metered usage for this month plus an org budget, so the usage and budget screens have data. */
