@@ -131,6 +131,11 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
   minutes, retried from a cursor. Endpoints must be public HTTPS addresses; private ones are refused
   when connecting too.
 
+**More AI providers:** besides Anthropic, keys for **OpenAI**, **Azure OpenAI** (resource name plus
+key; the model is the deployment name) and **Claude on Amazon Bedrock** (a Bedrock API key plus the
+AWS region; the model is the Bedrock model or inference-profile id). Add the model's price under
+Settings → Models, then pick it for the agent. Only Anthropic models come with prices.
+
 **Roles:** a **billing manager** flag (any role) for Settings → Billing, and **team leads** add and
 remove their own team's members.
 

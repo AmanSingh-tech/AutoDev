@@ -24,7 +24,12 @@ const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sys = createSystemDb(env.DATABASE_URL_SYSTEM);
 const app = createAppDb(env.DATABASE_URL, 2);
 const cfg = githubConfigFromEnv(env);
-const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
+const providers = createProviderRegistry({
+  anthropic: { baseURL: env.ANTHROPIC_BASE_URL },
+  openai: { baseURL: env.OPENAI_BASE_URL },
+  azureOpenai: { baseURL: env.AZURE_OPENAI_BASE_URL },
+  bedrock: { baseURL: env.BEDROCK_BASE_URL },
+});
 const kms = createKeyWrapper(env);
 const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
 const cache: KvCache = {

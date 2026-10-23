@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, schema } from '@autodev/db';
-import { credentialMetaColumns, KeyRejected } from '@autodev/llm';
+import { AWS_REGION, AZURE_RESOURCE, credentialMetaColumns, KeyRejected } from '@autodev/llm';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { resumeBlockedTasks } from '../../services/agent-control';
@@ -12,12 +12,27 @@ const createInput = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('team'), teamId: z.string().uuid() }),
   z.object({ scope: z.literal('user') }),
 ]).and(
-  z.object({
-    provider: z.enum(['anthropic']),
-    label: z.string().trim().min(1).max(64),
-    // Write-only: never echoed back, never logged.
-    apiKey: z.string().trim().min(20).max(512),
-  }),
+  z
+    .object({
+      provider: z.enum(['anthropic', 'openai', 'azure_openai', 'bedrock']),
+      label: z.string().trim().min(1).max(64),
+      // Write-only: never echoed back, never logged. Bedrock API keys can be long.
+      apiKey: z.string().trim().min(20).max(4096),
+      /** Non-secret settings: Azure resource name and API version, AWS region, OpenAI organization. */
+      config: z
+        .object({
+          resource: z.string().trim().regex(AZURE_RESOURCE, 'An Azure resource name (the part before .openai.azure.com)').optional(),
+          apiVersion: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}(-preview)?$/).optional(),
+          region: z.string().trim().regex(AWS_REGION, 'An AWS region such as us-east-1').optional(),
+          organization: z.string().trim().regex(/^org-[A-Za-z0-9]+$/).optional(),
+        })
+        .strict()
+        .default({}),
+    })
+    .superRefine((v, ctx) => {
+      if (v.provider === 'azure_openai' && !v.config.resource) ctx.addIssue({ code: 'custom', path: ['config', 'resource'], message: 'Azure OpenAI needs the resource name' });
+      if (v.provider === 'bedrock' && !v.config.region) ctx.addIssue({ code: 'custom', path: ['config', 'region'], message: 'Bedrock needs the AWS region' });
+    }),
 );
 
 export const llmKeysRouter = router({
@@ -69,6 +84,7 @@ export const llmKeysRouter = router({
         provider: input.provider,
         label: input.label,
         apiKey: input.apiKey,
+        config: Object.fromEntries(Object.entries(input.config).filter(([, v]) => v)) as Record<string, string>,
         ip: ctx.ip,
         userAgent: ctx.userAgent,
       });

@@ -6,6 +6,8 @@ import { adminProcedure, orgProcedure, router } from '../trpc';
 
 const { modelPolicies, modelPrices } = schema;
 
+const provider = z.enum(['anthropic', 'openai', 'azure_openai', 'bedrock']).default('anthropic');
+
 const money = z
   .string()
   .regex(/^\d{1,6}(\.\d{1,6})?$/, 'Up to 6 decimals')
@@ -45,6 +47,8 @@ export const modelsRouter = router({
     .input(
       z.object({
         useCase: z.enum(LLM_USE_CASES),
+        /** B-7: OpenAI, Azure OpenAI (the deployment name is the model) and Bedrock (the model or inference-profile id). */
+        provider,
         model: z.string().min(1).max(100),
         maxTokensPerTask: z.number().int().min(10_000).max(100_000_000),
         maxOutputTokens: z.number().int().min(1_000).max(128_000),
@@ -53,9 +57,9 @@ export const modelsRouter = router({
     )
     .mutation(({ ctx, input }) =>
       ctx.inOrg(async (tx) => {
-        const priced = (await currentPrices(tx, ctx.orgId)).some((p) => p.provider === 'anthropic' && p.model === input.model);
+        const priced = (await currentPrices(tx, ctx.orgId)).some((p) => p.provider === input.provider && p.model === input.model);
         if (!priced) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Add a price for this model first, so its usage can be metered' });
-        const values = { ...input, provider: 'anthropic' as const, orgId: ctx.orgId, updatedBy: ctx.userId };
+        const values = { ...input, orgId: ctx.orgId, updatedBy: ctx.userId };
         const [row] = await tx
           .insert(modelPolicies)
           .values(values)
@@ -72,6 +76,7 @@ export const modelsRouter = router({
   setPrice: adminProcedure
     .input(
       z.object({
+        provider,
         model: z.string().min(1).max(100),
         inputPerMtok: money,
         outputPerMtok: money,
@@ -86,22 +91,22 @@ export const modelsRouter = router({
         await tx
           .update(modelPrices)
           .set({ effectiveTo: now })
-          .where(and(eq(modelPrices.orgId, ctx.orgId), eq(modelPrices.model, input.model), isNull(modelPrices.effectiveTo)));
+          .where(and(eq(modelPrices.orgId, ctx.orgId), eq(modelPrices.provider, input.provider), eq(modelPrices.model, input.model), isNull(modelPrices.effectiveTo)));
         const [row] = await tx
           .insert(modelPrices)
-          .values({ ...input, orgId: ctx.orgId, provider: 'anthropic', effectiveFrom: now, updatedBy: ctx.userId })
+          .values({ ...input, orgId: ctx.orgId, effectiveFrom: now, updatedBy: ctx.userId })
           .returning();
         await ctx.audit(tx, { action: 'model_price.updated', targetType: 'model_price', targetId: row!.id, metadata: input });
         return row!;
       }),
     ),
 
-  clearPriceOverride: adminProcedure.input(z.object({ model: z.string() })).mutation(({ ctx, input }) =>
+  clearPriceOverride: adminProcedure.input(z.object({ provider, model: z.string() })).mutation(({ ctx, input }) =>
     ctx.inOrg(async (tx) => {
       const closed = await tx
         .update(modelPrices)
         .set({ effectiveTo: sql`now()` })
-        .where(and(eq(modelPrices.orgId, ctx.orgId), eq(modelPrices.model, input.model), isNull(modelPrices.effectiveTo)))
+        .where(and(eq(modelPrices.orgId, ctx.orgId), eq(modelPrices.provider, input.provider), eq(modelPrices.model, input.model), isNull(modelPrices.effectiveTo)))
         .returning({ id: modelPrices.id });
       if (closed.length) await ctx.audit(tx, { action: 'model_price.override_cleared', targetType: 'model_price', targetId: closed[0]!.id, metadata: input });
       return { ok: true };

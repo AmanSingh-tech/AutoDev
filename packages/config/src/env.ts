@@ -94,6 +94,9 @@ export const githubEnv = z.object({
 export const llmEnv = z.object({
   /** Test/e2e override only. Admin-supplied provider config can never change where keys are sent. */
   ANTHROPIC_BASE_URL: z.string().url().optional(),
+  OPENAI_BASE_URL: z.string().url().optional(),
+  AZURE_OPENAI_BASE_URL: z.string().url().optional(),
+  BEDROCK_BASE_URL: z.string().url().optional(),
 });
 
 export const authEnv = z.object({

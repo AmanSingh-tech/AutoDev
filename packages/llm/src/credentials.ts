@@ -33,6 +33,8 @@ export const credentialMetaColumns = {
   status: llmCredentials.status,
   lastValidatedAt: llmCredentials.lastValidatedAt,
   lastError: llmCredentials.lastError,
+  /** Non-secret settings (Azure resource, AWS region). */
+  config: llmCredentials.config,
   createdBy: llmCredentials.createdBy,
   createdAt: llmCredentials.createdAt,
 };

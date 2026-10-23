@@ -84,7 +84,7 @@ export class AnthropicProvider implements LlmProvider {
   }
 }
 
-function toSystemBlock(b: LlmRequest['system'][number]): BetaTextBlockParam {
+export function toSystemBlock(b: LlmRequest['system'][number]): BetaTextBlockParam {
   return {
     type: 'text',
     text: b.text,
@@ -92,11 +92,11 @@ function toSystemBlock(b: LlmRequest['system'][number]): BetaTextBlockParam {
   };
 }
 
-function toMessageParam(m: Message): BetaMessageParam {
+export function toMessageParam(m: Message): BetaMessageParam {
   return { role: m.role, content: m.content.map(toContentParam) };
 }
 
-function toContentParam(b: ContentBlock): BetaContentBlockParam {
+export function toContentParam(b: ContentBlock): BetaContentBlockParam {
   switch (b.type) {
     case 'text':
       return { type: 'text', text: b.text };
@@ -110,7 +110,7 @@ function toContentParam(b: ContentBlock): BetaContentBlockParam {
   }
 }
 
-function toTool(t: NonNullable<LlmRequest['tools']>[number]): BetaToolUnion {
+export function toTool(t: NonNullable<LlmRequest['tools']>[number]): BetaToolUnion {
   return {
     name: t.name,
     description: t.description,
@@ -122,13 +122,13 @@ function toTool(t: NonNullable<LlmRequest['tools']>[number]): BetaToolUnion {
   } as BetaToolUnion;
 }
 
-function fromContentBlock(b: BetaContentBlock): ContentBlock {
+export function fromContentBlock(b: BetaContentBlock): ContentBlock {
   if (b.type === 'text') return { type: 'text', text: b.text };
   if (b.type === 'tool_use') return { type: 'tool_use', id: b.id, name: b.name, input: b.input };
   return { type: 'opaque', provider: 'anthropic', block: b };
 }
 
-function mapStopReason(r: BetaMessage['stop_reason']): StopReason {
+export function mapStopReason(r: BetaMessage['stop_reason']): StopReason {
   switch (r) {
     case 'end_turn':
     case 'stop_sequence':

@@ -3,12 +3,14 @@
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, NativeSelect, Table, TBody, TD, TH, THead, TR } from '@autodev/ui';
 import { useState } from 'react';
 import { relativeTime } from '@/lib/format';
+import { PROVIDERS, providerLabel, type Provider } from '@/lib/providers';
 import { trpc } from '@/lib/trpc';
 import { useOrg } from '../../org-shell';
 import { toast } from 'sonner';
 
 type Scope = 'org' | 'team' | 'user';
 const SCOPE_LABEL: Record<Scope, string> = { org: 'Organization', team: 'Team', user: 'Personal' };
+
 
 export default function AiKeysPage() {
   const org = useOrg();
@@ -66,7 +68,10 @@ export default function AiKeysPage() {
             <TR key={k.id}>
               <TD>
                 <div className="font-medium">{k.label}</div>
-                <div className="font-mono text-xs text-muted-foreground">Anthropic · ••••{k.last4}</div>
+                <div className="font-mono text-xs text-muted-foreground">
+                  {providerLabel(k.provider)}
+                  {k.config.resource ? ` (${k.config.resource})` : k.config.region ? ` (${k.config.region})` : ''} · ••••{k.last4}
+                </div>
               </TD>
               <TD>{k.scope === 'org' ? 'Organization' : k.scope === 'team' ? `Team ${k.teamName}` : `${k.userLogin} (personal)`}</TD>
               <TD>
@@ -135,6 +140,8 @@ function AddKeyForm({
   const [teamId, setTeamId] = useState(preset?.teamId ?? '');
   const [label, setLabel] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [provider, setProvider] = useState<Provider>('anthropic');
+  const [config, setConfig] = useState({ resource: '', region: '' });
   const create = trpc.llmKeys.create.useMutation({
     onSuccess: () => {
       setApiKey('');
@@ -153,7 +160,7 @@ function AddKeyForm({
         <CardDescription>
           {preset
             ? 'The new key is checked first. If it works it replaces the old one immediately, and tasks already running finish on the old key.'
-            : 'We make a free test call to Anthropic before saving.'}
+            : 'We make a free test call to the provider before saving. Which provider each kind of work uses is set under Models.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -162,7 +169,8 @@ function AddKeyForm({
           autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
-            const base = { provider: 'anthropic' as const, label: label || 'Anthropic key', apiKey };
+            const extra = provider === 'azure_openai' ? { resource: config.resource } : provider === 'bedrock' ? { region: config.region } : {};
+            const base = { provider, label: label || `${PROVIDERS[provider].label} key`, apiKey, config: extra };
             if (scope === 'team') create.mutate({ ...base, scope, teamId });
             else create.mutate({ ...base, scope });
           }}
@@ -192,18 +200,42 @@ function AddKeyForm({
               </div>
             )}
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="provider">Provider</Label>
+              <NativeSelect id="provider" value={provider} onChange={(e) => setProvider(e.target.value as Provider)}>
+                {(Object.keys(PROVIDERS) as Provider[]).map((p) => (
+                  <option key={p} value={p}>
+                    {PROVIDERS[p].label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            {provider === 'azure_openai' && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="resource">Resource name</Label>
+                <Input id="resource" placeholder="acme-ai (from acme-ai.openai.azure.com)" value={config.resource} onChange={(e) => setConfig({ ...config, resource: e.target.value.trim() })} required />
+              </div>
+            )}
+            {provider === 'bedrock' && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="region">AWS region</Label>
+                <Input id="region" placeholder="us-east-1" value={config.region} onChange={(e) => setConfig({ ...config, region: e.target.value.trim() })} required />
+              </div>
+            )}
+          </div>
           <div className="grid gap-1.5">
             <Label htmlFor="label">Name</Label>
             <Input id="label" placeholder="e.g. Production key" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={64} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="apikey">Anthropic API key</Label>
+            <Label htmlFor="apikey">{PROVIDERS[provider].keyLabel}</Label>
             <Input
               id="apikey"
               type="password"
               autoComplete="new-password"
               spellCheck={false}
-              placeholder="sk-ant-…"
+              placeholder={PROVIDERS[provider].placeholder}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               required

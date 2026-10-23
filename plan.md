@@ -392,6 +392,19 @@ Built as planned above, plus:
 - Data region is a label plus a refusal; real residency needs one deployment (database, Redis, blob storage, LLM provider region) per region. Moving an org between regions isn't built.
 - The allowlist doesn't cover builders (they authenticate with their own token from wherever they run) or GitHub/Stripe webhooks.
 
+### B-7 part 2 notes: more LLM providers (2026-10-23, auto-approved)
+
+- **No new SDKs:** OpenAI and Azure OpenAI use Chat Completions over `fetch`; Bedrock uses InvokeModel with a **Bedrock API key** (bearer token), which avoids AWS SigV4. Bedrock takes and returns Anthropic's format, so the Anthropic mapping is reused (thinking blocks replay to Bedrock).
+- **No SSRF through settings:** Azure takes a resource name (never a URL), Bedrock an AWS region name; both are checked by pattern before any request. Test-only base URLs are platform env (`OPENAI_BASE_URL`, `AZURE_OPENAI_BASE_URL`, `BEDROCK_BASE_URL`).
+- **Metering:** OpenAI cached prompt tokens are billed at the cache-read price; there are no cache writes. Bedrock usage is recorded under the requested model id, so prices match what admins entered.
+- **Prices:** none are seeded for the new providers (rates change and vary by region); admins add them on the Models page, and a policy can't use an unpriced model.
+- **Effort:** low/medium/high pass through to OpenAI's `reasoning_effort`; xhigh and max map to high. Bedrock gets no effort setting.
+
+**Decisions left open:**
+- These three providers aren't streamed (one request per turn, 10-minute timeout); very long outputs could hit provider timeouts.
+- Prompt caching hints aren't sent to OpenAI (it caches automatically); Bedrock keeps the system-prompt cache breakpoints only.
+- Not tested against the real services (needs accounts).
+
 ## Next step
 
 **Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).

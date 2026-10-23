@@ -8,3 +8,5 @@ export * from './credentials';
 export * from './defaults';
 export * from './gateway';
 export * from './notify';
+export { BedrockProvider, AWS_REGION } from './providers/bedrock';
+export { AzureOpenAiProvider, OpenAiProvider, AZURE_RESOURCE } from './providers/openai';

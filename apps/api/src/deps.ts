@@ -80,7 +80,12 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
   const blobs = createBlobStore(env, sys.db);
   const events = new EventHub(redis.duplicate());
   const bridge = new ChangeBridge({ databaseUrl: env.DATABASE_URL, redis });
-  const providers = createProviderRegistry({ anthropic: { baseURL: env.ANTHROPIC_BASE_URL } });
+  const providers = createProviderRegistry({
+  anthropic: { baseURL: env.ANTHROPIC_BASE_URL },
+  openai: { baseURL: env.OPENAI_BASE_URL },
+  azureOpenai: { baseURL: env.AZURE_OPENAI_BASE_URL },
+  bedrock: { baseURL: env.BEDROCK_BASE_URL },
+});
   const credentials = new CredentialService({ app: app.db, sys: sys.db, kms, providers });
   return {
     env,
