@@ -118,6 +118,22 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
 - `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL` and `GOPROXY_URL` (worker) default to the public
   services; tests point them at the mock.
 
+## Enterprise controls (B-7)
+
+**Settings → Security** (admins):
+- **Retention** for repo chat and team rooms, agent traces and notifications, purged nightly. The
+  audit log is never deleted.
+- **IP allowlist** (addresses or CIDR ranges), checked on every org-scoped API call and the event
+  stream. A list without your own address is refused. Behind proxies, set `TRUST_PROXY`.
+- **Data region:** each deployment has a `DATA_REGION`; an org lives in the region it was created
+  in, and other regions' servers refuse it.
+- **Audit log:** download as CSV or NDJSON, or stream it to a SIEM: signed NDJSON batches every 5
+  minutes, retried from a cursor. Endpoints must be public HTTPS addresses; private ones are refused
+  when connecting too.
+
+**Roles:** a **billing manager** flag (any role) for Settings → Billing, and **team leads** add and
+remove their own team's members.
+
 ## Billing and onboarding (B-6)
 
 - **Optional.** Without `STRIPE_SECRET_KEY` billing is off and everything works. With it, a new org

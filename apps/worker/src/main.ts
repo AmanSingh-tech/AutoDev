@@ -3,7 +3,7 @@ import { emit } from '@autodev/events';
 import { ORG_ADMIN_TOPIC } from '@autodev/protocol';
 import { createBlobStore } from '@autodev/storage';
 import { CodeIndexer, FakeEmbedder, githubSource, IndexedCodeSearch, LocalEmbedder, type Embedder } from '@autodev/code-index';
-import { agentJob, billingEnv, chatJob, codeIndexEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, groupAgentEnv, groupAgentJob, llmEnv, loadEnv, QUEUES, redisEnv, storageEnv, type CodeIndexJob, type GroupAgentJob } from '@autodev/config';
+import { agentJob, billingEnv, chatJob, codeIndexEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, governanceEnv, groupAgentEnv, groupAgentJob, llmEnv, loadEnv, QUEUES, redisEnv, storageEnv, type CodeIndexJob, type GroupAgentJob } from '@autodev/config';
 import { createKeyWrapper } from '@autodev/crypto';
 import { createAppDb, createSystemDb } from '@autodev/db';
 import { githubConfigFromEnv, TokenVault, type KvCache } from '@autodev/github';
@@ -18,7 +18,7 @@ import { createMaintenanceProcessor } from './maintenance';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
-const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv).merge(storageEnv).merge(codeIndexEnv).merge(groupAgentEnv).merge(billingEnv));
+const env = loadEnv(coreEnv.merge(dbEnv).merge(redisEnv).merge(githubEnv).merge(cryptoEnv).merge(llmEnv).merge(storageEnv).merge(codeIndexEnv).merge(groupAgentEnv).merge(billingEnv).merge(governanceEnv));
 const log = pino({ level: env.LOG_LEVEL });
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const sys = createSystemDb(env.DATABASE_URL_SYSTEM);
@@ -79,6 +79,8 @@ const groupAgent = createGroupAgentProcessor({ sys: sys.db, urls: env, cfg, bill
 const groupAgentQueue = new Queue<GroupAgentJob>(QUEUES.groupAgent, { connection, defaultJobOptions: { removeOnComplete: true, removeOnFail: 500 } });
 await groupAgentQueue.upsertJobScheduler('nightly-group-agent-scan', { pattern: '30 3 * * *', tz: 'UTC' }, { name: 'scan', data: { kind: 'scan' } });
 await groupAgentQueue.upsertJobScheduler('weekly-group-agent-digest', { pattern: '0 8 * * 1', tz: 'UTC' }, { name: 'digest', data: { kind: 'digest' } });
+await maintenance.upsertJobScheduler('nightly-retention', { pattern: '45 3 * * *', tz: 'UTC' }, { name: 'retention' });
+await maintenance.upsertJobScheduler('siem-push', { pattern: '*/5 * * * *', tz: 'UTC' }, { name: 'siem' });
 await maintenance.upsertJobScheduler('nightly-seats', { pattern: '45 2 * * *', tz: 'UTC' }, { name: 'seats' });
 await maintenance.upsertJobScheduler('nightly-insights', { pattern: '30 0 * * *', tz: 'UTC' }, { name: 'insights' });
 await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
@@ -107,7 +109,7 @@ const workers = [
   // Embedding is CPU-bound and the model runs one batch at a time, so two repos at once is plenty.
   new Worker(QUEUES.codeIndex, createCodeIndexProcessor({ indexer, queue: codeIndexQueue }), { connection, concurrency: 2, lockDuration: 10 * 60_000 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
-  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env }), { connection, concurrency: 1 }),
+  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env, kms, outboundAllowPrivate: env.OUTBOUND_ALLOW_PRIVATE === '1' }), { connection, concurrency: 1 }),
   // Scans read every repo's lockfiles and call OSV and the registries; one org at a time.
   new Worker(QUEUES.groupAgent, (job) => groupAgent({ data: groupAgentJob.parse(job.data) }), { connection, concurrency: 1, lockDuration: 10 * 60_000 }),
   new Worker(

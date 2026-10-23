@@ -48,6 +48,7 @@ export const membersRouter = router({
           avatarUrl: users.avatarUrl,
           role: orgMembers.role,
           primaryTeamId: orgMembers.primaryTeamId,
+          billingManager: orgMembers.billingManager,
           joinedAt: orgMembers.joinedAt,
         })
         .from(orgMembers)
@@ -82,6 +83,19 @@ export const membersRouter = router({
     ),
 
   /** Decides whose team key applies when a member is in several teams with keys. */
+  /** Billing managers (B-7) handle Settings → Billing whatever their role. */
+  setBillingManager: adminProcedure.input(z.object({ userId: z.string().uuid(), billingManager: z.boolean() })).mutation(({ ctx, input }) =>
+    ctx.inOrg(async (tx) => {
+      await loadTarget(tx, ctx.orgId, input.userId);
+      await tx
+        .update(orgMembers)
+        .set({ billingManager: input.billingManager })
+        .where(and(eq(orgMembers.orgId, ctx.orgId), eq(orgMembers.userId, input.userId)));
+      await ctx.audit(tx, { action: input.billingManager ? 'member.billing_manager_added' : 'member.billing_manager_removed', targetType: 'user', targetId: input.userId });
+      return { ok: true };
+    }),
+  ),
+
   setPrimaryTeam: adminProcedure
     .input(z.object({ userId: z.string().uuid(), teamId: z.string().uuid().nullable() }))
     .mutation(({ ctx, input }) =>

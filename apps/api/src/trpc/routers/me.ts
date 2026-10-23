@@ -12,7 +12,7 @@ export const meRouter = router({
         .from(users)
         .where(eq(users.id, ctx.userId));
       const memberships = await tx
-        .select({ orgId: orgs.id, slug: orgs.slug, name: orgs.name, role: orgMembers.role })
+        .select({ orgId: orgs.id, slug: orgs.slug, name: orgs.name, role: orgMembers.role, billingManager: orgMembers.billingManager })
         .from(orgMembers)
         .innerJoin(orgs, eq(orgs.id, orgMembers.orgId))
         .where(and(eq(orgMembers.userId, ctx.userId), eq(orgMembers.status, 'active')))

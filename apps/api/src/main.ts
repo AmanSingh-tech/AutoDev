@@ -10,7 +10,7 @@ const tls =
     ? { cert: readFileSync(env.TLS_CERT_FILE), key: readFileSync(env.TLS_KEY_FILE), allowHTTP1: true }
     : null;
 // HTTP/2 lets one tab keep its event stream open without using up the browser's 6-connection limit.
-const app = await buildServer(deps, tls ? ({ http2: true, https: tls } as never) : {});
+const app = await buildServer(deps, { trustProxy: env.TRUST_PROXY, ...(tls ? ({ http2: true, https: tls } as never) : {}) });
 await deps.bridge.start();
 
 const shutdown = async () => {

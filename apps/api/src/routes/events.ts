@@ -2,6 +2,7 @@ import { isAfter, replayAfter, STREAM_ID } from '@autodev/events';
 import { parseTopics, type EventEnvelope, type Topic } from '@autodev/protocol';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { checkOrgAccess } from '../auth/org-access';
 import { readSession } from '../auth/session';
 import type { Deps } from '../deps';
 import { authorizeTopics, TopicDenied } from '../events/authz';
@@ -36,6 +37,8 @@ export async function eventRoutes(app: FastifyInstance, { deps }: { deps: Deps }
 
     const session = await readSession(req.cookies, deps.env.AUTH_SECRET);
     if (!session) return reply.code(401).send({ error: 'not signed in' });
+    const access = await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION });
+    if (!access.ok) return reply.code(403).send({ error: access.message });
     try {
       await authorizeTopics(deps, orgId, session.userId, topics);
     } catch (e) {

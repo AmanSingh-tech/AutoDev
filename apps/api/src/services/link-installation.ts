@@ -14,7 +14,7 @@ export type LinkResult =
  * an org needs GitHub org admin (or ownership of a personal account).
  */
 export async function linkInstallation(
-  deps: Pick<Deps, 'sys' | 'vault' | 'cfg' | 'kms' | 'queues'>,
+  deps: Pick<Deps, 'sys' | 'vault' | 'cfg' | 'kms' | 'queues'> & { env?: Partial<Pick<Deps['env'], 'DATA_REGION'>> },
   userId: string,
   githubInstallationId: number,
 ): Promise<LinkResult> {
@@ -50,6 +50,7 @@ export async function linkInstallation(
         accountType: account.type as 'User' | 'Organization',
         name: account.login,
         ownerUserId: userId,
+        dataRegion: deps.env?.DATA_REGION,
       });
       created = true;
     } else if (isAdmin) {

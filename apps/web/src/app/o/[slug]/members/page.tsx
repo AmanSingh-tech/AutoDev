@@ -36,6 +36,7 @@ export default function MembersPage() {
   const refreshAll = () => Promise.all([utils.members.list.invalidate(), utils.teams.list.invalidate()]);
 
   const setRole = trpc.members.setRole.useMutation({ onSuccess: refreshAll, onError });
+  const setBilling = trpc.members.setBillingManager.useMutation({ onSuccess: refreshAll, onError });
   const setPrimary = trpc.members.setPrimaryTeam.useMutation({ onSuccess: refreshAll, onError });
   const teamsQ = trpc.teams.list.useQuery();
   const teamsOf = (userId: string) => (teamsQ.data ?? []).filter((t) => t.members.some((m) => m.userId === userId));
@@ -104,6 +105,20 @@ export default function MembersPage() {
                       </NativeSelect>
                     ) : (
                       m.role
+                    )}
+                    {canManage ? (
+                      <label className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={m.billingManager}
+                          disabled={setBilling.isPending}
+                          onChange={(e) => setBilling.mutate({ userId: m.userId, billingManager: e.target.checked })}
+                          aria-label={`${m.githubLogin} manages billing`}
+                        />
+                        Billing
+                      </label>
+                    ) : (
+                      m.billingManager && <span className="ml-2 text-xs text-muted-foreground">billing</span>
                     )}
                   </TD>
                   <TD>
@@ -174,6 +189,7 @@ function Teams({
   const add = trpc.teams.addMember.useMutation({ onSuccess: invalidate, onError });
   const removeMember = trpc.teams.removeMember.useMutation({ onSuccess: invalidate, onError });
   const setLead = trpc.teams.setLead.useMutation({ onSuccess: invalidate, onError });
+  const me = trpc.me.get.useQuery().data?.user?.id;
 
   return (
     <section className="space-y-4">
@@ -181,7 +197,7 @@ function Teams({
         <h2 className="text-lg font-semibold">Teams</h2>
         <p className="text-sm text-muted-foreground">
           A team can have its own AI key. For someone in several teams with keys, their primary team’s key is used. Team leads
-          see Insights for their team.
+          see Insights for their team and can add or remove its members.
         </p>
       </div>
       {canManage && (
@@ -203,6 +219,9 @@ function Teams({
         {teams.data?.map((t) => {
           const inTeam = new Set(t.members.map((m) => m.userId));
           const candidates = members.filter((m) => !inTeam.has(m.userId));
+          // Team leads change their own team's members (not its leads); admins change everything.
+          const leads = t.members.some((m) => m.userId === me && m.isLead);
+          const editMembers = canManage || leads;
           return (
             <Card key={t.id}>
               <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -222,6 +241,11 @@ function Teams({
                         <span className="truncate">{m.githubLogin}</span>
                         {m.isLead && !canManage && <span className="shrink-0 text-xs text-muted-foreground">lead</span>}
                       </span>
+                      {!canManage && leads && (!m.isLead || m.userId === me) && (
+                        <button className="shrink-0 text-xs text-muted-foreground hover:underline" onClick={() => removeMember.mutate({ teamId: t.id, userId: m.userId })}>
+                          remove
+                        </button>
+                      )}
                       {canManage && (
                         <span className="flex shrink-0 items-center gap-3">
                           <label className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -243,7 +267,7 @@ function Teams({
                   ))}
                   {t.members.length === 0 && <li className="text-muted-foreground">No members</li>}
                 </ul>
-                {canManage && candidates.length > 0 && (
+                {editMembers && candidates.length > 0 && (
                   <NativeSelect
                     aria-label={`Add member to ${t.name}`}
                     value=""

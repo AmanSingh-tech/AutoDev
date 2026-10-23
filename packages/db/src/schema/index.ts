@@ -15,3 +15,4 @@ export * from './repo-links';
 export * from './insights';
 export * from './group-agent';
 export * from './billing';
+export * from './governance';

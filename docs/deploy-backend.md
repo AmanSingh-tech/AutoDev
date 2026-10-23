@@ -57,6 +57,9 @@ Generate secrets once and give the same values to every service that needs them:
 | `EMBEDDINGS_CACHE_DIR` |  | ✓ |  |  | Defaults to `/var/cache/autodev/embeddings`; mount a volume there |
 | `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL`, `GOPROXY_URL` |  | ✓ |  |  | Optional overrides for the Group Agent |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TEAM`, `STRIPE_PRICE_BUSINESS` | ✓ | ✓ |  |  | Optional: billing is off without the key. Never on the web app |
+| `DATA_REGION` | ✓ | ✓ |  |  | This deployment's region (default `us`). New orgs are created in it; orgs from another region are refused |
+| `TRUST_PROXY` | ✓ |  |  |  | How many proxies sit in front of the API (e.g. `1`). The client address in the audit log and IP allowlists comes from `X-Forwarded-For`; the default `true` believes every hop, which is only safe when nothing can reach the API directly |
+| `OUTBOUND_ALLOW_PRIVATE` | ✓ | ✓ |  |  | `1` lets SIEM endpoints be `http://` or private addresses. Development only |
 | `TRIAL_DAYS` | ✓ | ✓ |  |  | Free trial from the org's creation, default 14 |
 | `NEXT_PUBLIC_SALES_URL` |  |  |  | ✓ | Optional link on the Enterprise plan card |
 | `PORT` | ✓ |  | ✓ |  | Set by most hosts; the gateway also reads `GATEWAY_PORT` |

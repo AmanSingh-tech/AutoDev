@@ -1,10 +1,11 @@
 import { applyStripeEvent, billingState, PLAN_LABEL, priceFor, SELF_SERVE_PLANS, seatCount, StripeError, StripeSignatureError, verifyStripeEvent, type SelfServePlan } from '@autodev/billing';
-import { and, eq, inArray, schema } from '@autodev/db';
+import { eq, schema } from '@autodev/db';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { checkOrgAccess } from '../auth/org-access';
 import { readSession } from '../auth/session';
 import type { Deps } from '../deps';
 
-const { orgMembers, orgs, subscriptions, users } = schema;
+const { orgs, subscriptions, users } = schema;
 
 /**
  * Billing over plain HTTP (B-6), as the brief names it:
@@ -31,7 +32,7 @@ export async function billingRoutes(app: FastifyInstance, { deps }: { deps: Deps
     return reply.send({ received: true, result });
   });
 
-  /** The signed-in owner or admin of `orgId`, or a reply already sent. */
+  /** The signed-in owner, admin or billing manager of `orgId`, or a reply already sent. */
   async function admin(req: FastifyRequest, reply: FastifyReply): Promise<{ userId: string; orgId: string; body: Record<string, unknown> } | null> {
     const session = await readSession(req.cookies, deps.env.AUTH_SECRET);
     if (!session) return void reply.code(401).send({ error: 'Sign in first' }), null;
@@ -41,14 +42,12 @@ export async function billingRoutes(app: FastifyInstance, { deps }: { deps: Deps
     } catch {
       return void reply.code(400).send({ error: 'Invalid JSON' }), null;
     }
-    const orgId = typeof body.orgId === 'string' ? body.orgId : '';
-    const [m] = orgId
-      ? await deps.sys
-          .select({ role: orgMembers.role })
-          .from(orgMembers)
-          .where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, session.userId), eq(orgMembers.status, 'active'), inArray(orgMembers.role, ['owner', 'admin'])))
-      : [];
-    if (!m) return void reply.code(403).send({ error: 'Only owners and admins manage billing' }), null;
+    const orgId = typeof body.orgId === 'string' && /^[0-9a-f-]{36}$/i.test(body.orgId) ? body.orgId : '';
+    const access = orgId ? await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION }) : null;
+    if (access && !access.ok && access.reason !== 'not_member') return void reply.code(403).send({ error: access.message }), null;
+    // Owners, admins and billing managers (B-7).
+    if (!access?.ok || !(access.role === 'owner' || access.role === 'admin' || access.billingManager))
+      return void reply.code(403).send({ error: 'Only owners, admins and billing managers manage billing' }), null;
     return { userId: session.userId, orgId, body };
   }
 

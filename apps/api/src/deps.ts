@@ -20,7 +20,7 @@ import { EventHub } from '@autodev/events';
 import { ChangeBridge } from './events/change-bridge';
 
 export interface Deps {
-  env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV' | 'BUILDER_GATEWAY_URL'>;
+  env: Pick<ApiEnv, 'WEB_URL' | 'AUTH_SECRET' | 'NODE_ENV' | 'BUILDER_GATEWAY_URL'> & Partial<Pick<ApiEnv, 'DATA_REGION' | 'OUTBOUND_ALLOW_PRIVATE'>>;
   app: AppDb;
   sys: SystemDb;
   kms: KeyWrapper;

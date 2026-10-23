@@ -12,6 +12,8 @@ export const coreEnv = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   WEB_URL: z.string().url().default('http://localhost:3000'),
   API_URL: z.string().url().default('http://localhost:4000'),
+  /** This deployment's data region (B-7). Orgs are created in it and only served by a deployment of the same region. */
+  DATA_REGION: z.string().regex(/^[a-z][a-z0-9-]{1,19}$/).default('us'),
 });
 
 export const dbEnv = z.object({
@@ -63,6 +65,11 @@ export const billingEnv = z.object({
   STRIPE_PRICE_BUSINESS: z.string().optional(),
   STRIPE_API_URL: z.string().url().default('https://api.stripe.com'),
   TRIAL_DAYS: z.coerce.number().int().min(0).max(90).default(14),
+});
+
+export const governanceEnv = z.object({
+  /** Development only: let SIEM endpoints be http:// or private addresses (e.g. a local receiver). */
+  OUTBOUND_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
 });
 
 export const cryptoEnv = z.object({

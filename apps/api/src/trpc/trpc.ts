@@ -4,6 +4,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import { ZodError } from 'zod';
 import type { Deps } from '../deps';
+import { checkOrgAccess } from '../auth/org-access';
 import { audit, type AuditEntry } from '../services/audit';
 
 export interface Context {
@@ -24,6 +25,7 @@ const t = initTRPC.context<Context>().create({
         ...shape.data,
         zod: error.cause instanceof ZodError ? error.cause.flatten() : null,
         reauth: error.cause instanceof GitHubReauthRequired,
+        orgAccess: error.cause instanceof OrgAccessDenied ? error.cause.reason : null,
       },
     };
   },
@@ -41,6 +43,13 @@ const errorMapping = t.middleware(async ({ next }) => {
   return res;
 });
 
+/** Why an org-scoped call was refused, so the web app can show the right page (e.g. IP blocked). */
+export class OrgAccessDenied extends Error {
+  constructor(readonly reason: 'not_member' | 'ip_blocked' | 'wrong_region') {
+    super(reason);
+  }
+}
+
 export const publicProcedure = t.procedure.use(errorMapping);
 
 export const authedProcedure = publicProcedure.use(({ ctx, next }) => {
@@ -57,26 +66,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const orgProcedure = authedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.orgId || !UUID.test(ctx.orgId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'x-org-id header required' });
   const { orgId, userId, deps } = ctx;
-  const [member] = await withOrg(deps.app, orgId, userId, (tx) =>
-    tx
-      .select({ role: schema.orgMembers.role })
-      .from(schema.orgMembers)
-      .where(
-        and(
-          eq(schema.orgMembers.orgId, orgId),
-          eq(schema.orgMembers.userId, userId),
-          eq(schema.orgMembers.status, 'active'),
-        ),
-      ),
-  );
-  // FORBIDDEN instead of NOT_FOUND, but the message doesn't say whether the org exists.
-  if (!member) throw new TRPCError({ code: 'FORBIDDEN', message: 'Not a member of this org' });
+  const access = await checkOrgAccess(deps.app, { orgId, userId, ip: ctx.ip, region: deps.env.DATA_REGION });
+  if (!access.ok) throw new TRPCError({ code: 'FORBIDDEN', message: access.message, cause: new OrgAccessDenied(access.reason) });
+  const member = access;
 
   const inOrg = <T>(fn: (tx: Tx) => Promise<T>) => withOrg(deps.app, orgId, userId, fn);
   const auditIn = (tx: Tx, e: Omit<AuditEntry, 'orgId' | 'actorUserId' | 'ip' | 'userAgent'>) =>
     audit(tx, { ...e, orgId, actorUserId: userId, ip: ctx.ip, userAgent: ctx.userAgent });
 
-  return next({ ctx: { ...ctx, orgId, role: member.role, inOrg, audit: auditIn } });
+  return next({ ctx: { ...ctx, orgId, role: member.role, billingManager: member.billingManager, inOrg, audit: auditIn } });
 });
 
 export const requireRole = (min: OrgRole) =>
@@ -88,3 +86,9 @@ export const requireRole = (min: OrgRole) =>
   });
 
 export const adminProcedure = requireRole('admin');
+
+/** Owners, admins and billing managers (B-7: a membership flag, so a viewer can handle invoices). */
+export const billingProcedure = orgProcedure.use(({ ctx, next }) => {
+  if (!roleAtLeast(ctx.role, 'admin') && !ctx.billingManager) throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires admin or billing manager' });
+  return next();
+});

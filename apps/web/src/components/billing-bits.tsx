@@ -25,7 +25,7 @@ const daysLeft = (d: Date | string) => Math.max(0, Math.ceil((new Date(d).getTim
  * One line above every org page, at most: AI work is blocked by billing (everyone sees it), the
  * trial ends within 3 days (admins), or setup isn't finished (admins, until they dismiss it).
  */
-export function OrgBanner({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
+export function OrgBanner({ slug, isAdmin, billingManager = false }: { slug: string; isAdmin: boolean; billingManager?: boolean }) {
   const billing = trpc.billing.status.useQuery(undefined, { staleTime: 60_000 });
   const onboarding = trpc.onboarding.status.useQuery(undefined, { enabled: isAdmin, staleTime: 60_000 });
   const b = billing.data;
@@ -33,14 +33,14 @@ export function OrgBanner({ slug, isAdmin }: { slug: string; isAdmin: boolean })
     return (
       <Alert tone="destructive" className="mb-6">
         {b.blockedReason} Existing tasks, chats and pull requests are kept.{' '}
-        {isAdmin && (
+        {(isAdmin || billingManager) && (
           <Link href={`/o/${slug}/settings/billing`} className="font-medium underline">
             Open billing
           </Link>
         )}
       </Alert>
     );
-  if (isAdmin && b?.enabled && b.status === 'trial' && b.trialEndsAt && daysLeft(b.trialEndsAt) <= 3)
+  if ((isAdmin || billingManager) && b?.enabled && b.status === 'trial' && b.trialEndsAt && daysLeft(b.trialEndsAt) <= 3)
     return (
       <Alert className="mb-6">
         The free trial ends in {daysLeft(b.trialEndsAt)} {daysLeft(b.trialEndsAt) === 1 ? 'day' : 'days'}.{' '}

@@ -346,6 +346,52 @@ Recommended options taken without asking; each is easy to change.
 - The Enterprise card links to `NEXT_PUBLIC_SALES_URL`, hidden when unset.
 - Not tested against real Stripe (needs your account): only the mocked API in tests.
 
+### B-7 plan (2026-10-23, auto-approved while you were away)
+
+Five parts, each committed on its own. Anything that needs an outside account (WorkOS, Jira, AWS,
+Azure, OpenAI) is built against the provider's documented API and tested with mocks, like Stripe.
+
+1. **Governance** (no accounts needed)
+   - **Billing manager:** a flag on the membership (`org_members.billing_manager`), not a fifth
+     role, so a developer or viewer can also handle invoices. It grants Settings → Billing only.
+   - **Team leads** (the B-4 flag) may add and remove members of their own team.
+   - **Retention:** per org, in days, for agent logs and steps, chat (private and team room), and
+     notifications; empty = keep. Purged nightly by the worker. **The audit log is never purged**
+     (it stays append-only); long-term copies go to the SIEM.
+   - **Audit export:** admins download the audit log as NDJSON or CSV for a date range, and can
+     set a **SIEM destination** (HTTPS URL plus a signing secret, encrypted like AI keys). The
+     worker pushes new entries every 5 minutes as signed NDJSON batches, with a cursor and retries.
+   - **IP allowlist:** CIDR list per org, enforced on every org-scoped API call and the event
+     stream. Saving a list that excludes your own address is refused, so admins can't lock
+     themselves out. Empty = off.
+   - **Data region:** each deployment has a `DATA_REGION` (default `us`); an org records its region
+     at creation, and an API serving a different region refuses that org's requests. Real
+     separation means one deployment (database, Redis, storage) per region; the setting keeps an
+     org from being served by the wrong one.
+2. **LLM providers:** OpenAI, Azure OpenAI and Amazon Bedrock (Anthropic models) behind the
+   existing provider interface, with key checks, model lists, prices and metering.
+3. **SSO and SCIM (WorkOS):** per-org SSO connection, domain verification, "Sign in with SSO" on the
+   login page, optional "SSO required"; SCIM directory sync adds, updates and removes members
+   (Directory Sync webhooks, signature-checked).
+4. **Jira sync:** per-org Jira Cloud site with an API token (encrypted); link a task to an issue
+   (`tasks.jira_issue_key`) or create one; status and PR links pushed to Jira, and Jira webhooks
+   update the task's link status.
+5. **Helm chart:** `deploy/helm/autodev` for api, worker, gateway, web, a migration Job, with
+   external Postgres and Redis.
+
+### B-7 part 1 notes: governance (2026-10-23, auto-approved)
+
+Built as planned above, plus:
+- **One access check** (`apps/api/src/auth/org-access.ts`) for tRPC, the event stream, billing and the audit download: membership, region, allowlist. The CIDR match runs in Postgres (`inet <<= any(cidr[])`); IPv4-mapped IPv6 addresses match IPv4 ranges.
+- **`TRUST_PROXY`** (new): the API used to believe every `X-Forwarded-For` hop, which would let a client fake its address past an allowlist. It's now configurable; the default stays `true` so nothing changes for existing deployments, and the docs say to set the proxy count.
+- **SIEM safety:** URLs must be HTTPS without credentials, and the address is checked when connecting (a DNS lookup that refuses private, loopback, link-local and metadata ranges), so DNS tricks can't reach the internal network. A new destination starts from "now"; older entries are in the download.
+- **Signature:** `X-AutoDev-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "t.body">`, the same scheme as Stripe's.
+- **Blocked users** see one page ("Not available from this network" / "Wrong region") instead of broken pages.
+
+**Decisions left open:**
+- Data region is a label plus a refusal; real residency needs one deployment (database, Redis, blob storage, LLM provider region) per region. Moving an org between regions isn't built.
+- The allowlist doesn't cover builders (they authenticate with their own token from wherever they run) or GitHub/Stripe webhooks.
+
 ## Next step
 
 **Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).

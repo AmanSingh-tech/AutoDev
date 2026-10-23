@@ -10,6 +10,7 @@ import { modelsRouter } from './routers/models';
 import { notificationsRouter } from './routers/notifications';
 import { billingRouter } from './routers/billing';
 import { onboardingRouter } from './routers/onboarding';
+import { governanceRouter } from './routers/governance';
 import { groupAgentRouter } from './routers/group-agent';
 import { insightsRouter } from './routers/insights';
 import { promptGuideRouter } from './routers/prompt-guide';
@@ -45,6 +46,7 @@ export const appRouter = router({
   groupAgent: groupAgentRouter,
   billing: billingRouter,
   onboarding: onboardingRouter,
+  governance: governanceRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
   codeIndex: codeIndexRouter,

@@ -14,6 +14,7 @@ const TABS = [
   { href: '/insights', label: 'Insights' },
   { href: '/group-agent', label: 'Group Agent' },
   { href: '/links', label: 'Linked repositories' },
+  { href: '/security', label: 'Security' },
   { href: '/billing', label: 'Billing' },
 ];
 

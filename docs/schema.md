@@ -131,6 +131,14 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ group_agent_runs | org, kind (scan, digest), status, payload, started_at, finished_at | Scan counts and errors; digest health and top risks. Worker-only writes |
 | ✅ tasks (added) | by_group_agent | A Group Agent fix: metered as `group_agent`, pushed and opened as a PR by the App's bot (migration 0028) |
 
+## Enterprise controls (B-7)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ orgs (added) | chat_retention_days, agent_trace_retention_days, notification_retention_days (7–3650, null = keep), ip_allowlist cidr[], data_region | Migration 0030. The audit log has no retention |
+| ✅ org_members (added) | billing_manager | Manages billing whatever the role |
+| ✅ siem_destinations | org (PK), url, secret_enc (org data key), secret_last4, enabled, cursor_created_at + cursor_id, last_sent_at, last_error, failures | One per org. Admins manage it; the worker advances the cursor |
+
 ## Billing (B-6)
 
 | Table | Columns that matter | Notes |

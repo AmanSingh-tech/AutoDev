@@ -1,7 +1,7 @@
-import { and, asc, eq, schema } from '@autodev/db';
+import { and, asc, eq, schema, type OrgRole, type Tx } from '@autodev/db';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { adminProcedure, orgProcedure, router } from '../trpc';
+import { adminProcedure, orgProcedure, roleAtLeast, router } from '../trpc';
 
 const { orgMembers, teamMembers, teams, users } = schema;
 
@@ -73,10 +73,12 @@ export const teamsRouter = router({
       }),
     ),
 
-  addMember: adminProcedure
+  /** Admins, or a lead of this team (B-7). */
+  addMember: orgProcedure
     .input(z.object({ teamId: z.string().uuid(), userId: z.string().uuid() }))
     .mutation(({ ctx, input }) =>
       ctx.inOrg(async (tx) => {
+        await assertManagesTeam(tx, ctx, input.teamId);
         const [team] = await tx.select().from(teams).where(and(eq(teams.orgId, ctx.orgId), eq(teams.id, input.teamId)));
         if (!team) throw new TRPCError({ code: 'NOT_FOUND', message: 'Team not found' });
         const [member] = await tx
@@ -90,10 +92,19 @@ export const teamsRouter = router({
       }),
     ),
 
-  removeMember: adminProcedure
+  /** Admins, or a lead of this team (B-7); leads can't remove other leads. */
+  removeMember: orgProcedure
     .input(z.object({ teamId: z.string().uuid(), userId: z.string().uuid() }))
     .mutation(({ ctx, input }) =>
       ctx.inOrg(async (tx) => {
+        const asLead = await assertManagesTeam(tx, ctx, input.teamId);
+        if (asLead && input.userId !== ctx.userId) {
+          const [target] = await tx
+            .select({ isLead: teamMembers.isLead })
+            .from(teamMembers)
+            .where(and(eq(teamMembers.orgId, ctx.orgId), eq(teamMembers.teamId, input.teamId), eq(teamMembers.userId, input.userId)));
+          if (target?.isLead) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins can remove a team lead' });
+        }
         await tx
           .delete(teamMembers)
           .where(
@@ -104,3 +115,17 @@ export const teamsRouter = router({
       }),
     ),
 });
+
+/**
+ * Admins manage every team; a team lead manages their own. Returns true when allowed only as the
+ * team's lead. Throws FORBIDDEN otherwise.
+ */
+async function assertManagesTeam(tx: Tx, ctx: { orgId: string; userId: string; role: OrgRole }, teamId: string): Promise<boolean> {
+  if (roleAtLeast(ctx.role, 'admin')) return false;
+  const [lead] = await tx
+    .select({ isLead: teamMembers.isLead })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.orgId, ctx.orgId), eq(teamMembers.teamId, teamId), eq(teamMembers.userId, ctx.userId), eq(teamMembers.isLead, true)));
+  if (!lead) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only admins and the team’s leads can change its members' });
+  return true;
+}

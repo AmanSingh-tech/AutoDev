@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { goToStripe } from '@/components/billing-bits';
 import { trpc } from '@/lib/trpc';
-import { useOrg } from '../../org-shell';
 
 const STATUS: Record<string, string> = {
   trial: 'Free trial',
@@ -31,8 +30,6 @@ const date = (d: Date | string | null) => (d ? new Date(d).toLocaleDateString(un
 /** Plan, seats and the way to Stripe. Members see the status; owners and admins can change it. */
 export default function BillingPage() {
   const params = useSearchParams();
-  const org = useOrg();
-  const isAdmin = org.role === 'owner' || org.role === 'admin';
   const utils = trpc.useUtils();
   const status = trpc.billing.status.useQuery();
   const sync = trpc.billing.syncSeats.useMutation({
@@ -67,6 +64,8 @@ export default function BillingPage() {
 
   if (!status.data) return <p className="text-sm text-muted-foreground">Loading…</p>;
   const b = status.data;
+  // Owners, admins and billing managers.
+  const isAdmin = b.canManage;
 
   return (
     <div className="space-y-6">
@@ -126,7 +125,7 @@ export default function BillingPage() {
               <h2 id="plans" className="font-medium">
                 Choose a plan
               </h2>
-              {!isAdmin && <p className="text-sm text-muted-foreground">Only owners and admins can choose a plan.</p>}
+              {!isAdmin && <p className="text-sm text-muted-foreground">Only owners, admins and billing managers can choose a plan.</p>}
               <div className="grid gap-4 md:grid-cols-3">
                 {b.plans.map((p) => (
                   <Card key={p.id}>

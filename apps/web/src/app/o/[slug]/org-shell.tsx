@@ -44,7 +44,9 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
   // Set synchronously during render, so the children's first queries already carry x-org-id.
   const [boundOrg, setBoundOrg] = useState<string | null>(null);
   // Insights shows for admins and team leads (dashboard) and for whoever may see the leaderboard.
-  const insights = trpc.insights.settings.useQuery(undefined, { enabled: !!org && boundOrg === org.orgId, staleTime: 60_000 });
+  const insights = trpc.insights.settings.useQuery(undefined, { enabled: !!org && boundOrg === org.orgId, staleTime: 60_000, retry: false });
+  // B-7: an IP allowlist or another data region refuses every org call; say so once, instead of broken pages.
+  const denied = insights.error?.data?.orgAccess;
   if (org && boundOrg !== org.orgId) {
     // Query keys don't include the org, so drop org-scoped cache from the previous org.
     if (boundOrg) queryClient.removeQueries({ predicate: (q) => JSON.stringify(q.queryKey[0]) !== '["me","get"]' });
@@ -59,6 +61,20 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
         <h1 className="text-xl font-semibold">Organization not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You aren’t a member of “{slug}”, or it doesn’t exist.{' '}
+          <Link href="/orgs" className="underline">
+            Back to your organizations
+          </Link>
+        </p>
+      </main>
+    );
+  }
+
+  if (denied === 'ip_blocked' || denied === 'wrong_region') {
+    return (
+      <main className="mx-auto max-w-xl px-4 py-16 text-center">
+        <h1 className="text-xl font-semibold">{denied === 'ip_blocked' ? 'Not available from this network' : 'Wrong region'}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{insights.error?.message}</p>
+        <p className="mt-4 text-sm">
           <Link href="/orgs" className="underline">
             Back to your organizations
           </Link>
@@ -109,7 +125,7 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
           </div>
         </header>
         <main className="mx-auto max-w-6xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-8">
-          {!pathname.startsWith(`/o/${slug}/onboarding`) && <OrgBanner slug={slug} isAdmin={org.role === 'owner' || org.role === 'admin'} />}
+          {!pathname.startsWith(`/o/${slug}/onboarding`) && <OrgBanner slug={slug} isAdmin={org.role === 'owner' || org.role === 'admin'} billingManager={org.billingManager} />}
           {children}
         </main>
       </div>

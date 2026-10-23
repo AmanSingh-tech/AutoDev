@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  cidr,
   index,
   integer,
   jsonb,
@@ -45,10 +46,21 @@ export const orgs = pgTable(
     allowUserKeys: boolean('allow_user_keys').notNull().default(true),
     /** Room for future (Section B) settings, so they don't each need a column. */
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /** Retention (B-7), in days; null keeps forever. The audit log is never purged. */
+    chatRetentionDays: integer('chat_retention_days'),
+    agentTraceRetentionDays: integer('agent_trace_retention_days'),
+    notificationRetentionDays: integer('notification_retention_days'),
+    /** IP allowlist (B-7): when non-empty, org-scoped API calls must come from one of these networks. */
+    ipAllowlist: cidr('ip_allowlist').array().notNull().default(sql`'{}'::cidr[]`),
+    /** Data region (B-7), fixed at creation; only a deployment with the same DATA_REGION serves the org. */
+    dataRegion: text('data_region').notNull().default('us'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check('orgs_chat_retention_range', sql`${t.chatRetentionDays} between 7 and 3650`),
+    check('orgs_trace_retention_range', sql`${t.agentTraceRetentionDays} between 7 and 3650`),
+    check('orgs_notification_retention_range', sql`${t.notificationRetentionDays} between 7 and 3650`),
     check('orgs_stale_days_range', sql`${t.staleBranchDays} between 1 and 90`),
     check('orgs_fix_cycles_range', sql`${t.maxFixCycles} between 0 and 10`),
     check('orgs_log_retention_range', sql`${t.logRetentionDays} between 7 and 365`),
@@ -71,6 +83,8 @@ export const orgMembers = pgTable(
     status: memberStatus('status').notNull().default('active'),
     /** The team whose LLM key applies when a member is in several teams that each have one. */
     primaryTeamId: uuid('primary_team_id'),
+    /** May manage billing (B-7) whatever the role, e.g. a finance person who is a viewer. */
+    billingManager: boolean('billing_manager').notNull().default(false),
     joinedAt: createdAt(),
     updatedAt: updatedAt(),
   },

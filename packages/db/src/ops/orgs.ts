@@ -9,6 +9,8 @@ export interface NewOrgInput {
   accountType: 'Organization' | 'User';
   name: string;
   ownerUserId: string;
+  /** The deployment's DATA_REGION (B-7). */
+  dataRegion?: string;
 }
 
 /** Context the org data key is wrapped under. Must match wherever the key is unwrapped. */
@@ -33,6 +35,7 @@ export async function insertOrgWithOwner(
       slug: input.githubLogin.toLowerCase(),
       dataKeyWrapped: wrapped,
       kmsKeyId,
+      ...(input.dataRegion ? { dataRegion: input.dataRegion } : {}),
     })
     .returning();
   await db.insert(orgMembers).values({ orgId, userId: input.ownerUserId, role: 'owner' });

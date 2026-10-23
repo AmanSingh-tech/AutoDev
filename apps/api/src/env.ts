@@ -1,4 +1,4 @@
-import { authEnv, billingEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, redisEnv, storageEnv } from '@autodev/config';
+import { authEnv, billingEnv, coreEnv, governanceEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, redisEnv, storageEnv } from '@autodev/config';
 import { z } from 'zod';
 
 export const apiEnvSchema = coreEnv
@@ -10,6 +10,7 @@ export const apiEnvSchema = coreEnv
   .merge(llmEnv)
   .merge(storageEnv)
   .merge(billingEnv)
+  .merge(governanceEnv)
   .merge(
     z.object({
       PORT: z.coerce.number().int().default(4000),
@@ -19,6 +20,15 @@ export const apiEnvSchema = coreEnv
       /** Both set: serve HTTPS with HTTP/2 (HTTP/1.1 still accepted). Browsers use HTTP/2 only over TLS. */
       TLS_CERT_FILE: z.string().optional(),
       TLS_KEY_FILE: z.string().optional(),
+      /**
+       * Which X-Forwarded-For hops to believe for the client's address (audit log, IP allowlists).
+       * A number of proxies in front (e.g. 1 behind one load balancer), "true" for all (only when
+       * nothing can reach the API directly), or a list of proxy addresses/CIDRs.
+       */
+      TRUST_PROXY: z
+        .string()
+        .default('true')
+        .transform((v): boolean | number | string => (v === 'true' ? true : v === 'false' ? false : /^\d+$/.test(v) ? Number(v) : v)),
     }),
   );
 
