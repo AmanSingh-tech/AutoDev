@@ -118,6 +118,19 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
 - `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL` and `GOPROXY_URL` (worker) default to the public
   services; tests point them at the mock.
 
+## Billing and onboarding (B-6)
+
+- **Optional.** Without `STRIPE_SECRET_KEY` billing is off and everything works. With it, a new org
+  gets a free trial (`TRIAL_DAYS`, default 14), then needs a plan to start agent runs. Nothing else
+  stops and nothing is deleted.
+- **Per seat:** active members are seats. **Settings → Billing** opens Stripe Checkout (Team or
+  Business) or Stripe's portal; seats follow members nightly and when someone is removed.
+- **Payment failed:** 7 days of grace, and owners and admins are notified.
+- **Webhook:** `{API}/webhooks/stripe`, signature checked, events deduplicated. Setup steps:
+  [docs/deploy-backend.md](docs/deploy-backend.md#5-stripe-optional).
+- **Onboarding:** `/o/{slug}/onboarding` lists the setup steps and ticks them off from the org's data;
+  admins see a reminder until it's done or hidden.
+
 ## Deploying and frontend conventions
 
 - **Vercel** hosts the web app only: [docs/deploy-vercel.md](docs/deploy-vercel.md).

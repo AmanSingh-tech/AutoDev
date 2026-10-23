@@ -52,6 +52,19 @@ export const groupAgentEnv = z.object({
   GOPROXY_URL: z.string().url().default('https://proxy.golang.org'),
 });
 
+/**
+ * Billing (B-6). Without STRIPE_SECRET_KEY, billing is off: no plans, no limits (self-hosting).
+ * Prices are Stripe price IDs for a per-seat monthly price.
+ */
+export const billingEnv = z.object({
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_TEAM: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
+  STRIPE_API_URL: z.string().url().default('https://api.stripe.com'),
+  TRIAL_DAYS: z.coerce.number().int().min(0).max(90).default(14),
+});
+
 export const cryptoEnv = z.object({
   KMS_PROVIDER: z.enum(['local']).default('local'),
   /** Local KMS master key. Never used directly on data, only to wrap data keys. */

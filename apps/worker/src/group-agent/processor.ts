@@ -21,7 +21,7 @@ export function installationFiles(cfg: GitHubConfig) {
  * The `group-agent` queue. With an org id (an admin's "Scan now"), that org runs even if the agent is
  * off; without one (the nightly and weekly schedules), every org that turned it on runs.
  */
-export const createGroupAgentProcessor = (deps: { sys: SystemDb; urls: SourceUrls; cfg: GitHubConfig; filesFor?: GroupAgentDeps['filesFor']; enqueueAgent?: FixDeps['enqueueAgent'] }) => {
+export const createGroupAgentProcessor = (deps: { sys: SystemDb; urls: SourceUrls; cfg: GitHubConfig; filesFor?: GroupAgentDeps['filesFor']; enqueueAgent?: FixDeps['enqueueAgent']; billing?: FixDeps['billing'] }) => {
   const agent: GroupAgentDeps = { sys: deps.sys, urls: deps.urls, filesFor: deps.filesFor ?? installationFiles(deps.cfg) };
   return async (job: { data: GroupAgentJob }) => {
     const orgIds = job.data.orgId ? [job.data.orgId] : await enabledOrgs(deps.sys);
@@ -33,7 +33,7 @@ export const createGroupAgentProcessor = (deps: { sys: SystemDb; urls: SourceUrl
       }
       const scan = await runScan(agent, orgId, new Date(), { force: !!job.data.orgId });
       // Fixes only for orgs that turned the agent on (proposeFixes checks), right after their scan.
-      const fixes = deps.enqueueAgent ? await proposeFixes({ sys: deps.sys, enqueueAgent: deps.enqueueAgent }, orgId) : null;
+      const fixes = deps.enqueueAgent ? await proposeFixes({ sys: deps.sys, enqueueAgent: deps.enqueueAgent, billing: deps.billing }, orgId) : null;
       results[orgId] = { scan, fixes };
     }
     return results;

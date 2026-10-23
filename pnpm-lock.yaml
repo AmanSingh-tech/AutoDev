@@ -32,6 +32,9 @@ importers:
       '@autodev/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@autodev/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@autodev/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -285,6 +288,9 @@ importers:
       '@autodev/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@autodev/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@autodev/code-index':
         specifier: workspace:*
         version: link:../../packages/code-index
@@ -392,6 +398,16 @@ importers:
       '@types/diff':
         specifier: ^7.0.0
         version: 7.0.2
+      msw:
+        specifier: ^2.7.0
+        version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
+
+  packages/billing:
+    dependencies:
+      '@autodev/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
       msw:
         specifier: ^2.7.0
         version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)

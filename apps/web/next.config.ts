@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
       { source: '/api/trpc/:path*', destination: `${API_URL}/trpc/:path*` },
       { source: '/api/github/:path*', destination: `${API_URL}/github/:path*` },
       { source: '/api/events', destination: `${API_URL}/events` },
+      { source: '/api/billing/:path*', destination: `${API_URL}/billing/:path*` },
     ];
   },
   images: { remotePatterns: [{ protocol: 'https', hostname: 'avatars.githubusercontent.com' }] },

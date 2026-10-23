@@ -13,6 +13,7 @@ import { createBlobStore, type BlobStore } from '@autodev/storage';
 import { createProviderRegistry, CredentialService, LlmGateway, type ProviderRegistry } from '@autodev/llm';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
+import { billingEnabled, StripeClient, type BillingConfig } from '@autodev/billing';
 import type { ApiEnv } from './env';
 import { redisCache } from './redis-cache';
 import { EventHub } from '@autodev/events';
@@ -41,6 +42,8 @@ export interface Deps {
   redis: Redis;
   /** Turns committed row changes into events. Started by main.ts, not by tests. */
   bridge: ChangeBridge;
+  /** Billing (B-6). `stripe` is null when billing is off (no STRIPE_SECRET_KEY). */
+  billing: { cfg: BillingConfig; stripe: StripeClient | null };
   /** Log lines streamed so far for a running builder job (Redis). */
   liveLogs: (jobId: string) => Promise<string>;
 }
@@ -108,6 +111,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
     }),
     publisher: new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL }),
+    billing: { cfg: env, stripe: billingEnabled(env) ? new StripeClient({ secretKey: env.STRIPE_SECRET_KEY!, apiUrl: env.STRIPE_API_URL }) : null },
     events,
     bridge,
     redis,

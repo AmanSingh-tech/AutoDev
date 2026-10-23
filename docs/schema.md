@@ -131,6 +131,16 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ group_agent_runs | org, kind (scan, digest), status, payload, started_at, finished_at | Scan counts and errors; digest health and top risks. Worker-only writes |
 | ✅ tasks (added) | by_group_agent | A Group Agent fix: metered as `group_agent`, pushed and opened as a PR by the App's bot (migration 0028) |
 
+## Billing (B-6)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ subscriptions | org (PK), plan (team, business, enterprise), status (Stripe's), stripe_customer_id, stripe_subscription_id (unique), stripe_item_id, seats, current_period_end, cancel_at_period_end, grace_until | One per org; none = on the trial (`TRIAL_DAYS` from the org's creation). Members may read their org's row; only the system role writes (webhooks, seat sync) |
+| ✅ stripe_events | id (Stripe's event id), type, received_at | Webhook dedupe. Recorded after the event is applied, so a failed one is redelivered. No app-role access |
+
+The first-run checklist keeps its manual choices in `orgs.settings.onboarding` (`modelsConfirmed`,
+`inviteSkipped`, `dismissed`); every other step is read from the org's data.
+
 ## Prompt guide (B-1)
 
 | Table | Columns that matter | Notes |

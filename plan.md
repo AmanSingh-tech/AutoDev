@@ -164,7 +164,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | B-3 Cross-repo sync | Repo links (source → target, mapping notes, optional two-way), "Apply to linked repo" creates a target task with source diff and PR context, cross-linked PR descriptions, `repo_links`, `tasks.source_task_id` | **built, awaiting review** | See "B-3 notes" below. |
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | **built, awaiting review** | See "B-4 notes" below. |
 | B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | **built (parts 1 and 2), awaiting review** | See "B-5 notes" below. |
-| B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | not started | |
+| B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | **built, awaiting review** | See "B-6 notes" below. |
 | B-7 Enterprise pack | SSO (WorkOS), SCIM, extra roles, retention, SIEM export, IP allowlist, data region, more LLM providers, self-hosted Helm chart, Jira sync (`jira_issue_key`) | not started | |
 
 ### What exists in code but is not in the phase list
@@ -328,6 +328,24 @@ Approved: polish and motion, toasts, phone feel and a robustness pass, using Emi
 - **Not done (needs your accounts):** creating the Railway/Fly apps, the database and Redis, and setting the secrets. Not verified on Railway or Fly themselves.
 - **Follow-up:** the image is 1.9 GB (all workspace dependencies); `pnpm deploy` per service would shrink it.
 
+### B-6 notes (2026-10-23, auto-approved while you were away)
+
+Recommended options taken without asking; each is easy to change.
+
+- **Stripe without the SDK:** `packages/billing` calls Stripe's REST API with `fetch` (form-encoded) and verifies webhook signatures itself (HMAC-SHA256 over `t.body`, 5-minute tolerance). Webhook events are only hints: the handler re-reads the subscription from Stripe, so out-of-order delivery can't leave stale state. Events are deduplicated in `stripe_events`, recorded only after they apply.
+- **Billing is optional.** No `STRIPE_SECRET_KEY` = off: no trial, no gate, the Billing page says so. Self-hosted and dev setups are unaffected.
+- **Trial:** `TRIAL_DAYS` (14) from the org's creation, no card needed. After it, and for cancelled or unpaid plans, **only starting agent runs is refused** (tasks and Group Agent fixes). Repo chat, prompt rewrites, existing tasks, PRs and data keep working; nothing is deleted. (Open: whether chat should also stop.)
+- **Past due:** 7 days of grace from the first failed payment, with a notification to owners and admins.
+- **Seats = active members.** Checkout starts at the current count; seats follow members nightly (02:45 UTC), right after someone is removed, and on "Update seats now"; Stripe prorates. New members don't push a sync immediately (the nightly run catches up), so a burst of invites is one change.
+- **Plans:** Team and Business are self-serve (one per-seat Stripe price each). Enterprise is set by hand (a `subscriptions` row) and never blocked unless cancelled. Plans don't gate features yet; Section B features are on for every plan.
+- **Checkout and portal** are REST (`POST /billing/checkout`, `/billing/portal`) because they hand the browser to Stripe; the web app reaches them through `/api/billing`. Owners and admins only. A second checkout while a plan exists is refused (409); plan changes go through Stripe's portal.
+- **Onboarding:** a checklist at `/o/{slug}/onboarding` (App installed, AI key, models, team, builder, plan when billing is on). Steps tick themselves off from the data; "models" and "team" can be skipped. Admins see a one-line banner until it's done or hidden. A billing block shows a banner to everyone.
+
+**Decisions left open:**
+- Prices and plan differences (what Business adds over Team) are product decisions; the page copy is a placeholder.
+- The Enterprise card links to `NEXT_PUBLIC_SALES_URL`, hidden when unset.
+- Not tested against real Stripe (needs your account): only the mocked API in tests.
+
 ## Next step
 
-**Review B-5 (Group Agent).** Next phase: B-6 (billing and onboarding).
+**Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).

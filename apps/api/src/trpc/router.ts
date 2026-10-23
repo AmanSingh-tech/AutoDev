@@ -8,6 +8,8 @@ import { meRouter } from './routers/me';
 import { membersRouter } from './routers/members';
 import { modelsRouter } from './routers/models';
 import { notificationsRouter } from './routers/notifications';
+import { billingRouter } from './routers/billing';
+import { onboardingRouter } from './routers/onboarding';
 import { groupAgentRouter } from './routers/group-agent';
 import { insightsRouter } from './routers/insights';
 import { promptGuideRouter } from './routers/prompt-guide';
@@ -41,6 +43,8 @@ export const appRouter = router({
   promptGuide: promptGuideRouter,
   insights: insightsRouter,
   groupAgent: groupAgentRouter,
+  billing: billingRouter,
+  onboarding: onboardingRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
   codeIndex: codeIndexRouter,

@@ -2,6 +2,7 @@ import { and, asc, eq, ORG_ROLES, schema, sql, type OrgRole, type Tx } from '@au
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminProcedure, orgProcedure, router } from '../trpc';
+import { syncSeats } from '@autodev/billing';
 
 const { orgMembers, teamMembers, teams, users } = schema;
 
@@ -103,8 +104,8 @@ export const membersRouter = router({
       }),
     ),
 
-  remove: adminProcedure.input(z.object({ userId: z.string().uuid() })).mutation(({ ctx, input }) =>
-    ctx.inOrg(async (tx) => {
+  remove: adminProcedure.input(z.object({ userId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    const result = await ctx.inOrg(async (tx) => {
       const target = await loadTarget(tx, ctx.orgId, input.userId);
       assertCanManage(ctx.role, target.role, null);
       if (target.role === 'owner' && (await activeOwnerCount(tx, ctx.orgId)) <= 1) {
@@ -119,6 +120,9 @@ export const membersRouter = router({
         .where(and(eq(teamMembers.orgId, ctx.orgId), eq(teamMembers.userId, input.userId)));
       await ctx.audit(tx, { action: 'member.removed', targetType: 'user', targetId: input.userId, metadata: { role: target.role } });
       return { ok: true };
-    }),
-  ),
+    });
+    // One seat fewer on the next invoice. Best effort: the nightly reconcile catches up if Stripe is down.
+    if (ctx.deps.billing.stripe) await syncSeats({ sys: ctx.deps.sys, stripe: ctx.deps.billing.stripe }, ctx.orgId).catch(() => null);
+    return result;
+  }),
 });

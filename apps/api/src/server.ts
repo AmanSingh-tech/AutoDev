@@ -3,6 +3,7 @@ import { fastifyTRPCPlugin, type FastifyTRPCPluginOptions } from '@trpc/server/a
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { readSession } from './auth/session';
 import type { Deps } from './deps';
+import { billingRoutes } from './routes/billing';
 import { builderRoutes } from './routes/builder';
 import { eventRoutes } from './routes/events';
 import { githubSetupRoutes } from './routes/github-setup';
@@ -14,6 +15,8 @@ export async function buildServer(deps: Deps, opts: FastifyServerOptions = {}) {
   const app = Fastify({
     trustProxy: true,
     bodyLimit: 5 * 1024 * 1024,
+    // tRPC batches put every procedure name in one path segment; the default 100 chars 404s busy pages.
+    maxParamLength: 5000,
     ...opts,
     logger:
       opts.logger === false
@@ -29,6 +32,7 @@ export async function buildServer(deps: Deps, opts: FastifyServerOptions = {}) {
   app.get('/healthz', async () => ({ ok: true }));
 
   await app.register(webhookRoutes, { deps });
+  await app.register(billingRoutes, { deps });
   await app.register(githubSetupRoutes, { deps });
   await app.register(builderRoutes, { deps });
   await app.register(eventRoutes, { deps });

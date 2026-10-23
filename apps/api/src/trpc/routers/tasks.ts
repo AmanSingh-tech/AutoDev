@@ -17,6 +17,7 @@ import {
 } from '@autodev/db';
 import { buildSourceContext, latestPr, readSourceChange } from '@autodev/agent';
 import { assertCanPush, getBranch, isValidBranchName, newBranchName, PushNotAllowed, userOctokit } from '@autodev/github';
+import { billingState } from '@autodev/billing';
 import { LlmBlocked } from '@autodev/llm';
 import { PROMPT_SCORE_VERSION, scorePrompt, type PromptDraft } from '@autodev/protocol';
 import { TRPCError } from '@trpc/server';
@@ -156,6 +157,9 @@ export async function insertTask(tx: Tx, ctx: Ctx, repoId: string, input: NewTas
 async function startTask(ctx: Ctx, key: string) {
   const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, key));
   if (!canManage(ctx, t)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the task owner or an admin can start it' });
+  // Billing (B-6): a lapsed trial or plan stops new AI work; nothing else changes.
+  const billing = await billingState(ctx.deps.sys, ctx.deps.billing.cfg, ctx.orgId);
+  if (!billing.canRun) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: billing.blockedReason ?? 'The plan is not active.' });
   await assertCanWork(ctx, t.repoId, t.ownerId);
   try {
     await ctx.deps.gateway.assertRunAllowed(ctx.orgId, t.ownerId);

@@ -56,6 +56,9 @@ Generate secrets once and give the same values to every service that needs them:
 | `BLOB_DRIVER`, `S3_*` | ✓ | ✓ | ✓ |  | Optional: `s3` stores logs and patches in S3 instead of Postgres |
 | `EMBEDDINGS_CACHE_DIR` |  | ✓ |  |  | Defaults to `/var/cache/autodev/embeddings`; mount a volume there |
 | `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL`, `GOPROXY_URL` |  | ✓ |  |  | Optional overrides for the Group Agent |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TEAM`, `STRIPE_PRICE_BUSINESS` | ✓ | ✓ |  |  | Optional: billing is off without the key. Never on the web app |
+| `TRIAL_DAYS` | ✓ | ✓ |  |  | Free trial from the org's creation, default 14 |
+| `NEXT_PUBLIC_SALES_URL` |  |  |  | ✓ | Optional link on the Enterprise plan card |
 | `PORT` | ✓ |  | ✓ |  | Set by most hosts; the gateway also reads `GATEWAY_PORT` |
 | `MIGRATE_ON_START` | ✓ |  |  |  | `1` runs migrations before the API starts, for hosts without a release step |
 | `NODE_ENV` | ✓ | ✓ | ✓ | ✓ | `production` |
@@ -107,7 +110,18 @@ exposed.
 - **Webhook URL** `{API}/webhooks/github` with the secret in `GITHUB_WEBHOOK_SECRET`.
 - Events: see [github-app.md](github-app.md) (including **Push**, for the code index).
 
-## 5. Check it
+## 5. Stripe (optional)
+
+1. Create two **recurring, per-unit** prices (Team and Business) and put their ids in `STRIPE_PRICE_*`.
+2. Add a webhook endpoint `{API}/webhooks/stripe` with the events `checkout.session.completed`,
+   `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` and
+   `invoice.payment_failed`; its signing secret goes in `STRIPE_WEBHOOK_SECRET`.
+3. Turn on the **customer portal** in Stripe (plan changes, cancellation, payment methods).
+
+Seats follow active members nightly (02:45 UTC) and when someone is removed. Enterprise plans are set
+by hand: insert a `subscriptions` row with `plan = 'enterprise'`.
+
+## 6. Check it
 
 1. `GET {API}/healthz` and `GET {GATEWAY}/healthz` return `{"ok":true}`.
 2. The web app's `/login` shows **Continue with GitHub** (not **Setup needed**).

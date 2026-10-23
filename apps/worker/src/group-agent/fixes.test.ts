@@ -87,6 +87,14 @@ describe('proposeFixes', () => {
     expect(await proposeFixes(deps, fx.org.id)).toEqual({ started: [], skipped: 'disabled' });
   });
 
+  it('starts nothing once the trial has ended without a plan', async () => {
+    await rec();
+    const billing = { STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_API_URL: 'http://stripe.test', TRIAL_DAYS: 14 };
+    const later = new Date(Date.now() + 15 * 86_400_000);
+    expect(await proposeFixes({ ...deps, billing }, fx.org.id, later)).toEqual({ started: [], skipped: 'billing' });
+    expect((await proposeFixes({ ...deps, billing }, fx.org.id)).started).toHaveLength(1);
+  });
+
   it('needs a maintainer who can still push, and only takes dependency bumps', async () => {
     await rec({ fixKind: 'task' });
     expect((await proposeFixes(deps, fx.org.id)).started).toEqual([]);

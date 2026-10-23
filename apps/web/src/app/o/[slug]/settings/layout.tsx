@@ -14,6 +14,7 @@ const TABS = [
   { href: '/insights', label: 'Insights' },
   { href: '/group-agent', label: 'Group Agent' },
   { href: '/links', label: 'Linked repositories' },
+  { href: '/billing', label: 'Billing' },
 ];
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

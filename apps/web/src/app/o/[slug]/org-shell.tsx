@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { OrgBanner } from '@/components/billing-bits';
 import { NotificationsBell } from '@/components/notifications-bell';
 import { setCurrentOrgId, trpc, type RouterOutputs } from '@/lib/trpc';
 
@@ -107,7 +108,10 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-8">
+          {!pathname.startsWith(`/o/${slug}/onboarding`) && <OrgBanner slug={slug} isAdmin={org.role === 'owner' || org.role === 'admin'} />}
+          {children}
+        </main>
       </div>
     </OrgContext.Provider>
   );

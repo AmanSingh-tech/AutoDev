@@ -62,6 +62,14 @@ export const prState = pgEnum('pr_state', ['open', 'closed', 'merged']);
 /** `group_agent`: opened by the GitHub App bot for a Group Agent fix (B-5). */
 export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job', 'group_agent']);
 
+/** Billing (B-6). Enterprise is arranged directly, never through checkout. */
+export const billingPlan = pgEnum('billing_plan', ['team', 'business', 'enterprise']);
+/** Stripe's subscription statuses, kept as Stripe reports them. */
+export const subscriptionStatus = pgEnum('subscription_status', ['trialing', 'active', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'unpaid', 'paused']);
+export const BILLING_PLANS = billingPlan.enumValues;
+export type BillingPlan = (typeof billingPlan.enumValues)[number];
+export type SubscriptionStatus = (typeof subscriptionStatus.enumValues)[number];
+
 /** Group Agent (B-5). */
 export const findingKind = pgEnum('finding_kind', [
   'vulnerable_dependency',

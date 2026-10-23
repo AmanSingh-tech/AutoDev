@@ -1,6 +1,7 @@
 import type { AgentJob } from '@autodev/config';
 import { and, eq, gte, inArray, isNull, schema, sql, transitionTask, WRITE_PERMISSIONS, type SystemDb } from '@autodev/db';
 import { newBranchName } from '@autodev/github';
+import { billingState, type BillingConfig } from '@autodev/billing';
 import { groupAgentBudget } from '@autodev/llm';
 
 const { agentPolicies, groupAgentFindings, orgs, recommendations, repos, taskEvents, tasks, userRepoAccess } = schema;
@@ -17,9 +18,11 @@ const { agentPolicies, groupAgentFindings, orgs, recommendations, repos, taskEve
 export interface FixDeps {
   sys: SystemDb;
   enqueueAgent: (data: AgentJob, jobId: string) => Promise<unknown>;
+  /** Billing (B-6): no fixes while the org's trial or plan has lapsed. */
+  billing?: BillingConfig;
 }
 
-export type FixResult = { started: string[]; skipped?: 'disabled' | 'budget' | 'cap' };
+export type FixResult = { started: string[]; skipped?: 'disabled' | 'budget' | 'cap' | 'billing' };
 
 const SEVERITY_ORDER = sql`case ${groupAgentFindings.severity} when 'critical' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`;
 
@@ -27,6 +30,7 @@ export async function proposeFixes(deps: FixDeps, orgId: string, now = new Date(
   const { sys } = deps;
   const [policy] = await sys.select().from(agentPolicies).where(and(eq(agentPolicies.orgId, orgId), isNull(agentPolicies.repoId)));
   if (!policy?.enabled) return { started: [], skipped: 'disabled' };
+  if (deps.billing && !(await billingState(sys, deps.billing, orgId, now)).canRun) return { started: [], skipped: 'billing' };
   const budget = await groupAgentBudget(sys, orgId, now);
   if (budget.limitUsd !== null && budget.spentUsd >= budget.limitUsd) return { started: [], skipped: 'budget' };
 

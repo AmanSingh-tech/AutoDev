@@ -1,4 +1,4 @@
-import { authEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, redisEnv, storageEnv } from '@autodev/config';
+import { authEnv, billingEnv, coreEnv, cryptoEnv, dbEnv, githubEnv, llmEnv, loadEnv, redisEnv, storageEnv } from '@autodev/config';
 import { z } from 'zod';
 
 export const apiEnvSchema = coreEnv
@@ -9,6 +9,7 @@ export const apiEnvSchema = coreEnv
   .merge(authEnv)
   .merge(llmEnv)
   .merge(storageEnv)
+  .merge(billingEnv)
   .merge(
     z.object({
       PORT: z.coerce.number().int().default(4000),
