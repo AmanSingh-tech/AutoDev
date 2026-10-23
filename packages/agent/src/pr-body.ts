@@ -12,6 +12,8 @@ export interface PrContext {
     | { status: 'passed'; builderName: string | null; docker: boolean; image: string | null; config: AutodevConfig; durationMs: number | null }
     | { status: 'skipped' };
   usage: { models: string[]; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number };
+  /** A Group Agent fix (B-5): opened by the GitHub App bot, not a person. */
+  groupAgent?: { recommendationUrl: string } | null;
 }
 
 const MAX_DOC_CHARS = 15_000;
@@ -58,7 +60,9 @@ export function buildPrBody(ctx: PrContext): string {
     `## Changes\n${changesSection(ctx.changes)}`,
     `## Testing\n${testingSection(ctx.testing)}`,
     `## AI usage\n${usageSection(ctx)}`,
-    `<sub>Opened by [AutoDev](${ctx.task.url}) on behalf of @${ctx.ownerLogin}. Every commit in this PR was pushed with their GitHub account.</sub>`,
+    ctx.groupAgent
+      ? `<sub>Opened by the [AutoDev Group Agent](${ctx.groupAgent.recommendationUrl}) as the GitHub App bot. Tests ran on @${ctx.ownerLogin}'s builder. Merging is up to a person.</sub>`
+      : `<sub>Opened by [AutoDev](${ctx.task.url}) on behalf of @${ctx.ownerLogin}. Every commit in this PR was pushed with their GitHub account.</sub>`,
   ];
   return sections.filter(Boolean).join('\n\n').slice(0, MAX_BODY_CHARS);
 }

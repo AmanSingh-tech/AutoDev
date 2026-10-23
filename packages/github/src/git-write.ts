@@ -96,7 +96,7 @@ export async function findOpenPr(gh: Octokit, owner: string, repo: string, branc
   return data[0] ? toInfo(data[0]) : null;
 }
 
-export async function createPr(gh: Octokit, input: { owner: string; repo: string; head: string; base: string; title: string; body: string }): Promise<PrInfo> {
+export async function createPr(gh: Octokit, input: { owner: string; repo: string; head: string; base: string; title: string; body: string; draft?: boolean }): Promise<PrInfo> {
   const { data } = await gh.rest.pulls.create({ ...input, maintainer_can_modify: true });
   return toInfo(data);
 }

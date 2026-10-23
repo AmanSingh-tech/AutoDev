@@ -129,6 +129,7 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ group_agent_findings | org, repo (null across repos), kind, severity, fingerprint, title, details, first_seen_at, last_seen_at, resolved_at, last_run_id | One per fingerprint per org. Worker-only writes |
 | ✅ recommendations | org, finding (unique), repo, status, title, body_md, fix_kind (dependency_bump, lint_fix, task, investigate), task, dismissed_by, dismissed_reason | The app may only update (status) |
 | ✅ group_agent_runs | org, kind (scan, digest), status, payload, started_at, finished_at | Scan counts and errors; digest health and top risks. Worker-only writes |
+| ✅ tasks (added) | by_group_agent | A Group Agent fix: metered as `group_agent`, pushed and opened as a PR by the App's bot (migration 0028) |
 
 ## Prompt guide (B-1)
 

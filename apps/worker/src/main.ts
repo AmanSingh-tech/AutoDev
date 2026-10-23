@@ -75,7 +75,7 @@ await keyValidation.upsertJobScheduler('daily-key-validation', { pattern: '0 3 *
 await staleBranch.upsertJobScheduler('nightly-stale-branches', { pattern: '0 2 * * *', tz: 'UTC' }, { name: 'sweep' });
 await maintenance.upsertJobScheduler('daily-partitions', { pattern: '0 1 * * *', tz: 'UTC' }, { name: 'partitions' });
 await maintenance.upsertJobScheduler('daily-blob-retention', { pattern: '0 4 * * *', tz: 'UTC' }, { name: 'blob-retention' });
-const groupAgent = createGroupAgentProcessor({ sys: sys.db, urls: env, cfg });
+const groupAgent = createGroupAgentProcessor({ sys: sys.db, urls: env, cfg, enqueueAgent: (data, jobId) => agentQueue.add('run', data, { jobId }) });
 const groupAgentQueue = new Queue<GroupAgentJob>(QUEUES.groupAgent, { connection, defaultJobOptions: { removeOnComplete: true, removeOnFail: 500 } });
 await groupAgentQueue.upsertJobScheduler('nightly-group-agent-scan', { pattern: '30 3 * * *', tz: 'UTC' }, { name: 'scan', data: { kind: 'scan' } });
 await groupAgentQueue.upsertJobScheduler('weekly-group-agent-digest', { pattern: '0 8 * * 1', tz: 'UTC' }, { name: 'digest', data: { kind: 'digest' } });

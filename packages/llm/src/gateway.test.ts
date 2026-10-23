@@ -257,6 +257,23 @@ describe('budgets', () => {
   });
 });
 
+describe('Group Agent budget (B-5)', () => {
+  it('stops group_agent calls once its own monthly budget is spent, without touching anyone else', async () => {
+    anthropic();
+    await addKey();
+    // Each call costs $0.014.
+    await sys.db.insert(schema.agentPolicies).values({ orgId: fx.org.id, enabled: true, monthlyBudgetUsd: '0.01' });
+    await gateway.assertRunAllowed(fx.org.id, dev.id, 'group_agent');
+    await gateway.call({ ...ctx(), useCase: 'group_agent' }, req);
+
+    expect((await gateway.assertRunAllowed(fx.org.id, dev.id, 'group_agent').catch((e) => e)).reason).toBe('budget_exceeded');
+    expect((await gateway.call({ ...ctx(), useCase: 'group_agent' }, req).catch((e) => e)).message).toBe("The Group Agent's monthly AI budget is used up.");
+    // People's own runs are unaffected.
+    await expect(gateway.assertRunAllowed(fx.org.id, dev.id)).resolves.toBeUndefined();
+    await gateway.call(ctx(), req);
+  });
+});
+
 describe('daily re-validation', () => {
   it('invalidates keys that stopped working and restores ones that work again', async () => {
     anthropic();

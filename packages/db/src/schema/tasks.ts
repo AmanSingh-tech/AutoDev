@@ -55,6 +55,11 @@ export const tasks = pgTable(
     /** The stale-branch job notifies the owner once per pushed state. */
     staleNotifiedAt: tsz('stale_notified_at'),
     tokenCapOverride: bigint('token_cap_override', { mode: 'number' }),
+    /**
+     * A Group Agent fix (B-5): metered under the `group_agent` policy and its own budget, pushed and
+     * opened as a PR by the GitHub App bot. The owner is the repo's maintainer, whose builder tests it.
+     */
+    byGroupAgent: boolean('by_group_agent').notNull().default(false),
     /** Prompt guide (B-1): the rule-based draft score from @autodev/protocol, set on create and edit. */
     promptScore: integer('prompt_score'),
     promptScoreDetails: jsonb('prompt_score_details').$type<{ version: number; flags: string[] }>(),

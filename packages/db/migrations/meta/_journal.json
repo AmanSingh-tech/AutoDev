@@ -197,6 +197,13 @@
       "when": 1792749261341,
       "tag": "0027_group_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792759132915,
+      "tag": "0028_group_agent_fixes",
+      "breakpoints": true
     }
   ]
 }

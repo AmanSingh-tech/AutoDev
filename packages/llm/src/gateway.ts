@@ -1,6 +1,6 @@
 import { and, eq, isNull, or, schema, sql, type LlmUseCase, type SystemDb } from '@autodev/db';
 import { uuidv7 } from 'uuidv7';
-import { budgetStatus, sendBudgetAlerts } from './budgets';
+import { budgetStatus, groupAgentBudget, sendBudgetAlerts } from './budgets';
 import type { CredentialService } from './credentials';
 import { DEFAULT_POLICIES, type ModelPolicy } from './defaults';
 import { KeyFailure, LlmBlocked, LlmError } from './errors';
@@ -102,6 +102,7 @@ export class LlmGateway {
     if (!(await this.resolveCredential(orgId, userId, policy.provider))) {
       throw new LlmBlocked('no_credential', 'No working LLM key is configured for this organization.');
     }
+    if (useCase === 'group_agent') await this.assertGroupAgentBudget(orgId);
     const blocked = (await budgetStatus(this.deps.sys, orgId, userId)).find((b) => b.overHard && b.hardBlock);
     if (blocked) {
       throw new LlmBlocked(
@@ -110,6 +111,13 @@ export class LlmGateway {
         { scope: blocked.scope, limitUsd: blocked.limitUsd, spentUsd: blocked.spentUsd },
       );
     }
+  }
+
+  /** The Group Agent's own monthly budget (B-5). Checked before its runs and before each of its calls. */
+  private async assertGroupAgentBudget(orgId: string) {
+    const { limitUsd, spentUsd } = await groupAgentBudget(this.deps.sys, orgId);
+    if (limitUsd !== null && spentUsd >= limitUsd)
+      throw new LlmBlocked('budget_exceeded', "The Group Agent's monthly AI budget is used up.", { scope: 'group_agent', limitUsd, spentUsd });
   }
 
   async taskTokensUsed(orgId: string, taskId: string): Promise<number> {
@@ -124,6 +132,7 @@ export class LlmGateway {
 
   async call(ctx: CallContext, req: GatewayRequest, opts: { signal?: AbortSignal } = {}): Promise<GatewayResult> {
     const policy = await this.policy(ctx.orgId, ctx.useCase);
+    if (ctx.useCase === 'group_agent') await this.assertGroupAgentBudget(ctx.orgId);
 
     let maxOutputTokens = Math.min(policy.maxOutputTokens, req.maxOutputTokens ?? Number.POSITIVE_INFINITY);
     if (ctx.taskId) {

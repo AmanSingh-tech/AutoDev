@@ -28,6 +28,14 @@ export const DEFAULT_POLICIES: Record<LlmUseCase, ModelPolicy> = {
     // Answers are short, and reading files doesn't need deep reasoning.
     effort: null,
   },
+  group_agent: {
+    provider: 'anthropic',
+    model: 'claude-sonnet-5-5',
+    // Small, well-defined fixes (patch bumps). Its own monthly budget is in agent_policies.
+    maxTokensPerTask: 1_000_000,
+    maxOutputTokens: 16_000,
+    effort: null,
+  },
   prompt_check: {
     provider: 'anthropic',
     model: 'claude-sonnet-5-5',

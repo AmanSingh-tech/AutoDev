@@ -1,4 +1,4 @@
-import { and, eq, gte, schema, sql, type SystemDb } from '@autodev/db';
+import { and, eq, gte, isNull, schema, sql, type SystemDb } from '@autodev/db';
 import { notifyAdmins } from './notify';
 
 const { budgets, tokenUsage } = schema;
@@ -102,4 +102,21 @@ export async function sendBudgetAlerts(sys: SystemDb, orgId: string, userId: str
       }
     }
   }
+}
+
+/**
+ * The Group Agent's own monthly budget (B-5), from the org's agent policy, against what the
+ * `group_agent` use case spent this calendar month (UTC). No limit set means no limit.
+ */
+export async function groupAgentBudget(sys: SystemDb, orgId: string, now = new Date()): Promise<{ limitUsd: number | null; spentUsd: number }> {
+  const [policy] = await sys
+    .select({ limit: schema.agentPolicies.monthlyBudgetUsd })
+    .from(schema.agentPolicies)
+    .where(and(eq(schema.agentPolicies.orgId, orgId), isNull(schema.agentPolicies.repoId)));
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const [row] = await sys
+    .select({ spent: sql<string>`coalesce(sum(${schema.tokenUsage.costUsd}), 0)` })
+    .from(schema.tokenUsage)
+    .where(and(eq(schema.tokenUsage.orgId, orgId), eq(schema.tokenUsage.useCase, 'group_agent'), gte(schema.tokenUsage.createdAt, from)));
+  return { limitUsd: policy?.limit === null || policy?.limit === undefined ? null : Number(policy.limit), spentUsd: Number(row?.spent ?? 0) };
 }

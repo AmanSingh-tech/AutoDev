@@ -57,7 +57,7 @@ export const groupAgentRouter = router({
   recommendations: adminProcedure
     .input(
       z.object({
-        status: z.enum(['open', 'dismissed', 'task_created', 'resolved', 'all']).default('open'),
+        status: z.enum(['open', 'dismissed', 'task_created', 'pr_opened', 'resolved', 'all']).default('open'),
         repoId: z.string().uuid().optional(),
         kind: z.enum(FINDING_KINDS).optional(),
         severity: z.enum(FINDING_SEVERITIES).optional(),
@@ -214,7 +214,16 @@ export const groupAgentRouter = router({
           .innerJoin(users, eq(users.id, userRepoAccess.userId))
           .innerJoin(orgMembers, and(eq(orgMembers.userId, users.id), eq(orgMembers.orgId, ctx.orgId), eq(orgMembers.status, 'active')))
           .where(and(eq(userRepoAccess.orgId, ctx.orgId), inArray(userRepoAccess.permission, [...WRITE_PERMISSIONS])));
+        // What the agent used: this month's spend on its own policy, and fix tasks started in 7 days.
+        const [{ spent } = { spent: '0' }] = (await tx.execute(
+          sql`SELECT coalesce(sum(cost_usd), 0)::text AS spent FROM token_usage WHERE org_id = ${ctx.orgId} AND use_case = 'group_agent' AND created_at >= date_trunc('month', now() AT TIME ZONE 'UTC')`,
+        )) as unknown as { spent: string }[];
+        const [{ fixes } = { fixes: 0 }] = (await tx.execute(
+          sql`SELECT count(*)::int AS fixes FROM tasks WHERE org_id = ${ctx.orgId} AND by_group_agent AND created_at >= now() - interval '7 days'`,
+        )) as unknown as { fixes: number }[];
         return {
+          spentThisMonthUsd: Number(spent),
+          fixesThisWeek: fixes,
           enabled: org?.enabled ?? false,
           monthlyBudgetUsd: org?.monthlyBudgetUsd === null || org?.monthlyBudgetUsd === undefined ? null : Number(org.monthlyBudgetUsd),
           weeklyPrCap: org?.weeklyPrCap ?? 5,

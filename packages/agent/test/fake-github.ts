@@ -13,7 +13,7 @@ export function fakeGitHub(api: string, owner: string, repo: string, base: { sha
   const trees = new Map<string, Record<string, { sha: string; mode: string }>>();
   const commits = new Map<string, { tree: string; parents: string[]; message: string; author: string }>();
   const refs = new Map<string, string>([['main', base.sha]]);
-  const pulls: { id: number; number: number; head: string; base: string; title: string; body: string; state: string; author: string }[] = [];
+  const pulls: { id: number; number: number; head: string; base: string; title: string; body: string; state: string; author: string; draft?: boolean }[] = [];
   const baseTree: Record<string, { sha: string; mode: string }> = {};
   for (const [p, c] of Object.entries(base.files)) {
     const b = sha(`blob:${c}`);
@@ -94,7 +94,7 @@ export function fakeGitHub(api: string, owner: string, repo: string, base: { sha
       return HttpResponse.json(pulls.filter((p) => p.head === head && p.state === 'open').map(toApi));
     }),
     http.post(`${R}/pulls`, async ({ request }) => {
-      const body = (await request.json()) as { head: string; base: string; title: string; body: string };
+      const body = (await request.json()) as { head: string; base: string; title: string; body: string; draft?: boolean };
       const pr = { id: 5000 + pulls.length, number: pulls.length + 1, ...body, state: 'open', author: who(request) };
       pulls.push(pr);
       return HttpResponse.json(toApi(pr), { status: 201 });

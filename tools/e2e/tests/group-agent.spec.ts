@@ -49,7 +49,7 @@ test('the Group Agent scans the repos, finds a vulnerable lodash, and the recomm
   await page.goto('/o/acme-demo/group-agent');
   await page.getByRole('tab', { name: 'Became tasks' }).click();
   await page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: title, exact: true }) }).getByRole('button', { name: 'Reopen' }).click();
-  await page.getByRole('tab', { name: 'Open' }).click();
+  await page.getByRole('tab', { name: 'Open', exact: true }).click();
   await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
 
   // The digest and the settings.

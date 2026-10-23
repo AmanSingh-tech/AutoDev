@@ -1,6 +1,8 @@
 import { createSystemDb, eq, schema, type TaskMode } from '@autodev/db';
 import { makeOrg, testKms, TEST_SYSTEM_URL, truncateAll } from '@autodev/db/testing';
 import { MemoryCache, TokenVault, type GitHubConfig } from '@autodev/github';
+import { generateKeyPairSync } from 'node:crypto';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { uuidv7 } from 'uuidv7';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -80,6 +82,41 @@ async function testedTask(over: { mode?: TaskMode; createPr?: boolean; branchMod
   return t!;
 }
 const task = async (id: string) => (await sys.db.select().from(schema.tasks).where(eq(schema.tasks.id, id)))[0]!;
+
+describe('Publisher, Group Agent fixes (B-5)', () => {
+  // The App signs a JWT with its private key to get an installation token, so this needs a real key.
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
+  const botPublisher = new Publisher({ sys: sys.db, vault, cfg: { ...cfg, privateKey }, cache, webUrl: 'http://web.test' });
+
+  async function botTask(safetyLevel: number) {
+    const t = await testedTask({ mode: 'direct' });
+    await sys.db.update(schema.tasks).set({ byGroupAgent: true }).where(eq(schema.tasks.id, t.id));
+    await sys.db.insert(schema.agentPolicies).values({ orgId: fx.org.id, repoId: fx.repo.id, enabled: true, safetyLevel });
+    const [f] = await sys.db.insert(schema.groupAgentFindings).values({ orgId: fx.org.id, repoId: fx.repo.id, kind: 'outdated_dependency', severity: 'low', fingerprint: 'x', title: 'x' }).returning();
+    const [r] = await sys.db.insert(schema.recommendations).values({ orgId: fx.org.id, findingId: f!.id, repoId: fx.repo.id, status: 'task_created', taskId: t.id, title: 'Bump x', bodyMd: 'b', fixKind: 'dependency_bump' }).returning();
+    server.use(http.post(`${API}/app/installations/:id/access_tokens`, () => HttpResponse.json({ token: 'ghs_bot', expires_at: new Date(Date.now() + 3_600_000).toISOString() }, { status: 201 })));
+    return { t, recId: r!.id };
+  }
+
+  it('pushes and opens a draft PR as the App bot (never the owner), and marks the recommendation', async () => {
+    const { t, recId } = await botTask(2);
+    const res = await botPublisher.publish(t.id);
+    expect(gh.state.commits.get(res.commitSha)).toMatchObject({ author: 'ghs_bot' });
+    const pr = gh.state.pulls[0]!;
+    expect(pr).toMatchObject({ author: 'ghs_bot', draft: true });
+    expect(pr.body).toContain('Opened by the [AutoDev Group Agent](http://web.test/o/acme/group-agent) as the GitHub App bot');
+    const [row] = await sys.db.select().from(schema.pullRequests);
+    expect(row).toMatchObject({ createdBy: 'group_agent', createdByUserId: null, draft: true });
+    const [rec] = await sys.db.select().from(schema.recommendations).where(eq(schema.recommendations.id, recId));
+    expect(rec!.status).toBe('pr_opened');
+  });
+
+  it('opens a normal PR at safety level 3 once tests passed', async () => {
+    const { t } = await botTask(3);
+    await botPublisher.publish(t.id);
+    expect(gh.state.pulls[0]).toMatchObject({ author: 'ghs_bot', draft: false });
+  });
+});
 
 describe('Publisher', () => {
   it("pushes as the owner to autodev/<KEY>-<slug> and opens a PR with every section", async () => {

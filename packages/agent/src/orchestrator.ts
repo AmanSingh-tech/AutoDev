@@ -180,7 +180,8 @@ export class AgentOrchestrator {
           maxTurns: this.deps.maxTurns,
           call: async (req) => {
             const res = await this.deps.gateway.call(
-              { orgId: task.orgId, userId: task.ownerId, repoId: task.repoId, taskId: task.id, agentRunId: run.id, useCase: 'agent', taskTokenCap: task.tokenCapOverride },
+              // Group Agent fixes are metered on their own use case and budget (B-5).
+              { orgId: task.orgId, userId: task.ownerId, repoId: task.repoId, taskId: task.id, agentRunId: run.id, useCase: task.byGroupAgent ? 'group_agent' : 'agent', taskTokenCap: task.tokenCapOverride },
               req,
             );
             for (const u of res.response.usage) {

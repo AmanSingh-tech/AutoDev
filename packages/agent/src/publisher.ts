@@ -6,6 +6,7 @@ import {
   findOpenPr,
   getPr,
   GitHubReauthRequired,
+  installationOctokit,
   PushConflict,
   PushNotAllowed,
   updatePrBody,
@@ -20,7 +21,7 @@ import { PgOverlayStore } from './overlay';
 import { appendToBody, buildPrBody, buildUpdateSection, type PrContext } from './pr-body';
 import { GitHubRepoReader } from './repo-reader';
 
-const { auditLog, builderJobs, builders, notifications, orgs, pullRequests, repos, taskDocuments, taskEvents, tasks, tokenUsage, users, workspaces } = schema;
+const { agentPolicies, auditLog, builderJobs, builders, installations, notifications, orgs, pullRequests, recommendations, repos, taskDocuments, taskEvents, tasks, tokenUsage, users, workspaces } = schema;
 
 type Task = typeof tasks.$inferSelect;
 export type PublishFailure = 'not_allowed' | 'conflict' | 'reauth';
@@ -38,7 +39,8 @@ export class PublishError extends Error {
 
 /**
  * Pushes a task's tested change with the owner's GitHub token (live permission check first) and
- * opens or updates its PR. Every GitHub write is done as a person, never as the App.
+ * opens or updates its PR. Every GitHub write is done as a person, never as the App, except Group
+ * Agent fixes (B-5), which are pushed and opened by the App's bot with the installation token.
  */
 export class Publisher {
   constructor(private readonly deps: { sys: SystemDb; vault: TokenVault; cfg: GitHubConfig; cache: KvCache; webUrl: string }) {}
@@ -71,7 +73,7 @@ export class Publisher {
     const overlay = await new PgOverlayStore(sys, ws.id, task.orgId).list();
     if (!overlay.length) throw new PublishError('conflict', 'There are no changes to push.');
 
-    const commitSha = await this.asUser(task.ownerId, async (gh) => {
+    const commitSha = await this.asActor(task, async (gh) => {
       await assertCanPush(gh, repo.owner, repo.name);
       const reader = new GitHubRepoReader({ repoId: repo.id, owner: repo.owner, name: repo.name, baseSha: ws.baseSha, cache: this.deps.cache, withClient: (fn) => fn(gh) });
       const modes = new Map((await reader.tree()).entries.map((e) => [e.path, e.mode]));
@@ -94,9 +96,9 @@ export class Publisher {
     });
 
     // A PR is opened if the task wants one, and an already-open PR on the branch is always updated.
-    const hasOpenPr = await this.asUser(task.ownerId, (gh) => findOpenPr(gh, repo.owner, repo.name, task.workBranch));
+    const hasOpenPr = await this.asActor(task, (gh) => findOpenPr(gh, repo.owner, repo.name, task.workBranch));
     if (task.createPrOnCompletion || hasOpenPr) {
-      const pr = await this.openOrUpdatePr(task.id, { actorUserId: task.ownerId, createdBy: 'agent_on_completion' });
+      const pr = await this.openOrUpdatePr(task.id, task.byGroupAgent ? { actorUserId: null, createdBy: 'group_agent' } : { actorUserId: task.ownerId, createdBy: 'agent_on_completion' });
       return { commitSha, prUrl: pr.url };
     }
     await this.notify(task, 'branch.pushed', `${task.key} was pushed to ${task.workBranch}`, 'Open the PR from the task page when you are ready.');
@@ -108,7 +110,7 @@ export class Publisher {
    * the branch. Used on completion, by the "Create PR" button (as the clicking user), and by the
    * stale-branch job (as the owner).
    */
-  async openOrUpdatePr(taskId: string, opts: { actorUserId: string; createdBy: 'user' | 'agent_on_completion' | 'stale_job' }) {
+  async openOrUpdatePr(taskId: string, opts: { actorUserId: string; createdBy: 'user' | 'agent_on_completion' | 'stale_job' } | { actorUserId: null; createdBy: 'group_agent' }) {
     const { sys } = this.deps;
     const task = await this.task(taskId);
     const [repo] = await sys.select().from(repos).where(eq(repos.id, task.repoId));
@@ -116,25 +118,30 @@ export class Publisher {
     const ctx = await this.context(task);
     const title = `${task.key}: ${task.title}`;
 
-    const { pr, created } = await this.asUser(opts.actorUserId, async (gh) => {
-      await assertCanPush(gh, repo.owner, repo.name);
+    const bot = opts.createdBy === 'group_agent';
+    // Group Agent PRs are drafts unless the repo allows normal PRs (safety level 3) and the tests passed.
+    const draft = bot && !((await this.safetyLevel(task)) >= 3 && ctx.testing.status === 'passed');
+    const write = async (gh: ReturnType<typeof userOctokit>) => {
+      if (!bot) await assertCanPush(gh, repo.owner, repo.name);
       const open = await findOpenPr(gh, repo.owner, repo.name, task.workBranch);
       if (open) {
         await updatePrBody(gh, repo.owner, repo.name, open.number, appendToBody(open.body, buildUpdateSection(ctx, new Date())));
         return { pr: open, created: false };
       }
-      return { pr: await createPr(gh, { owner: repo.owner, repo: repo.name, head: task.workBranch, base: repo.defaultBranch, title, body: buildPrBody(ctx) }), created: true };
-    });
+      return { pr: await createPr(gh, { owner: repo.owner, repo: repo.name, head: task.workBranch, base: repo.defaultBranch, title, body: buildPrBody(ctx), draft }), created: true };
+    };
+    const { pr, created } = opts.actorUserId === null ? await this.asActor(task, write) : await this.asUser(opts.actorUserId, write);
 
     await sys.transaction(async (tx) => {
       await tx
         .insert(pullRequests)
-        .values({ orgId: task.orgId, taskId: task.id, repoId: repo.id, githubPrId: pr.id, number: pr.number, url: pr.url, headBranch: task.workBranch, baseBranch: pr.base, headSha: pr.headSha, createdBy: created ? opts.createdBy : 'user', createdByUserId: opts.actorUserId })
+        .values({ orgId: task.orgId, taskId: task.id, repoId: repo.id, githubPrId: pr.id, number: pr.number, url: pr.url, headBranch: task.workBranch, baseBranch: pr.base, headSha: pr.headSha, draft, createdBy: created ? opts.createdBy : bot ? 'group_agent' : 'user', createdByUserId: opts.actorUserId })
         .onConflictDoUpdate({ target: [pullRequests.repoId, pullRequests.number], set: { taskId: task.id, headSha: pr.headSha, state: 'open' } });
       const [cur] = await tx.select().from(tasks).where(eq(tasks.id, task.id));
       if (cur!.status === 'pushed') await transitionTask(tx, cur!, 'pr_open', { type: opts.createdBy === 'user' ? 'user' : 'agent', userId: opts.createdBy === 'user' ? opts.actorUserId : null }, { pr: pr.number });
+      if (bot && created) await tx.update(recommendations).set({ status: 'pr_opened', updatedAt: new Date() }).where(eq(recommendations.taskId, task.id));
       await tx.insert(taskEvents).values({ orgId: task.orgId, taskId: task.id, actorType: opts.createdBy === 'user' ? 'user' : 'agent', actorUserId: opts.actorUserId, type: created ? 'pr.opened' : 'pr.updated', payload: { number: pr.number, url: pr.url } });
-      await tx.insert(auditLog).values({ orgId: task.orgId, actorType: opts.createdBy === 'user' ? 'user' : 'agent', actorUserId: opts.actorUserId, action: created ? 'pr.opened' : 'pr.updated', targetType: 'task', targetId: task.id, metadata: { repo: repo.fullName, number: pr.number, createdBy: opts.createdBy } });
+      await tx.insert(auditLog).values({ orgId: task.orgId, actorType: opts.createdBy === 'user' ? 'user' : 'agent', actorUserId: opts.actorUserId, action: created ? 'pr.opened' : 'pr.updated', targetType: 'task', targetId: task.id, metadata: { repo: repo.fullName, number: pr.number, createdBy: opts.createdBy, ...(bot ? { draft, asBot: true } : {}) } });
     });
     await this.notify(task, created ? 'pr.opened' : 'pr.updated', `${created ? 'PR opened' : 'PR updated'} for ${task.key}`, pr.url);
     if (created && task.sourceTaskId) await this.linkSourcePr(task, repo.fullName, pr);
@@ -202,6 +209,7 @@ export class Publisher {
       : [];
     const sourcePr = source ? await latestPr(sys, source.id) : null;
     return {
+      groupAgent: task.byGroupAgent ? { recommendationUrl: `${this.deps.webUrl}/o/${slug}/group-agent` } : null,
       source: source ? { key: source.key, title: source.title, url: this.taskUrl(slug, source.key), repoFullName: source.repoFullName, pr: sourcePr && { number: sourcePr.number, url: sourcePr.url } } : null,
       task: { key: task.key, title: task.title, url: this.taskUrl(slug, task.key), summaryMd: task.summaryMd, acceptanceCriteriaMd: task.acceptanceCriteriaMd, mode: task.mode },
       ownerLogin: owner?.login ?? 'unknown',
@@ -216,9 +224,33 @@ export class Publisher {
     };
   }
 
+  /** As the task's owner, or as the App's bot for a Group Agent fix. */
+  private async asActor<T>(task: Task, fn: (gh: ReturnType<typeof userOctokit>) => Promise<T>): Promise<T> {
+    if (!task.byGroupAgent) return this.asUser(task.ownerId, fn);
+    const [inst] = await this.deps.sys
+      .select({ id: installations.githubInstallationId })
+      .from(repos)
+      .innerJoin(installations, eq(installations.id, repos.installationId))
+      .where(eq(repos.id, task.repoId));
+    if (!inst) throw new PublishError('not_allowed', 'The GitHub App is no longer installed for this repository.');
+    return this.mapGitErrors(() => fn(installationOctokit(this.deps.cfg, inst.id)));
+  }
+
+  private async safetyLevel(task: Task): Promise<number> {
+    const [p] = await this.deps.sys
+      .select({ level: agentPolicies.safetyLevel })
+      .from(agentPolicies)
+      .where(and(eq(agentPolicies.orgId, task.orgId), eq(agentPolicies.repoId, task.repoId)));
+    return p?.level ?? 2;
+  }
+
   private async asUser<T>(userId: string, fn: (gh: ReturnType<typeof userOctokit>) => Promise<T>): Promise<T> {
+    return this.mapGitErrors(() => this.deps.vault.withToken(userId, (token) => fn(userOctokit(this.deps.cfg, token))));
+  }
+
+  private async mapGitErrors<T>(run: () => Promise<T>): Promise<T> {
     try {
-      return await this.deps.vault.withToken(userId, (token) => fn(userOctokit(this.deps.cfg, token)));
+      return await run();
     } catch (e) {
       if (e instanceof PushNotAllowed) throw new PublishError('not_allowed', `${e.message}. Nothing was pushed.`);
       if (e instanceof PushConflict) throw new PublishError('conflict', e.message);

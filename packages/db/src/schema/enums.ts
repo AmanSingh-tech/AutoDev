@@ -17,7 +17,7 @@ export const llmProvider = pgEnum('llm_provider', ['anthropic', 'openai', 'azure
 export const credentialScope = pgEnum('credential_scope', ['org', 'team', 'user']);
 export const credentialStatus = pgEnum('credential_status', ['active', 'invalid', 'superseded', 'revoked']);
 /** Section B adds more use cases. Postgres enums can be extended in place. `prompt_check` is the prompt guide (B-1). */
-export const llmUseCase = pgEnum('llm_use_case', ['agent', 'chat', 'prompt_check']);
+export const llmUseCase = pgEnum('llm_use_case', ['agent', 'chat', 'prompt_check', 'group_agent']);
 export const chatRole = pgEnum('chat_role', ['user', 'assistant']);
 export const chatMessageStatus = pgEnum('chat_message_status', ['pending', 'done', 'failed']);
 /** Who wrote a team-room message: a person, or the Repo Agent answering a mention. */
@@ -59,7 +59,8 @@ export const builderKind = pgEnum('builder_kind', ['personal', 'team']);
 export const builderJobStatus = pgEnum('builder_job_status', ['queued', 'offered', 'running', 'passed', 'failed', 'timed_out', 'error', 'skipped', 'cancelled']);
 export const jobConsent = pgEnum('job_consent', ['not_needed', 'pending', 'granted', 'denied']);
 export const prState = pgEnum('pr_state', ['open', 'closed', 'merged']);
-export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job']);
+/** `group_agent`: opened by the GitHub App bot for a Group Agent fix (B-5). */
+export const prCreatedBy = pgEnum('pr_created_by', ['user', 'agent_on_completion', 'stale_job', 'group_agent']);
 
 /** Group Agent (B-5). */
 export const findingKind = pgEnum('finding_kind', [

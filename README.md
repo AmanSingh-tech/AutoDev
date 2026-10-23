@@ -111,7 +111,10 @@ repo's default branch, re-indexes on each push to it (needs the App's Push event
   one into a draft task; **Dismiss** keeps it out of the way with a reason. Findings resolve on their
   own when a later scan no longer sees them.
 - **Health score per repo:** 100 minus 30/15/7/2 points per open critical/high/medium/low finding.
-- Coming next: pull requests opened by the agent itself, with a safety level per repo.
+- **Fixes as pull requests:** for repos at safety level 2 or 3 with a maintainer, patch-level dependency
+  bumps become tasks on the maintainer's builder, and the GitHub App's bot opens the PR (a draft at
+  level 2; a normal PR at level 3 once tests pass). Merging is always up to people. The agent has its
+  own monthly budget and a weekly cap on fixes.
 - `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL` and `GOPROXY_URL` (worker) default to the public
   services; tests point them at the mock.
 

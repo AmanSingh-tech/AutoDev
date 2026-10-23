@@ -51,7 +51,11 @@ export default function GroupAgentSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Organization</CardTitle>
-          <CardDescription>The budget and PR cap apply to the pull requests the agent opens itself, which come next.</CardDescription>
+          <CardDescription>
+            For repos at safety level 2 or 3 with a maintainer, the agent fixes patch-level dependency bumps itself: a task on the
+            maintainer's builder, then a pull request from the GitHub App bot. This month it has spent ${q.data.spentThisMonthUsd.toFixed(2)}
+            and started {q.data.fixesThisWeek} {q.data.fixesThisWeek === 1 ? 'fix' : 'fixes'} in the last 7 days.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -71,7 +75,7 @@ export default function GroupAgentSettingsPage() {
                 <Input id="ga-budget" type="number" min={0} step="0.01" placeholder="No limit" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="ga-cap">Pull requests per week</Label>
+                <Label htmlFor="ga-cap">Fixes per week</Label>
                 <Input id="ga-cap" type="number" min={0} max={100} value={form.cap} onChange={(e) => setForm({ ...form, cap: e.target.value })} />
               </div>
             </div>

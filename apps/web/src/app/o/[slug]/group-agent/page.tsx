@@ -12,11 +12,12 @@ import { trpc, type RouterOutputs } from '@/lib/trpc';
 import { useOrg } from '../org-shell';
 
 type Rec = RouterOutputs['groupAgent']['recommendations'][number];
-type Status = 'open' | 'dismissed' | 'task_created' | 'resolved' | 'all';
+type Status = 'open' | 'dismissed' | 'task_created' | 'pr_opened' | 'resolved' | 'all';
 
 const STATUS_TABS: { id: Status; label: string }[] = [
   { id: 'open', label: 'Open' },
   { id: 'task_created', label: 'Became tasks' },
+  { id: 'pr_opened', label: 'PR opened' },
   { id: 'dismissed', label: 'Dismissed' },
   { id: 'resolved', label: 'Resolved' },
 ];
