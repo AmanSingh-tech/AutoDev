@@ -96,12 +96,12 @@ fly deploy --config deploy/fly/gateway.toml --dockerfile Dockerfile
 
 The api app runs migrations as its release command. Change the app names in the three files first.
 
-## 3d. Kubernetes (Helm)
+## 3c. Kubernetes (Helm)
 
 `deploy/helm/autodev` runs api, worker, gateway, a migration Job and optionally the web app, with your
 own Postgres and Redis. See [its README](../deploy/helm/autodev/README.md).
 
-## 3c. One machine (Docker Compose)
+## 3d. One machine (Docker Compose)
 
 ```
 cp .env.example .env.production          # fill in the settings above (no DATABASE_URL*: compose sets them)
