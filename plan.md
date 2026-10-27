@@ -417,6 +417,17 @@ Built as planned above, plus:
 - People are matched to the directory only through their SSO link (IdP id, then email). Unlinked directory people can't be pre-provisioned, because AutoDev accounts are GitHub accounts.
 - Directory groups don't map to roles or teams yet.
 
+### B-7 part 4 notes: Jira sync (2026-10-27, auto-approved)
+
+- **Jira Cloud with an API token** (Basic auth, email + token), encrypted with the org's data key. Only the site name is stored and requests always go to `https://<site>.atlassian.net`, so the token can't be sent elsewhere. OAuth (3LO) would avoid a shared account but needs an Atlassian app registration; left for later.
+- **AutoDev → Jira:** the worker comments on linked issues when a task's status changes (every 5 minutes), with the PR link. Idempotent: the last reported status is stored on the task. A deleted or hidden issue stops being synced instead of failing every run.
+- **Jira → AutoDev:** Jira Cloud webhooks aren't signed, so the URL carries a per-org random token (shown to admins only). Updates keep the issue's status on the task; deleted issues are unlinked.
+- **Who:** admins connect; a task's owner or an admin links, creates or unlinks.
+
+**Decisions left open:**
+- Jira statuses don't move AutoDev tasks, and AutoDev doesn't transition Jira issues (workflows differ per project); it only comments.
+- Jira Data Center (self-hosted) isn't supported.
+
 ## Next step
 
 **Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).

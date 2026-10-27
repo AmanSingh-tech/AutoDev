@@ -4,6 +4,7 @@ import type { BlobStore } from '@autodev/storage';
 import { StripeClient, syncAllSeats, type BillingConfig } from '@autodev/billing';
 import type { KeyWrapper } from '@autodev/crypto';
 import { purgeAll, pushAllAudit } from '@autodev/governance';
+import { pushAllTaskUpdates } from '@autodev/jira';
 import { runInsights } from './insights';
 
 /**
@@ -14,6 +15,7 @@ import { runInsights } from './insights';
  *  - seats: B-6, sets each Stripe subscription's quantity to the org's active members (when billing is on).
  *  - retention: B-7, purges chat, agent traces and notifications past each org's retention (before blob-retention).
  *  - siem: B-7, every few minutes, pushes new audit entries to each org's SIEM endpoint.
+ *  - jira: B-7, every few minutes, comments task status changes on linked Jira issues.
  */
 export const createMaintenanceProcessor =
   (deps: {
@@ -22,9 +24,13 @@ export const createMaintenanceProcessor =
     billing?: BillingConfig;
     kms?: KeyWrapper;
     outboundAllowPrivate?: boolean;
+    webUrl?: string;
+    jiraBaseUrl?: string;
   }) =>
   async (job: { name: string; data?: { orgId?: string } }) => {
     if (job.name === 'retention') return purgeAll(deps.sys);
+    if (job.name === 'jira')
+      return deps.kms ? pushAllTaskUpdates({ sys: deps.sys, kms: deps.kms, webUrl: deps.webUrl ?? 'http://localhost:3000', baseUrl: deps.jiraBaseUrl }) : { jira: 'no kms' };
     if (job.name === 'siem')
       return deps.kms
         ? pushAllAudit({

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection, TestsSection } from '@/components/task-agent';
+import { JiraBox } from '@/components/jira-box';
 import { Markdown } from '@/components/markdown';
 import { FlagList, PromptScoreBadge } from '@/components/prompt-guide';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
@@ -128,6 +129,7 @@ export default function TaskPage() {
             )}
           </CardContent>
         </Card>
+        <JiraBox task={t} canEdit={t.canLinkJira} />
       </aside>
     </div>
   );

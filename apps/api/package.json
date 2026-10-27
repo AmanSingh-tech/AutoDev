@@ -18,6 +18,7 @@
     "@autodev/agent": "workspace:*",
     "@autodev/billing": "workspace:*",
     "@autodev/governance": "workspace:*",
+    "@autodev/jira": "workspace:*",
     "@autodev/sso": "workspace:*",
     "@autodev/config": "workspace:*",
     "@autodev/crypto": "workspace:*",

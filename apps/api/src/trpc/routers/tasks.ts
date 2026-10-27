@@ -272,6 +272,7 @@ export const tasksRouter = router({
         events,
         pullRequests: prs,
         failure: t.status === 'failed' && lastFail ? (lastFail.payload as { reason?: string; message?: string; kind?: string }) : null,
+        canLinkJira: manage,
         can: {
           createPr: manage && t.status === 'pushed' && !prs.some((p) => p.state === 'open'),
           retryPush: manage && t.status === 'failed' && (lastFail?.payload as { reason?: string } | undefined)?.reason === 'push_failed',

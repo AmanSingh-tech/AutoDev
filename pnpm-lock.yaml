@@ -53,6 +53,9 @@ importers:
       '@autodev/governance':
         specifier: workspace:*
         version: link:../../packages/governance
+      '@autodev/jira':
+        specifier: workspace:*
+        version: link:../../packages/jira
       '@autodev/llm':
         specifier: workspace:*
         version: link:../../packages/llm
@@ -315,6 +318,9 @@ importers:
       '@autodev/governance':
         specifier: workspace:*
         version: link:../../packages/governance
+      '@autodev/jira':
+        specifier: workspace:*
+        version: link:../../packages/jira
       '@autodev/llm':
         specifier: workspace:*
         version: link:../../packages/llm
@@ -522,6 +528,19 @@ importers:
       '@autodev/db':
         specifier: workspace:*
         version: link:../db
+
+  packages/jira:
+    dependencies:
+      '@autodev/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@autodev/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      msw:
+        specifier: ^2.7.0
+        version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
 
   packages/llm:
     dependencies:

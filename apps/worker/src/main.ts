@@ -86,6 +86,7 @@ await groupAgentQueue.upsertJobScheduler('nightly-group-agent-scan', { pattern: 
 await groupAgentQueue.upsertJobScheduler('weekly-group-agent-digest', { pattern: '0 8 * * 1', tz: 'UTC' }, { name: 'digest', data: { kind: 'digest' } });
 await maintenance.upsertJobScheduler('nightly-retention', { pattern: '45 3 * * *', tz: 'UTC' }, { name: 'retention' });
 await maintenance.upsertJobScheduler('siem-push', { pattern: '*/5 * * * *', tz: 'UTC' }, { name: 'siem' });
+await maintenance.upsertJobScheduler('jira-push', { pattern: '2-59/5 * * * *', tz: 'UTC' }, { name: 'jira' });
 await maintenance.upsertJobScheduler('nightly-seats', { pattern: '45 2 * * *', tz: 'UTC' }, { name: 'seats' });
 await maintenance.upsertJobScheduler('nightly-insights', { pattern: '30 0 * * *', tz: 'UTC' }, { name: 'insights' });
 await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
@@ -114,7 +115,7 @@ const workers = [
   // Embedding is CPU-bound and the model runs one batch at a time, so two repos at once is plenty.
   new Worker(QUEUES.codeIndex, createCodeIndexProcessor({ indexer, queue: codeIndexQueue }), { connection, concurrency: 2, lockDuration: 10 * 60_000 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
-  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env, kms, outboundAllowPrivate: env.OUTBOUND_ALLOW_PRIVATE === '1' }), { connection, concurrency: 1 }),
+  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env, kms, outboundAllowPrivate: env.OUTBOUND_ALLOW_PRIVATE === '1', webUrl: env.WEB_URL, jiraBaseUrl: env.JIRA_BASE_URL }), { connection, concurrency: 1 }),
   // Scans read every repo's lockfiles and call OSV and the registries; one org at a time.
   new Worker(QUEUES.groupAgent, (job) => groupAgent({ data: groupAgentJob.parse(job.data) }), { connection, concurrency: 1, lockDuration: 10 * 60_000 }),
   new Worker(

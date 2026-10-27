@@ -12,6 +12,7 @@ import { billingRouter } from './routers/billing';
 import { onboardingRouter } from './routers/onboarding';
 import { governanceRouter } from './routers/governance';
 import { ssoRouter } from './routers/sso';
+import { jiraRouter } from './routers/jira';
 import { groupAgentRouter } from './routers/group-agent';
 import { insightsRouter } from './routers/insights';
 import { promptGuideRouter } from './routers/prompt-guide';
@@ -49,6 +50,7 @@ export const appRouter = router({
   onboarding: onboardingRouter,
   governance: governanceRouter,
   sso: ssoRouter,
+  jira: jiraRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
   codeIndex: codeIndexRouter,

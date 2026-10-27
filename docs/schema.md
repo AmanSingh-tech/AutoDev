@@ -148,6 +148,13 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ directory_users | org, directory_user_id, idp_id, email, name, state, user | From WorkOS Directory Sync; written by its webhook only |
 | ✅ workos_events | id, type | Webhook dedupe; no app-role access |
 
+## Jira sync (B-7)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ jira_connections | org (PK), site (name only), email, token_enc (org data key), token_last4, default_project, webhook_token, last_error, last_synced_at | Admins manage it; the worker and webhook use the system role |
+| ✅ tasks (added) | jira_issue_key, jira_issue_status, jira_synced_status | Migration 0032; partial index on (org, jira_issue_key) |
+
 ## Billing (B-6)
 
 | Table | Columns that matter | Notes |

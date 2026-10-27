@@ -142,6 +142,10 @@ Workspace…) every few hours; owners are exempt so nobody is locked out. A conn
 people deactivated there. Set up from Settings → Security; server setup in
 [docs/deploy-backend.md](docs/deploy-backend.md).
 
+**Jira sync:** connect a Jira Cloud site under Settings → Jira (account email plus API token,
+encrypted). On a task, link an issue or create one; status changes and the PR link are posted to the
+issue every few minutes, and a Jira webhook shows the issue's own status on the task.
+
 **Roles:** a **billing manager** flag (any role) for Settings → Billing, and **team leads** add and
 remove their own team's members.
 

@@ -60,6 +60,10 @@ export const tasks = pgTable(
      * opened as a PR by the GitHub App bot. The owner is the repo's maintainer, whose builder tests it.
      */
     byGroupAgent: boolean('by_group_agent').notNull().default(false),
+    /** Jira sync (B-7): the linked issue, its status in Jira, and the task status last reported there. */
+    jiraIssueKey: text('jira_issue_key'),
+    jiraIssueStatus: text('jira_issue_status'),
+    jiraSyncedStatus: text('jira_synced_status'),
     /** Prompt guide (B-1): the rule-based draft score from @autodev/protocol, set on create and edit. */
     promptScore: integer('prompt_score'),
     promptScoreDetails: jsonb('prompt_score_details').$type<{ version: number; flags: string[] }>(),
@@ -73,6 +77,7 @@ export const tasks = pgTable(
     unique('tasks_org_key_uq').on(t.orgId, t.key),
     index('tasks_board_idx').on(t.orgId, t.repoId, t.status),
     index('tasks_owner_idx').on(t.orgId, t.ownerId),
+    index('tasks_jira_idx').on(t.orgId, t.jiraIssueKey).where(sql`${t.jiraIssueKey} is not null`),
     check('tasks_existing_needs_target', sql`(${t.branchMode} = 'existing') = (${t.targetBranch} is not null)`),
     check('tasks_title_length', sql`char_length(${t.title}) between 1 and 200`),
     check('tasks_scope_path_relative', sql`${t.scopePath} is null or (${t.scopePath} !~ '(^/|\\.\\.)')`),

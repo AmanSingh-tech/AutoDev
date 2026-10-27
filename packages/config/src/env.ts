@@ -78,6 +78,8 @@ export const ssoEnv = z.object({
 export const governanceEnv = z.object({
   /** Development only: let SIEM endpoints be http:// or private addresses (e.g. a local receiver). */
   OUTBOUND_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),
+  /** Test/e2e only: where Jira is reached instead of <site>.atlassian.net. */
+  JIRA_BASE_URL: z.string().url().optional(),
 });
 
 export const cryptoEnv = z.object({

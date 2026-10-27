@@ -225,6 +225,13 @@
       "when": 1792785629774,
       "tag": "0031_sso",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793114587649,
+      "tag": "0032_jira",
+      "breakpoints": true
     }
   ]
 }
