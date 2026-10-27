@@ -6,7 +6,8 @@ import { missingConfig } from './lib/config-check';
  * API routes are left alone (they fail with their own errors), and so are static files.
  */
 export function middleware(req: NextRequest) {
-  if (req.nextUrl.pathname === '/setup/config') return NextResponse.next();
+  // The home page explains AutoDev and links to the setup page itself, so it shows even before setup.
+  if (req.nextUrl.pathname === '/setup/config' || req.nextUrl.pathname === '/') return NextResponse.next();
   if (missingConfig().length === 0) return NextResponse.next();
   return NextResponse.rewrite(new URL('/setup/config', req.url));
 }

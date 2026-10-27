@@ -2,7 +2,11 @@ import { expect, test } from '@playwright/test';
 
 test('a developer signs in with GitHub and sees only repos they can push to', async ({ page }) => {
   await page.goto('http://localhost:4010/_login-as?login=demo-dev');
+  // Signed out, the home page explains AutoDev and leads to sign-in.
   await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hand off coding tasks', { timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'What it does' })).toBeVisible();
+  await page.getByRole('link', { name: 'Get started with GitHub' }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
 
