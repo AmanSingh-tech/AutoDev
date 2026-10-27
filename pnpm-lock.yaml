@@ -59,6 +59,9 @@ importers:
       '@autodev/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
+      '@autodev/sso':
+        specifier: workspace:*
+        version: link:../../packages/sso
       '@autodev/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -547,6 +550,16 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+
+  packages/sso:
+    dependencies:
+      '@autodev/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      msw:
+        specifier: ^2.7.0
+        version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
 
   packages/storage:
     dependencies:

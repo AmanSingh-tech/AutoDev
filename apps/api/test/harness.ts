@@ -13,12 +13,15 @@ import { EventHub } from '@autodev/events';
 import { Redis } from 'ioredis';
 import { ChangeBridge } from '../src/events/change-bridge';
 import { StripeClient, type BillingConfig } from '@autodev/billing';
+import { WorkosClient, type WorkosConfig } from '@autodev/sso';
 
 export const API = 'http://github.test/api';
 export const WEB_URL = 'http://web.test';
 export const ANTHROPIC = 'http://anthropic.test';
 export const STRIPE = 'http://stripe.test';
 export const STRIPE_CFG: BillingConfig = { STRIPE_SECRET_KEY: 'sk_test_harness', STRIPE_WEBHOOK_SECRET: 'whsec_harness', STRIPE_PRICE_TEAM: 'price_team', STRIPE_PRICE_BUSINESS: 'price_business', STRIPE_API_URL: STRIPE, TRIAL_DAYS: 14 };
+export const WORKOS = 'http://workos.test';
+export const WORKOS_CFG: WorkosConfig = { WORKOS_API_KEY: 'sk_workos_harness', WORKOS_CLIENT_ID: 'client_harness', WORKOS_WEBHOOK_SECRET: 'wh_harness', WORKOS_API_URL: WORKOS };
 export const AUTH_SECRET = 'test-auth-secret-'.padEnd(48, 'x');
 
 export const testCfg: GitHubConfig = {
@@ -108,6 +111,7 @@ export function createTestDeps() {
     publisher: new Publisher({ sys: sys.db, vault, cfg: testCfg, cache, webUrl: WEB_URL }),
     // Billing on, against a mocked Stripe. New test orgs are in their trial, so nothing is blocked.
     billing: { cfg: STRIPE_CFG, stripe: new StripeClient({ secretKey: STRIPE_CFG.STRIPE_SECRET_KEY!, apiUrl: STRIPE_CFG.STRIPE_API_URL }) },
+    sso: { cfg: WORKOS_CFG, workos: new WorkosClient({ apiKey: 'sk_workos_harness', clientId: 'client_harness', apiUrl: WORKOS }) },
     liveLogs: async () => 'live log so far\n',
     events,
     bridge,

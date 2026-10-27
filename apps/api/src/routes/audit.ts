@@ -25,7 +25,7 @@ export async function auditRoutes(app: FastifyInstance, { deps }: { deps: Deps }
     if (!q.success) return reply.code(400).send({ error: 'org (uuid) is required; from and to are dates; format is csv or ndjson' });
     const session = await readSession(req.cookies, deps.env.AUTH_SECRET);
     if (!session) return reply.code(401).send({ error: 'Sign in first' });
-    const access = await checkOrgAccess(deps.app, { orgId: q.data.org, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION });
+    const access = await checkOrgAccess(deps.app, { orgId: q.data.org, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION, sys: deps.sys });
     if (!access.ok) return reply.code(403).send({ error: access.message });
     if (access.role !== 'owner' && access.role !== 'admin') return reply.code(403).send({ error: 'Only owners and admins can export the audit log' });
 

@@ -37,7 +37,7 @@ export async function eventRoutes(app: FastifyInstance, { deps }: { deps: Deps }
 
     const session = await readSession(req.cookies, deps.env.AUTH_SECRET);
     if (!session) return reply.code(401).send({ error: 'not signed in' });
-    const access = await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION });
+    const access = await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION, sys: deps.sys });
     if (!access.ok) return reply.code(403).send({ error: access.message });
     try {
       await authorizeTopics(deps, orgId, session.userId, topics);

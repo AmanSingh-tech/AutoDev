@@ -14,6 +14,7 @@ import { createProviderRegistry, CredentialService, LlmGateway, type ProviderReg
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { billingEnabled, StripeClient, type BillingConfig } from '@autodev/billing';
+import { ssoEnabled, WorkosClient, type WorkosConfig } from '@autodev/sso';
 import type { ApiEnv } from './env';
 import { redisCache } from './redis-cache';
 import { EventHub } from '@autodev/events';
@@ -44,6 +45,8 @@ export interface Deps {
   bridge: ChangeBridge;
   /** Billing (B-6). `stripe` is null when billing is off (no STRIPE_SECRET_KEY). */
   billing: { cfg: BillingConfig; stripe: StripeClient | null };
+  /** SSO and directory sync (B-7). `workos` is null when off (no WORKOS_API_KEY / WORKOS_CLIENT_ID). */
+  sso: { cfg: WorkosConfig; workos: WorkosClient | null };
   /** Log lines streamed so far for a running builder job (Redis). */
   liveLogs: (jobId: string) => Promise<string>;
 }
@@ -116,6 +119,7 @@ export function createDeps(env: ApiEnv): Deps & { close: () => Promise<void> } {
       enqueueAgent: (data, jobId) => agent.add('run', data, { jobId }),
     }),
     publisher: new Publisher({ sys: sys.db, vault, cfg, cache, webUrl: env.WEB_URL }),
+    sso: { cfg: env, workos: ssoEnabled(env) ? new WorkosClient({ apiKey: env.WORKOS_API_KEY!, clientId: env.WORKOS_CLIENT_ID!, apiUrl: env.WORKOS_API_URL }) : null },
     billing: { cfg: env, stripe: billingEnabled(env) ? new StripeClient({ secretKey: env.STRIPE_SECRET_KEY!, apiUrl: env.STRIPE_API_URL }) : null },
     events,
     bridge,

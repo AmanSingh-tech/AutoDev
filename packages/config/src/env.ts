@@ -67,6 +67,14 @@ export const billingEnv = z.object({
   TRIAL_DAYS: z.coerce.number().int().min(0).max(90).default(14),
 });
 
+export const ssoEnv = z.object({
+  /** WorkOS (B-7): single sign-on and directory sync. Off without the API key and client id. */
+  WORKOS_API_KEY: z.string().optional(),
+  WORKOS_CLIENT_ID: z.string().optional(),
+  WORKOS_WEBHOOK_SECRET: z.string().optional(),
+  WORKOS_API_URL: z.string().url().default('https://api.workos.com'),
+});
+
 export const governanceEnv = z.object({
   /** Development only: let SIEM endpoints be http:// or private addresses (e.g. a local receiver). */
   OUTBOUND_ALLOW_PRIVATE: z.enum(['0', '1']).default('0'),

@@ -154,6 +154,8 @@ export default function SecuritySettingsPage() {
         </CardContent>
       </Card>
 
+      <SsoCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Data region</CardTitle>
@@ -245,5 +247,86 @@ export default function SecuritySettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Single sign-on and directory sync through WorkOS (B-7). */
+function SsoCard() {
+  const utils = trpc.useUtils();
+  const q = trpc.sso.get.useQuery();
+  const [form, setForm] = useState<{ ssoRequired: boolean; sessionHours: string } | null>(null);
+  useEffect(() => {
+    if (q.data && !form) setForm({ ssoRequired: q.data.ssoRequired, sessionHours: String(q.data.sessionHours) });
+  }, [q.data, form]);
+  const portal = trpc.sso.portalLink.useMutation({ onSuccess: (r) => window.open(r.link, '_blank', 'noopener'), onError: (e) => toast.error(e.message) });
+  const save = trpc.sso.update.useMutation({ onSuccess: () => (toast.success('Single sign-on saved'), utils.sso.get.invalidate()), onError: (e) => toast.error(e.message) });
+  if (!q.data || !form) return null;
+  const s = q.data;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Single sign-on and directory</CardTitle>
+        <CardDescription>
+          People still sign in with GitHub (the agent works as them there). With single sign-on required, members also sign in with your identity provider (Okta,
+          Entra ID, Google Workspace…) every few hours. Owners are exempt, so you can’t be locked out. With a directory connected, people deactivated there are removed
+          here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!s.enabled ? (
+          <Alert>Single sign-on isn’t set up on this server (it needs WorkOS settings).</Alert>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 gap-4 text-sm sm:max-w-md">
+              <div>
+                <dt className="text-muted-foreground">Members signed in with SSO</dt>
+                <dd className="text-lg font-medium tabular-nums">{s.linkedMembers}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Directory</dt>
+                <dd className="text-lg font-medium">{s.directoryConnected ? `${s.directoryUsers} active people` : 'Not connected'}</dd>
+              </div>
+            </dl>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" disabled={portal.isPending} onClick={() => portal.mutate({ intent: 'sso' })}>
+                {s.configured ? 'Manage identity provider' : 'Connect an identity provider'}
+              </Button>
+              <Button variant="outline" disabled={portal.isPending} onClick={() => portal.mutate({ intent: 'dsync' })}>
+                {s.directoryConnected ? 'Manage directory' : 'Connect a directory (SCIM)'}
+              </Button>
+              {s.configured && (
+                <Button asChild variant="ghost">
+                  <a href={`/api/sso/start?org=${getCurrentOrgId()}&returnTo=${encodeURIComponent(window.location.pathname)}`}>{s.mine ? 'Sign in with SSO again' : 'Sign in with SSO now'}</a>
+                </Button>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {s.mine ? `You’re linked as ${s.mine.email}, last signed in ${relativeTime(s.mine.lastLoginAt)}.` : 'You haven’t signed in with SSO yet.'}
+            </p>
+            {s.configured && (
+              <form
+                className="flex flex-wrap items-end gap-4 border-t pt-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  save.mutate({ ssoRequired: form.ssoRequired, sessionHours: Number(form.sessionHours) || 24 });
+                }}
+              >
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={form.ssoRequired} onChange={(e) => setForm({ ...form, ssoRequired: e.target.checked })} />
+                  Require single sign-on
+                </label>
+                <label className="text-sm">
+                  Sign in again every (hours)
+                  <Input className="mt-1 w-28" inputMode="numeric" value={form.sessionHours} onChange={(e) => setForm({ ...form, sessionHours: e.target.value.replace(/\D/g, '') })} />
+                </label>
+                <Button type="submit" disabled={save.isPending}>
+                  Save
+                </Button>
+              </form>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

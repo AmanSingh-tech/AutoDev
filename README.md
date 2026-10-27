@@ -136,6 +136,12 @@ key; the model is the deployment name) and **Claude on Amazon Bedrock** (a Bedro
 AWS region; the model is the Bedrock model or inference-profile id). Add the model's price under
 Settings → Models, then pick it for the agent. Only Anthropic models come with prices.
 
+**Single sign-on and directory sync** (WorkOS): GitHub stays the sign-in, because the agent acts as
+you on GitHub. An org can additionally require its identity provider (Okta, Entra ID, Google
+Workspace…) every few hours; owners are exempt so nobody is locked out. A connected directory removes
+people deactivated there. Set up from Settings → Security; server setup in
+[docs/deploy-backend.md](docs/deploy-backend.md).
+
 **Roles:** a **billing manager** flag (any role) for Settings → Billing, and **team leads** add and
 remove their own team's members.
 

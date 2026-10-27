@@ -1,16 +1,20 @@
 import { isIP } from 'node:net';
-import { and, eq, schema, sql, withOrg, type AppDb, type OrgRole } from '@autodev/db';
+import { and, eq, schema, sql, withOrg, type AppDb, type OrgRole, type SystemDb } from '@autodev/db';
+import { ssoCheck } from '@autodev/sso';
 
 export type OrgAccess =
   | { ok: true; role: OrgRole; billingManager: boolean }
-  | { ok: false; reason: 'not_member' | 'ip_blocked' | 'wrong_region'; message: string };
+  | { ok: false; reason: 'not_member' | 'ip_blocked' | 'wrong_region' | 'sso_required'; message: string };
 
 /**
  * Whether `userId` may act in `orgId` from `ip` on this deployment (B-7): an active member, the
  * org's data region matches DATA_REGION, and the address is on the org's IP allowlist when it has
  * one. Every org-scoped entry point (tRPC, the event stream, billing) goes through this.
  */
-export async function checkOrgAccess(app: AppDb, input: { orgId: string; userId: string; ip: string | null; region?: string }): Promise<OrgAccess> {
+export async function checkOrgAccess(
+  app: AppDb,
+  input: { orgId: string; userId: string; ip: string | null; region?: string; sys?: SystemDb; skipSso?: boolean },
+): Promise<OrgAccess> {
   const { orgId, userId, ip } = input;
   const [row] = await withOrg(app, orgId, userId, (tx) =>
     tx
@@ -30,6 +34,19 @@ export async function checkOrgAccess(app: AppDb, input: { orgId: string; userId:
   if (input.region && row.region !== input.region)
     return { ok: false, reason: 'wrong_region', message: `This organization's data is in the "${row.region}" region; use that region's AutoDev address.` };
   if (!row.ipOk) return { ok: false, reason: 'ip_blocked', message: `Your network address${ip ? ` (${ip})` : ''} isn't on this organization's IP allowlist.` };
+  // SSO (B-7): when the org requires it, members (not owners) need a recent sign-in with the org's IdP.
+  if (input.sys && !input.skipSso) {
+    const sso = await ssoCheck(input.sys, orgId, userId, row.role);
+    if (sso.required && !sso.ok)
+      return {
+        ok: false,
+        reason: 'sso_required',
+        message:
+          sso.reason === 'deactivated'
+            ? 'Your account was deactivated in your company directory.'
+            : 'This organization requires signing in with your company’s single sign-on.',
+      };
+  }
   return { ok: true, role: row.role, billingManager: row.billingManager };
 }
 

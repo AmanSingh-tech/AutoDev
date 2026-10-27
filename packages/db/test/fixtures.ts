@@ -15,7 +15,7 @@ export async function truncateAll(db: SystemDb) {
       repos, user_repo_access, repo_policies, notifications, audit_log,
       llm_credentials, model_policies, budgets, token_usage, tasks, task_events,
       agent_runs, agent_steps, task_documents, task_questions, workspaces, workspace_files, blobs,
-      builders, builder_repo_bindings, builder_jobs, pull_requests, code_chunks, code_index_state, repo_links, stripe_events CASCADE`);
+      builders, builder_repo_bindings, builder_jobs, pull_requests, code_chunks, code_index_state, repo_links, stripe_events, workos_events CASCADE`);
   await db.execute(sql`TRUNCATE model_prices`);
   if (globalPrices.length) await db.insert(modelPrices).values(globalPrices);
 }

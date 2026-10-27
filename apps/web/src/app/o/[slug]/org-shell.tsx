@@ -1,10 +1,11 @@
 'use client';
 
-import { Badge, cn } from '@autodev/ui';
+import { Badge, Button, cn } from '@autodev/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import { OrgBanner } from '@/components/billing-bits';
 import { NotificationsBell } from '@/components/notifications-bell';
 import { setCurrentOrgId, trpc, type RouterOutputs } from '@/lib/trpc';
@@ -47,6 +48,11 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
   const insights = trpc.insights.settings.useQuery(undefined, { enabled: !!org && boundOrg === org.orgId, staleTime: 60_000, retry: false });
   // B-7: an IP allowlist or another data region refuses every org call; say so once, instead of broken pages.
   const denied = insights.error?.data?.orgAccess;
+  // The SSO callback comes back with ?sso_error=… when sign-in didn't work.
+  useEffect(() => {
+    const err = new URLSearchParams(window.location.search).get('sso_error');
+    if (err) toast.error(err);
+  }, []);
   if (org && boundOrg !== org.orgId) {
     // Query keys don't include the org, so drop org-scoped cache from the previous org.
     if (boundOrg) queryClient.removeQueries({ predicate: (q) => JSON.stringify(q.queryKey[0]) !== '["me","get"]' });
@@ -61,6 +67,23 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
         <h1 className="text-xl font-semibold">Organization not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           You aren’t a member of “{slug}”, or it doesn’t exist.{' '}
+          <Link href="/orgs" className="underline">
+            Back to your organizations
+          </Link>
+        </p>
+      </main>
+    );
+  }
+
+  if (denied === 'sso_required' && org) {
+    return (
+      <main className="mx-auto max-w-xl px-4 py-16 text-center">
+        <h1 className="text-xl font-semibold">Sign in with single sign-on</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{insights.error?.message}</p>
+        <Button asChild className="mt-6">
+          <a href={`/api/sso/start?org=${org.orgId}&returnTo=${encodeURIComponent(pathname)}`}>Continue with SSO</a>
+        </Button>
+        <p className="mt-4 text-sm">
           <Link href="/orgs" className="underline">
             Back to your organizations
           </Link>

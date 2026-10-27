@@ -45,7 +45,7 @@ const errorMapping = t.middleware(async ({ next }) => {
 
 /** Why an org-scoped call was refused, so the web app can show the right page (e.g. IP blocked). */
 export class OrgAccessDenied extends Error {
-  constructor(readonly reason: 'not_member' | 'ip_blocked' | 'wrong_region') {
+  constructor(readonly reason: 'not_member' | 'ip_blocked' | 'wrong_region' | 'sso_required') {
     super(reason);
   }
 }
@@ -66,7 +66,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const orgProcedure = authedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.orgId || !UUID.test(ctx.orgId)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'x-org-id header required' });
   const { orgId, userId, deps } = ctx;
-  const access = await checkOrgAccess(deps.app, { orgId, userId, ip: ctx.ip, region: deps.env.DATA_REGION });
+  const access = await checkOrgAccess(deps.app, { orgId, userId, ip: ctx.ip, region: deps.env.DATA_REGION, sys: deps.sys });
   if (!access.ok) throw new TRPCError({ code: 'FORBIDDEN', message: access.message, cause: new OrgAccessDenied(access.reason) });
   const member = access;
 

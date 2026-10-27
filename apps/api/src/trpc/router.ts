@@ -11,6 +11,7 @@ import { notificationsRouter } from './routers/notifications';
 import { billingRouter } from './routers/billing';
 import { onboardingRouter } from './routers/onboarding';
 import { governanceRouter } from './routers/governance';
+import { ssoRouter } from './routers/sso';
 import { groupAgentRouter } from './routers/group-agent';
 import { insightsRouter } from './routers/insights';
 import { promptGuideRouter } from './routers/prompt-guide';
@@ -47,6 +48,7 @@ export const appRouter = router({
   billing: billingRouter,
   onboarding: onboardingRouter,
   governance: governanceRouter,
+  sso: ssoRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
   codeIndex: codeIndexRouter,

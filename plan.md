@@ -405,6 +405,18 @@ Built as planned above, plus:
 - Prompt caching hints aren't sent to OpenAI (it caches automatically); Bedrock keeps the system-prompt cache breakpoints only.
 - Not tested against the real services (needs accounts).
 
+### B-7 part 3 notes: SSO and SCIM (2026-10-27, auto-approved)
+
+- **SSO is a second check, not the sign-in.** AutoDev needs each person's GitHub identity and token (PRs are opened as them), so GitHub stays the login. "SSO required" makes the org refuse members whose last SSO sign-in is older than the session length (default 24 h). **Owners are exempt**, and an admin can only turn it on after signing in with SSO themselves.
+- **Linking:** the first SSO sign-in links the IdP account to the signed-in GitHub user. The signed `state` names the org and the user and expires in 10 minutes; the callback must come back in the same person's session, from the org's own WorkOS organization; one IdP account links to one user.
+- **Setup** uses WorkOS's hosted setup portal (no IdP forms in AutoDev). The WorkOS organization is created the first time an admin opens it.
+- **Directory sync (SCIM):** WorkOS webhooks (signature-checked, deduplicated) record directory people; anyone deactivated or deleted there who is linked to a member is removed (and their seat freed). Owners are never removed automatically; that's audited instead.
+- WorkOS over plain `fetch`, like Stripe; tested against a mocked API.
+
+**Decisions left open:**
+- People are matched to the directory only through their SSO link (IdP id, then email). Unlinked directory people can't be pre-provisioned, because AutoDev accounts are GitHub accounts.
+- Directory groups don't map to roles or teams yet.
+
 ## Next step
 
 **Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).

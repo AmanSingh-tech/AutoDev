@@ -139,6 +139,15 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ org_members (added) | billing_manager | Manages billing whatever the role |
 | ✅ siem_destinations | org (PK), url, secret_enc (org data key), secret_last4, enabled, cursor_created_at + cursor_id, last_sent_at, last_error, failures | One per org. Admins manage it; the worker advances the cursor |
 
+## Single sign-on and directory sync (B-7)
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ org_sso | org (PK), workos_organization_id, workos_directory_id, sso_required, session_hours | Admins change it through the API |
+| ✅ sso_identities | org, user, profile_id, idp_id, email, last_login_at | One per member per org; written by the SSO callback only |
+| ✅ directory_users | org, directory_user_id, idp_id, email, name, state, user | From WorkOS Directory Sync; written by its webhook only |
+| ✅ workos_events | id, type | Webhook dedupe; no app-role access |
+
 ## Billing (B-6)
 
 | Table | Columns that matter | Notes |

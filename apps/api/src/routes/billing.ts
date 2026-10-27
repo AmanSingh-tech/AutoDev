@@ -43,7 +43,7 @@ export async function billingRoutes(app: FastifyInstance, { deps }: { deps: Deps
       return void reply.code(400).send({ error: 'Invalid JSON' }), null;
     }
     const orgId = typeof body.orgId === 'string' && /^[0-9a-f-]{36}$/i.test(body.orgId) ? body.orgId : '';
-    const access = orgId ? await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION }) : null;
+    const access = orgId ? await checkOrgAccess(deps.app, { orgId, userId: session.userId, ip: req.ip, region: deps.env.DATA_REGION, sys: deps.sys }) : null;
     if (access && !access.ok && access.reason !== 'not_member') return void reply.code(403).send({ error: access.message }), null;
     // Owners, admins and billing managers (B-7).
     if (!access?.ok || !(access.role === 'owner' || access.role === 'admin' || access.billingManager))

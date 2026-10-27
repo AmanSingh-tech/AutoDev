@@ -57,6 +57,7 @@ Generate secrets once and give the same values to every service that needs them:
 | `EMBEDDINGS_CACHE_DIR` |  | ✓ |  |  | Defaults to `/var/cache/autodev/embeddings`; mount a volume there |
 | `OSV_API_URL`, `NPM_REGISTRY_URL`, `PYPI_URL`, `GOPROXY_URL` |  | ✓ |  |  | Optional overrides for the Group Agent |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_TEAM`, `STRIPE_PRICE_BUSINESS` | ✓ | ✓ |  |  | Optional: billing is off without the key. Never on the web app |
+| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_WEBHOOK_SECRET` | ✓ |  |  |  | Optional: single sign-on and directory sync. Off without the key and client id |
 | `DATA_REGION` | ✓ | ✓ |  |  | This deployment's region (default `us`). New orgs are created in it; orgs from another region are refused |
 | `TRUST_PROXY` | ✓ |  |  |  | How many proxies sit in front of the API (e.g. `1`). The client address in the audit log and IP allowlists comes from `X-Forwarded-For`; the default `true` believes every hop, which is only safe when nothing can reach the API directly |
 | `OUTBOUND_ALLOW_PRIVATE` | ✓ | ✓ |  |  | `1` lets SIEM endpoints be `http://` or private addresses. Development only |
@@ -124,7 +125,15 @@ exposed.
 Seats follow active members nightly (02:45 UTC) and when someone is removed. Enterprise plans are set
 by hand: insert a `subscriptions` row with `plan = 'enterprise'`.
 
-## 6. Check it
+## 6. WorkOS (optional: single sign-on and directory sync)
+
+1. In WorkOS, add the redirect URI `{WEB_URL}/api/sso/callback`.
+2. Add a webhook endpoint `{API}/webhooks/workos` with the `dsync.*` events; its secret goes in
+   `WORKOS_WEBHOOK_SECRET`.
+3. Each customer's admin then uses **Settings → Security → Connect an identity provider**, which opens
+   WorkOS's setup portal for their IdP (Okta, Entra ID, Google Workspace…).
+
+## 7. Check it
 
 1. `GET {API}/healthz` and `GET {GATEWAY}/healthz` return `{"ok":true}`.
 2. The web app's `/login` shows **Continue with GitHub** (not **Setup needed**).
