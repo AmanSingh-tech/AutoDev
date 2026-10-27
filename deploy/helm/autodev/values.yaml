@@ -1,0 +1,110 @@
+# AutoDev on Kubernetes. Postgres 16 (with pgvector) and Redis 7 are external: point the settings at
+# yours. See README.md in this folder.
+
+image:
+  # The backend image (docker build -t <repo>/autodev .); one image runs api, worker, gateway and migrations.
+  repository: ghcr.io/your-org/autodev
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Settings shared by every service. Either let the chart create the Secret from `secrets`, or point
+# `existingSecret` at one you manage (External Secrets, Sealed Secrets…) with the same keys.
+existingSecret: ""
+secrets:
+  DATABASE_URL: ""          # autodev_app role
+  DATABASE_URL_SYSTEM: ""   # autodev_system role (BYPASSRLS)
+  REDIS_URL: ""
+  MASTER_KEY: ""            # openssl rand -base64 32
+  AUTH_SECRET: ""           # openssl rand -base64 48 (same value on the web app)
+  GITHUB_APP_ID: ""
+  GITHUB_APP_SLUG: ""
+  GITHUB_APP_CLIENT_ID: ""
+  GITHUB_APP_CLIENT_SECRET: ""
+  GITHUB_APP_PRIVATE_KEY: ""
+  GITHUB_WEBHOOK_SECRET: ""
+  # Optional: STRIPE_*, WORKOS_*, S3_*… add any other setting here.
+
+# Non-secret settings for every service.
+env:
+  NODE_ENV: production
+  WEB_URL: https://autodev.example.com
+  API_URL: https://api.autodev.example.com
+  BUILDER_GATEWAY_URL: wss://gateway.autodev.example.com/builder
+  DATA_REGION: us
+  # One proxy (the ingress controller) in front of the API.
+  TRUST_PROXY: "1"
+
+api:
+  replicas: 2
+  port: 4000
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 1Gi }
+  ingress:
+    enabled: false
+    className: ""
+    host: api.autodev.example.com
+    annotations: {}
+    tls: []   # - secretName: api-tls  hosts: [api.autodev.example.com]
+
+worker:
+  replicas: 1
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { memory: 2Gi }
+  # Cache for the code index's embedding model (about 160 MB, downloaded on first use).
+  embeddingsCache:
+    persistence: false
+    size: 1Gi
+    storageClass: ""
+
+gateway:
+  replicas: 1
+  port: 4100
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  ingress:
+    enabled: false
+    className: ""
+    host: gateway.autodev.example.com
+    # Builders keep a WebSocket open; raise the proxy's timeouts (nginx shown).
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    tls: []
+
+# Migrations run as a Job before every install and upgrade.
+migrations:
+  enabled: true
+
+# The web app, if you don't host it on Vercel. Its image is built with --target web, and API_URL is
+# read when it's built, so build it for this cluster's API address.
+web:
+  enabled: false
+  image:
+    repository: ghcr.io/your-org/autodev-web
+    tag: "0.1.0"
+  replicas: 2
+  port: 3000
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  ingress:
+    enabled: false
+    className: ""
+    host: autodev.example.com
+    annotations: {}
+    tls: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities: { drop: [ALL] }
+nodeSelector: {}
+tolerations: []
+affinity: {}

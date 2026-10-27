@@ -165,7 +165,7 @@ The brief's phase names are B-1 to B-7. The brief also has feature headings B1 t
 | B-4 Insights and leaderboard | Nightly rollups (`user_metrics_daily`), admin dashboard, leaderboard snapshots, Impact score, visibility controls, cost hiding, badges | **built, awaiting review** | See "B-4 notes" below. |
 | B-5 Group Agent | Scheduled org-wide scans, weekly digest with health score, recommendations to tasks, Draft PR default and safety levels, own budget and weekly PR cap; tables recommendations, group_agent_findings, agent_policies | **built (parts 1 and 2), awaiting review** | See "B-5 notes" below. |
 | B-6 Billing and onboarding | Per-seat Stripe subscriptions, Team/Business/Enterprise, onboarding flow, `subscriptions` table, `/billing/checkout`, `/webhooks/stripe` | **built, awaiting review** | See "B-6 notes" below. |
-| B-7 Enterprise pack | SSO (WorkOS), SCIM, extra roles, retention, SIEM export, IP allowlist, data region, more LLM providers, self-hosted Helm chart, Jira sync (`jira_issue_key`) | not started | |
+| B-7 Enterprise pack | SSO (WorkOS), SCIM, extra roles, retention, SIEM export, IP allowlist, data region, more LLM providers, self-hosted Helm chart, Jira sync (`jira_issue_key`) | **built (parts 1–5), awaiting review** | See "B-7" notes below. |
 
 ### What exists in code but is not in the phase list
 
@@ -428,6 +428,17 @@ Built as planned above, plus:
 - Jira statuses don't move AutoDev tasks, and AutoDev doesn't transition Jira issues (workflows differ per project); it only comments.
 - Jira Data Center (self-hosted) isn't supported.
 
+### B-7 part 5 notes: Helm chart (2026-10-27, auto-approved)
+
+- `deploy/helm/autodev`: api, worker, gateway, migrations (pre-install/pre-upgrade Job), optional web, optional ingresses and an embeddings-cache volume. External Postgres and Redis.
+- The settings ConfigMap and Secret are hooks too, created before the migration Job (otherwise a first install's Job couldn't read them). `existingSecret` works with External Secrets or Sealed Secrets.
+- The web pod gets only the settings sign-in needs, never the App private key or webhook secret.
+- Checked with `helm lint` and `kubeconform -strict` (14 resources valid, every option on). **Not installed on a real cluster** (none available here).
+
+### Public home page (2026-10-27)
+
+`/` now explains AutoDev (what it does, how a task works, six steps to start, how code and keys are protected) and leads to sign-in, or to the setup page when the deployment isn't configured. Signed-in people still go straight to their organizations.
+
 ## Next step
 
-**Review B-6 (billing and onboarding).** Next phase: B-7 (enterprise pack).
+**Section B is built.** Review B-6 and B-7, then the remaining items under "Decisions left open" in each phase's notes.

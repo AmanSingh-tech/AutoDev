@@ -165,6 +165,7 @@ remove their own team's members.
 ## Deploying and frontend conventions
 
 - **Vercel** hosts the web app only: [docs/deploy-vercel.md](docs/deploy-vercel.md).
+- **Kubernetes:** a Helm chart in [deploy/helm/autodev](deploy/helm/autodev/README.md).
 - **The backend** (API, worker, builder gateway) is one Docker image, with configs for Railway, Fly.io
   and a single machine (`docker-compose.prod.yml`): [docs/deploy-backend.md](docs/deploy-backend.md).
 - **Frontend rules** (motion tokens, toasts, phone baseline, worst-case data):

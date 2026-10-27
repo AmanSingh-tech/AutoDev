@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "autodev.fullname" . }}-gateway
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels: {{- include "autodev.selector" (dict "root" . "component" "gateway") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "autodev.selector" (dict "root" . "component" "gateway") | nindent 8 }}
+      annotations:
+        checksum/config: {{ toJson .Values.env | sha256sum }}
+        checksum/secrets: {{ toJson .Values.secrets | sha256sum }}
+    spec:
+      {{- include "autodev.podCommon" . | nindent 6 }}
+      containers:
+        - name: gateway
+          image: {{ include "autodev.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["gateway"]
+          {{- include "autodev.envFrom" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.gateway.port }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources: {{- toYaml .Values.gateway.resources | nindent 12 }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "autodev.fullname" . }}-gateway
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "autodev.selector" (dict "root" . "component" "gateway") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.gateway.port }}
+      targetPort: http
+{{- if .Values.gateway.ingress.enabled }}
+---
+{{ include "autodev.ingress" (dict "root" . "component" "gateway" "cfg" .Values.gateway.ingress "port" .Values.gateway.port) }}
+{{- end }}

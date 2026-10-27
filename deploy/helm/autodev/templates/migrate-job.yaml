@@ -1,0 +1,26 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "autodev.fullname" . }}-migrate
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: {{- include "autodev.selector" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "autodev.podCommon" . | nindent 6 }}
+      containers:
+        - name: migrate
+          image: {{ include "autodev.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate"]
+          {{- include "autodev.envFrom" . | nindent 10 }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+{{- end }}

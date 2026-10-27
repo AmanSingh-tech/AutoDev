@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "autodev.fullname" . }}-env
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+  annotations:
+    # Created before the migration Job (a pre-install hook) so it can read them, and replaced on upgrades.
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  {{- range $k, $v := .Values.env }}
+  {{ $k }}: {{ $v | toString | quote }}
+  {{- end }}
+  GATEWAY_PORT: {{ .Values.gateway.port | quote }}
+  EMBEDDINGS_CACHE_DIR: /var/cache/autodev/embeddings
+---
+{{- if not .Values.existingSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "autodev.secretName" . }}
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+  annotations:
+    # Created before the migration Job (a pre-install hook) so it can read them, and replaced on upgrades.
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+type: Opaque
+stringData:
+  {{- range $k, $v := .Values.secrets }}
+  {{- if $v }}
+  {{ $k }}: {{ $v | toString | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}

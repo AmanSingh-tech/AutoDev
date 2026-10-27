@@ -1,0 +1,61 @@
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "autodev.fullname" . }}-web
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels: {{- include "autodev.selector" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "autodev.selector" (dict "root" . "component" "web") | nindent 8 }}
+      annotations:
+        checksum/config: {{ toJson .Values.env | sha256sum }}
+        checksum/secrets: {{ toJson .Values.secrets | sha256sum }}
+    spec:
+      {{- include "autodev.podCommon" . | nindent 6 }}
+      containers:
+        - name: web
+          image: {{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Only what sign-in needs: never the App private key, webhook secret or database app role.
+          envFrom:
+            - configMapRef:
+                name: {{ include "autodev.fullname" . }}-env
+          env:
+            - name: PORT
+              value: {{ .Values.web.port | quote }}
+            {{- range list "AUTH_SECRET" "DATABASE_URL_SYSTEM" "MASTER_KEY" "GITHUB_APP_ID" "GITHUB_APP_SLUG" "GITHUB_APP_CLIENT_ID" "GITHUB_APP_CLIENT_SECRET" }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "autodev.secretName" $ }}
+                  key: {{ . }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.port }}
+          readinessProbe:
+            httpGet: { path: /login, port: http }
+            periodSeconds: 15
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "autodev.fullname" . }}-web
+  labels: {{- include "autodev.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "autodev.selector" (dict "root" . "component" "web") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.web.port }}
+      targetPort: http
+{{- if .Values.web.ingress.enabled }}
+---
+{{ include "autodev.ingress" (dict "root" . "component" "web" "cfg" .Values.web.ingress "port" .Values.web.port) }}
+{{- end }}
+{{- end }}
