@@ -9,6 +9,8 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // No floating dev-mode badge: it covers the UI in screenshots and recordings.
+  devIndicators: false,
   // The monorepo root, so server files traced from packages/ are included (and a stray lockfile
   // elsewhere on the machine isn't mistaken for the workspace root).
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),

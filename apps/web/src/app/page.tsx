@@ -160,6 +160,22 @@ export default async function Home() {
           </div>
         </section>
 
+        <section aria-labelledby="watch" className="border-t">
+          <div className="mx-auto max-w-5xl px-4 py-16">
+            <h2 id="watch" className="text-2xl font-semibold tracking-tight">
+              Watch a task go from plan to merged PR
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">36 seconds in the live demo: approve the plan and the design, then the agent writes the code, runs the tests and opens the pull request.</p>
+            <div className="mt-8 overflow-hidden rounded-xl border bg-card shadow-pop">
+              <video className="block aspect-[8/5] w-full" controls muted playsInline preload="none" poster="/demo/autodev-demo-poster.jpg" aria-label="AutoDev demo: a task from plan approval to merged pull request">
+                <source src="/demo/autodev-demo.mp4" type="video/mp4" />
+                Your browser can’t play this video.{' '}
+                <a href="/demo/autodev-demo.mp4">Download it</a> instead.
+              </video>
+            </div>
+          </div>
+        </section>
+
         <section aria-labelledby="what" className="border-t bg-muted/40">
           <div className="mx-auto max-w-5xl px-4 py-14">
             <h2 id="what" className="text-2xl font-semibold tracking-tight">
