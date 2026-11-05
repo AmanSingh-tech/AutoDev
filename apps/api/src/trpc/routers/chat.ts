@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, isNull, schema, type Tx } from '@autodev/db';
+import { and, asc, desc, eq, isNull, schema, type SystemDb, type Tx } from '@autodev/db';
 import { LlmBlocked } from '@autodev/llm';
+import { isDemoOrg } from '@autodev/demo';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { orgProcedure, router } from '../trpc';
@@ -25,7 +26,9 @@ export async function readableRepo(tx: Tx, orgId: string, userId: string, repoId
 }
 
 /** Fails early, with the reason, when the caller's AI key or budget can't pay for an answer. */
-export async function assertCanAsk(ctx: { deps: { gateway: { assertRunAllowed: (o: string, u: string, c: 'chat') => Promise<unknown> } }; orgId: string; userId: string }) {
+export async function assertCanAsk(ctx: { deps: { sys: SystemDb; gateway: { assertRunAllowed: (o: string, u: string, c: 'chat') => Promise<unknown> } }; orgId: string; userId: string }) {
+  // Demo orgs answer from their sample repos, without a model or key.
+  if (await isDemoOrg(ctx.deps.sys, ctx.orgId)) return;
   try {
     await ctx.deps.gateway.assertRunAllowed(ctx.orgId, ctx.userId, 'chat');
   } catch (e) {

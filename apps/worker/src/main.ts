@@ -15,7 +15,7 @@ import { createCodeIndexProcessor } from './code-index';
 import { createGroupAgentProcessor } from './group-agent/processor';
 import { createKeyValidationProcessor } from './key-validation';
 import { createMaintenanceProcessor } from './maintenance';
-import { DemoAgent, isDemoOrg } from '@autodev/demo';
+import { answerDemoChat, answerDemoRoom, DemoAgent, isDemoOrg } from '@autodev/demo';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
@@ -141,8 +141,10 @@ const workers = [
     { connection, concurrency: 1 },
   ),
   // Chat answers read several files, so they can take a minute or two.
-  new Worker(QUEUES.chat, (job) => {
+  new Worker(QUEUES.chat, async (job) => {
     const data = chatJob.parse(job.data);
+    // Demo orgs answer from their sample repos, without a model.
+    if (await isDemoOrg(sys.db, data.orgId)) return data.kind === 'room' ? answerDemoRoom(sys.db, data.orgId, data.messageId) : answerDemoChat(sys.db, data.orgId, data.messageId);
     return data.kind === 'room' ? repoAgent.answerInRoom(data.orgId, data.messageId) : repoChat.answer(data.orgId, data.messageId);
   }, { connection, concurrency: 4, lockDuration: 5 * 60_000 }),
 ];

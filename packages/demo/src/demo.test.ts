@@ -62,3 +62,12 @@ describe('demo org', () => {
     expect(steps.length).toBeGreaterThan(5);
   });
 });
+
+describe('demo chat', () => {
+  it('answers from the sample repo and says it is a demo answer', async () => {
+    const { demoAnswer } = await import('./index');
+    expect(demoAnswer('How are tests organised?', 'web')).toContain('Vitest');
+    expect(demoAnswer('Where is routing handled?', 'api')).toContain('`src/server.ts`');
+    expect(demoAnswer('Explain error handling', 'api')).toContain('Demo answer');
+  });
+});

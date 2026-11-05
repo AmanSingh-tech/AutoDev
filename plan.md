@@ -451,7 +451,11 @@ Approved: calm and technical, indigo accent, demo mode included, build it all.
 - **Demo mode** (`@autodev/demo`): sample org per person (up to 3), simulated agent in the worker for demo orgs, demo paths where the app would otherwise call GitHub (repo access refresh, branches, file diffs), "Merge (demo)".
 - **Fixed:** real GitHub sign-in failed ("unexpected iss"); the provider now declares GitHub's issuer.
 
-**Still to do in the redesign:** settings grouped into sections, the repo board and list, the landing page with product visuals and pricing, and a canned answer for repo chat in demo orgs (it needs a model today).
+- **Settings** in a grouped side menu (Organization · AI · Features · Security & billing), a sideways row on phones.
+- **Home page:** a product preview built from the app's own pieces, "Try the live demo", pricing (prices come from `NEXT_PUBLIC_PRICE_TEAM` / `NEXT_PUBLIC_PRICE_BUSINESS`; until set, the cards say "14-day free trial", so no made-up numbers), and an FAQ.
+- **Demo chat:** repo chat and the team room answer from the sample repo in demo orgs, labeled as demo answers.
+
+**Decisions left open:** the plan prices and what Business includes over Team (the page copy is a starting point).
 
 ## Next step
 

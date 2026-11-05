@@ -39,7 +39,7 @@ export default function AiKeysPage() {
       <div>
         <h1 className="text-xl font-semibold">AI keys</h1>
         <p className="text-sm text-muted-foreground">
-          Bring your own Anthropic key. The most specific key wins: personal, then team, then organization.
+          Bring your own key (Anthropic, OpenAI, Azure OpenAI or Amazon Bedrock). The most specific key wins: personal, then team, then organization.
           Keys are encrypted, checked when saved and every day, and can never be viewed again.
         </p>
       </div>
@@ -49,6 +49,8 @@ export default function AiKeysPage() {
           Your tasks use the <span className="font-medium">{SCOPE_LABEL[effective.data.scope].toLowerCase()}</span> key ending in{' '}
           <span className="font-mono">…{effective.data.last4}</span>.
         </Alert>
+      ) : effective.isSuccess && org.demo ? (
+        <Alert>This is a demo organization: its agent is simulated and needs no key. Keys you add here would be used by a real organization.</Alert>
       ) : effective.isSuccess ? (
         <Alert tone="destructive">No working key yet, so agent tasks can’t run. {isAdmin ? 'Add an organization key below.' : 'Ask an admin to add one.'}</Alert>
       ) : null}

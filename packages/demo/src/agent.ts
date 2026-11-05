@@ -16,6 +16,9 @@ export interface DemoAgentDeps {
   stepMs?: number;
 }
 
+/** A stable, real-looking commit id for a demo task's base. */
+const demoSha = (taskId: string) => createHash('sha1').update(`demo-base:${taskId}`).digest('hex');
+
 /** Whether an org is a demo org (created by "Try the demo"). */
 export async function isDemoOrg(sys: SystemDb, orgId: string): Promise<boolean> {
   const [o] = await sys.select({ demo: sql<boolean>`coalesce((${orgs.settings} ->> 'demo')::boolean, false)` }).from(orgs).where(eq(orgs.id, orgId));
@@ -133,7 +136,7 @@ export class DemoAgent {
     const sha = createHash('sha256').update(patch).digest('hex');
     const [job] = await sys
       .insert(builderJobs)
-      .values({ orgId: t.orgId, taskId: t.id, repoId: t.repoId, requestedBy: t.ownerId, baseSha: 'd'.repeat(40), workspaceRevision: files.length, patchHash: sha, patchSha256: sha, final: true, status: 'running', startedAt: new Date() })
+      .values({ orgId: t.orgId, taskId: t.id, repoId: t.repoId, requestedBy: t.ownerId, baseSha: demoSha(t.id), workspaceRevision: files.length, patchHash: sha, patchSha256: sha, final: true, status: 'running', startedAt: new Date() })
       .returning();
     await this.pause(3);
     const logHash = await blobs.put(log);
@@ -151,7 +154,7 @@ export class DemoAgent {
 export async function writeWorkspace(sys: SystemDb, t: { id: string; orgId: string; repoId: string }, files: { path: string; op: 'create' | 'modify'; after: string }[]) {
   const [ws] = await sys
     .insert(workspaces)
-    .values({ orgId: t.orgId, taskId: t.id, repoId: t.repoId, baseSha: 'd'.repeat(40), baseRef: 'main', revision: files.length })
+    .values({ orgId: t.orgId, taskId: t.id, repoId: t.repoId, baseSha: demoSha(t.id), baseRef: 'main', revision: files.length })
     .onConflictDoUpdate({ target: workspaces.taskId, set: { revision: files.length, updatedAt: new Date() } })
     .returning();
   await sys.delete(workspaceFiles).where(eq(workspaceFiles.workspaceId, ws!.id));

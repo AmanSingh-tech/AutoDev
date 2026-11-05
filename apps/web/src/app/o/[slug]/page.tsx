@@ -45,7 +45,7 @@ export default function OrgHome() {
         }
       />
 
-      {isAdmin && onboarding.data && !onboarding.data.complete && <SetupCard slug={slug} steps={onboarding.data.steps} />}
+      {isAdmin && !org.demo && onboarding.data && !onboarding.data.complete && !onboarding.data.dismissed && <SetupCard slug={slug} steps={onboarding.data.steps} />}
 
       <section aria-label="This week" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile icon={ListChecks} label="Tasks this week" value={d ? String(d.stats.tasksThisWeek) : '–'} />
@@ -103,9 +103,15 @@ export default function OrgHome() {
                       {pr.repoFullName} #{pr.number} · {pr.mergedAt ? `merged ${relativeTime(pr.mergedAt)}` : `${pr.state} · opened ${relativeTime(pr.createdAt)}`}
                     </div>
                   </div>
-                  <a href={pr.url} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-muted-foreground hover:text-foreground">
-                    GitHub ↗
-                  </a>
+                  {org.demo ? (
+                    <Link href={`/o/${slug}/tasks/${pr.taskKey}`} className="shrink-0 text-xs text-muted-foreground hover:text-foreground">
+                      View
+                    </Link>
+                  ) : (
+                    <a href={pr.url} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-muted-foreground hover:text-foreground">
+                      GitHub ↗
+                    </a>
+                  )}
                 </li>
               ))}
               {!d && <li className="px-6 py-6 text-sm text-muted-foreground">Loading…</li>}

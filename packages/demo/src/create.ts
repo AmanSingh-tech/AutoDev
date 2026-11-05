@@ -130,7 +130,7 @@ export async function createDemoOrg(deps: CreateDemoDeps, user: { id: string; lo
       .where(eq(orgs.id, org.id));
     const mates = await tx
       .insert(users)
-      .values(TEAMMATES.map((m) => ({ githubUserId: fakeGithubId(), githubLogin: `${m.login}-${suffix}`, name: m.name })))
+      .values(TEAMMATES.map((m) => ({ githubUserId: fakeGithubId(), githubLogin: m.login, name: m.name })))
       .returning();
     await tx.insert(orgMembers).values(mates.map((u, i) => ({ orgId: org.id, userId: u.id, role: TEAMMATES[i]!.role })));
     const [inst] = await tx
@@ -183,6 +183,10 @@ export async function createDemoOrg(deps: CreateDemoDeps, user: { id: string; lo
       const at = new Date(Date.now() - s.daysAgo * 86_400_000);
       await sys.update(tasks).set({ createdAt: at, updatedAt: s.stage === 'merged' ? new Date(at.getTime() + 6 * 3_600_000) : at }).where(eq(tasks.id, t!.id));
       await sys.update(pullRequests).set({ createdAt: new Date(at.getTime() + 2 * 3_600_000) }).where(eq(pullRequests.taskId, t!.id));
+      if (s.stage === 'merged') {
+        await sys.update(pullRequests).set({ mergedAt: new Date(at.getTime() + 6 * 3_600_000) }).where(eq(pullRequests.taskId, t!.id));
+        await sys.update(tasks).set({ completedAt: new Date(at.getTime() + 6 * 3_600_000) }).where(eq(tasks.id, t!.id));
+      }
     }
   }
   await sys.update(orgs).set({ taskSeq: n }).where(eq(orgs.id, org.id));

@@ -1,8 +1,11 @@
-import { Button } from '@autodev/ui';
+import { Badge, Button } from '@autodev/ui';
+import { ArrowRight, Check, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { ProductPreview } from '@/components/product-preview';
+import { AutoDevMark } from '@/components/shell/sidebar';
 import { missingConfig } from '@/lib/config-check';
 
 export const metadata: Metadata = {
@@ -46,6 +49,36 @@ const STEPS: { title: string; body: string }[] = [
   { title: 'Review and merge', body: 'Approve the plan, watch the agent work, check the diff and the test results, and merge the PR on GitHub.' },
 ];
 
+const PLANS: { name: string; blurb: string; price: string | null; featured?: boolean; features: string[] }[] = [
+  {
+    name: 'Team',
+    blurb: 'For one team getting started.',
+    price: process.env.NEXT_PUBLIC_PRICE_TEAM ?? null,
+    features: ['Tasks, plans and pull requests', 'Your own builders and AI keys', 'Repo chat and team rooms', 'Budgets and usage'],
+  },
+  {
+    name: 'Business',
+    blurb: 'For several teams and repositories.',
+    price: process.env.NEXT_PUBLIC_PRICE_BUSINESS ?? null,
+    featured: true,
+    features: ['Everything in Team', 'Group Agent: scans and fix PRs', 'Insights and leaderboard', 'Jira sync, cross-repo sync'],
+  },
+  {
+    name: 'Enterprise',
+    blurb: 'For security and compliance needs.',
+    price: null,
+    features: ['Single sign-on and directory sync', 'IP allowlist, retention, SIEM export', 'Data region or self-hosting', 'Priority support'],
+  },
+];
+
+const FAQ: [string, string][] = [
+  ['Does AutoDev see our code?', 'It reads only the repositories the GitHub App is installed on, and only while working on a task. Commands and tests run on a builder you control, not on our servers.'],
+  ['Whose name is on the commits?', 'Yours. AutoDev pushes and opens pull requests with your GitHub identity and can only push where you can. Nothing merges without your review.'],
+  ['Which AI models can we use?', 'Anthropic’s Claude by default, or OpenAI, Azure OpenAI and Claude on Amazon Bedrock with your own keys. Each kind of work can use a different model.'],
+  ['How much does the AI cost?', 'Whatever your provider charges; AutoDev records every call’s cost and lets you set budgets per person, team and organization.'],
+  ['Can we try it first?', 'Yes. The live demo needs no repositories or key, and every organization starts with a free trial.'],
+];
+
 const TRUST: string[] = [
   'Every organization’s data is kept apart in the database itself (row-level security).',
   'GitHub tokens and AI keys are encrypted at rest and only decrypted for the one call that needs them.',
@@ -69,10 +102,16 @@ export default async function Home() {
     <div className="min-h-dvh">
       <header className="border-b pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <span className="font-semibold">AutoDev</span>
+          <span className="flex items-center gap-2 font-semibold">
+            <AutoDevMark />
+            AutoDev
+          </span>
           <nav aria-label="Home" className="flex items-center gap-1 text-sm">
             <a href="#how" className="hidden rounded-md px-3 py-1.5 hover:bg-muted sm:inline">
               How it works
+            </a>
+            <a href="#pricing" className="hidden rounded-md px-3 py-1.5 hover:bg-muted sm:inline">
+              Pricing
             </a>
             <a href="#start" className="hidden rounded-md px-3 py-1.5 hover:bg-muted sm:inline">
               Get started
@@ -85,26 +124,40 @@ export default async function Home() {
       </header>
 
       <main className="pb-[calc(3rem+env(safe-area-inset-bottom))]">
-        <section className="mx-auto max-w-5xl px-4 pb-12 pt-16 sm:pt-24">
-          <p className="text-sm font-medium text-muted-foreground">For engineering teams on GitHub</p>
-          <h1 className="mt-3 max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-            Hand off coding tasks. Get back pull requests you’d have written.
-          </h1>
-          <p className="mt-5 max-w-2xl text-pretty text-lg text-muted-foreground">
-            AutoDev is an AI agent for your team. Write a task, approve its plan, and it writes the code, runs your tests on your own machine and opens the pull
-            request on GitHub as you. You decide every step.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg">
-              <Link href={start}>{configured ? 'Get started with GitHub' : 'Set up this server'}</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <a href="#how">See how it works</a>
-            </Button>
+        <section className="relative overflow-hidden">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(hsl(var(--foreground)/0.05)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
+          <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-20 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:gap-10 [&>*]:min-w-0">
+            <div>
+              <Badge variant="accent" className="mb-5">
+                <Sparkles aria-hidden />
+                For engineering teams on GitHub
+              </Badge>
+              <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-[3.4rem] lg:leading-[1.05]">
+                Hand off coding tasks. Get back pull requests you’d have written.
+              </h1>
+              <p className="mt-5 max-w-xl text-pretty text-lg text-muted-foreground">
+                AutoDev is an AI agent for your team. Write a task, approve its plan, and it writes the code, runs your tests on your own machine and opens the pull
+                request on GitHub as you. You decide every step.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link href={start}>
+                    {configured ? 'Get started with GitHub' : 'Set up this server'}
+                    <ArrowRight aria-hidden />
+                  </Link>
+                </Button>
+                {configured && (
+                  <Button asChild size="lg" variant="outline">
+                    <Link href="/demo">Try the live demo</Link>
+                  </Button>
+                )}
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                {configured ? 'The demo needs no repositories or AI key: a sample company and a simulated agent, in your browser.' : 'This server isn’t configured yet. The setup page lists the settings it still needs.'}
+              </p>
+            </div>
+            <ProductPreview />
           </div>
-          {!configured && (
-            <p className="mt-4 text-sm text-muted-foreground">This server isn’t configured yet. The setup page lists the settings it still needs.</p>
-          )}
         </section>
 
         <section aria-labelledby="what" className="border-t bg-muted/40">
@@ -167,6 +220,53 @@ export default async function Home() {
               <Button asChild size="lg">
                 <Link href={start}>{configured ? 'Sign in with GitHub' : 'Set up this server'}</Link>
               </Button>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="pricing-title" id="pricing" className="scroll-mt-16 border-t">
+          <div className="mx-auto max-w-5xl px-4 py-16">
+            <h2 id="pricing-title" className="text-2xl font-semibold tracking-tight">
+              Pricing
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Per person, per month. AI usage is billed by your own provider, at cost, so there’s no markup on tokens.</p>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {PLANS.map((p) => (
+                <div key={p.name} className={p.featured ? 'relative rounded-xl border-2 border-primary bg-card p-6 shadow-glow' : 'rounded-xl border bg-card p-6 shadow-card'}>
+                  {p.featured && <Badge variant="default" className="absolute -top-2.5 left-6">Most teams</Badge>}
+                  <h3 className="font-semibold">{p.name}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{p.blurb}</p>
+                  <div className="mt-5 text-3xl font-semibold tracking-tight">{p.price ?? (p.name === 'Enterprise' ? 'Custom' : '14-day free trial')}</div>
+                  {p.price && <div className="text-xs text-muted-foreground">per seat / month</div>}
+                  <ul className="mt-5 space-y-2 text-sm">
+                    {p.features.map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="faq-title" className="border-t bg-muted/40">
+          <div className="mx-auto max-w-3xl px-4 py-16">
+            <h2 id="faq-title" className="text-2xl font-semibold tracking-tight">
+              Questions
+            </h2>
+            <div className="mt-6 divide-y rounded-xl border bg-card">
+              {FAQ.map(([q, a]) => (
+                <details key={q} className="group px-5 py-4 [&_summary::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
+                    {q}
+                    <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="mt-2 text-sm text-muted-foreground">{a}</p>
+                </details>
+              ))}
             </div>
           </div>
         </section>
