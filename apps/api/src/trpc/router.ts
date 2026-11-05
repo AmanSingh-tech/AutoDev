@@ -13,6 +13,8 @@ import { onboardingRouter } from './routers/onboarding';
 import { governanceRouter } from './routers/governance';
 import { ssoRouter } from './routers/sso';
 import { jiraRouter } from './routers/jira';
+import { dashboardRouter } from './routers/dashboard';
+import { demoRouter } from './routers/demo';
 import { groupAgentRouter } from './routers/group-agent';
 import { insightsRouter } from './routers/insights';
 import { promptGuideRouter } from './routers/prompt-guide';
@@ -51,6 +53,8 @@ export const appRouter = router({
   governance: governanceRouter,
   sso: ssoRouter,
   jira: jiraRouter,
+  dashboard: dashboardRouter,
+  demo: demoRouter,
   room: roomRouter,
   repoAgent: repoAgentRouter,
   codeIndex: codeIndexRouter,

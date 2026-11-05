@@ -25,7 +25,7 @@ const daysLeft = (d: Date | string) => Math.max(0, Math.ceil((new Date(d).getTim
  * One line above every org page, at most: AI work is blocked by billing (everyone sees it), the
  * trial ends within 3 days (admins), or setup isn't finished (admins, until they dismiss it).
  */
-export function OrgBanner({ slug, isAdmin, billingManager = false }: { slug: string; isAdmin: boolean; billingManager?: boolean }) {
+export function OrgBanner({ slug, isAdmin, billingManager = false, hideSetup = false }: { slug: string; isAdmin: boolean; billingManager?: boolean; hideSetup?: boolean }) {
   const billing = trpc.billing.status.useQuery(undefined, { staleTime: 60_000 });
   const onboarding = trpc.onboarding.status.useQuery(undefined, { enabled: isAdmin, staleTime: 60_000 });
   const b = billing.data;
@@ -50,7 +50,7 @@ export function OrgBanner({ slug, isAdmin, billingManager = false }: { slug: str
       </Alert>
     );
   const o = onboarding.data;
-  if (o && !o.complete && !o.dismissed) {
+  if (o && !o.complete && !o.dismissed && !hideSetup) {
     const done = o.steps.filter((s) => s.done).length;
     return (
       <Alert className="mb-6">

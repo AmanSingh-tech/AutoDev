@@ -1,15 +1,38 @@
 'use client';
 
-import { Avatar, Table, TBody, TD, TH, THead, TR } from '@autodev/ui';
+import { Avatar, Button, Table, TBody, TD, TH, THead, TR } from '@autodev/ui';
 import Link from 'next/link';
 import { relativeTime } from '@/lib/format';
 import type { RouterOutputs } from '@/lib/trpc';
 import { PriorityLabel, StatusBadge } from './task-bits';
 
+import { ListChecks, Plus, SearchX } from 'lucide-react';
+import { EmptyState } from './page-header';
+
 type Row = RouterOutputs['tasks']['list'][number];
 
-export function TaskTable({ slug, rows, showRepo }: { slug: string; rows: Row[]; showRepo?: boolean }) {
-  if (!rows.length) return <p className="py-8 text-center text-sm text-muted-foreground">No tasks match.</p>;
+export function TaskTable({ slug, rows, showRepo, filtered = true }: { slug: string; rows: Row[]; showRepo?: boolean; filtered?: boolean }) {
+  if (!rows.length)
+    return filtered ? (
+      <EmptyState icon={SearchX} title="No tasks match these filters">
+        Try another status or priority, or clear the search.
+      </EmptyState>
+    ) : (
+      <EmptyState
+        icon={ListChecks}
+        title="No tasks yet"
+        action={
+          <Button asChild>
+            <Link href={`/o/${slug}/tasks/new`}>
+              <Plus aria-hidden />
+              Create the first task
+            </Link>
+          </Button>
+        }
+      >
+        Describe a bug fix or a feature. The agent plans it, you approve, and it opens the pull request.
+      </EmptyState>
+    );
   return (
     <Table>
       <THead>

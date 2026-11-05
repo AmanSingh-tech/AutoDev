@@ -153,10 +153,12 @@ createServer(async (req, res) => {
     return json(res, 200, { id: user.id, login: user.login, name: user.name, email: null, avatar_url: null });
   }
   if (api === '/user/installations') {
+    // Each person sees one org: the demo users acme-demo, the worst-case user the worst-case org,
+    // and demo-trial none (it only uses "Try the demo").
+    const visible = login === 'demo-trial' ? [] : [login === WORST_USER ? WORST_ORG : ORG];
     return json(res, 200, {
-      total_count: 1,
-      // Each person sees one org: the demo users acme-demo, the worst-case user the worst-case org.
-      installations: [login === WORST_USER ? WORST_ORG : ORG].map((o) => ({
+      total_count: visible.length,
+      installations: visible.map((o) => ({
         id: o === ORG ? INSTALLATION_ID : WORST_INSTALLATION_ID,
         target_type: 'Organization',
         account: { id: o.id, login: o.login, type: 'Organization' },

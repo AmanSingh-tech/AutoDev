@@ -1,4 +1,4 @@
-import { and, asc, eq, schema, withUser } from '@autodev/db';
+import { and, asc, eq, schema, sql, withUser } from '@autodev/db';
 import { authedProcedure, router } from '../trpc';
 
 const { orgMembers, orgs, users } = schema;
@@ -12,7 +12,7 @@ export const meRouter = router({
         .from(users)
         .where(eq(users.id, ctx.userId));
       const memberships = await tx
-        .select({ orgId: orgs.id, slug: orgs.slug, name: orgs.name, role: orgMembers.role, billingManager: orgMembers.billingManager })
+        .select({ orgId: orgs.id, slug: orgs.slug, name: orgs.name, role: orgMembers.role, billingManager: orgMembers.billingManager, demo: sql<boolean>`coalesce((${orgs.settings} ->> 'demo')::boolean, false)` })
         .from(orgMembers)
         .innerJoin(orgs, eq(orgs.id, orgMembers.orgId))
         .where(and(eq(orgMembers.userId, ctx.userId), eq(orgMembers.status, 'active')))

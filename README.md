@@ -162,6 +162,15 @@ remove their own team's members.
 - **Onboarding:** `/o/{slug}/onboarding` lists the setup steps and ticks them off from the org's data;
   admins see a reminder until it's done or hidden.
 
+## Demo mode
+
+**Try the demo** (`/demo`, also on the home page and the organization list) creates a sample
+organization, "Acme Cloud (demo)", for whoever is signed in: three repositories, teammates, tasks in
+every stage with their plans, designs, diffs, test runs and pull requests, and a month of usage. Its
+agent is simulated: start a task, approve the plan and watch it design, code, test and open a PR;
+"Merge (demo)" stands in for GitHub. Nothing reaches GitHub, an AI provider or a builder, so it works
+without an API key. Demo orgs are marked everywhere and never mixed with real ones.
+
 ## Deploying and frontend conventions
 
 - **Vercel** hosts the web app only: [docs/deploy-vercel.md](docs/deploy-vercel.md).

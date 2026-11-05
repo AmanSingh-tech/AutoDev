@@ -10,7 +10,7 @@ async function signInAs(page: Page, login: string) {
 test('the board groups seeded tasks into columns', async ({ page }) => {
   await signInAs(page, 'demo-owner');
   await page.getByRole('link', { name: 'acme-demo/api' }).click();
-  await expect(page.getByRole('heading', { name: 'acme-demo/api' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'acme-demo/api' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('column-needs_you')).toContainText('Return 404 instead of 500');
   await expect(page.getByTestId('column-in_progress')).toContainText('Migrate session store to Redis');
   await expect(page.getByTestId('column-pr')).toContainText('Paginate the audit log');

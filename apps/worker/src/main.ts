@@ -15,6 +15,7 @@ import { createCodeIndexProcessor } from './code-index';
 import { createGroupAgentProcessor } from './group-agent/processor';
 import { createKeyValidationProcessor } from './key-validation';
 import { createMaintenanceProcessor } from './maintenance';
+import { DemoAgent, isDemoOrg } from '@autodev/demo';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
@@ -92,12 +93,21 @@ await maintenance.upsertJobScheduler('nightly-insights', { pattern: '30 0 * * *'
 await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
 
-const agentWorker = new Worker(QUEUES.agent, (job) => orchestrator.process(agentJob.parse(job.data)), {
-  connection,
-  concurrency: 4,
-  // Agent turns can take minutes; the orchestrator refreshes its own task lock.
-  lockDuration: 10 * 60_000,
-});
+// Demo orgs ("Try the demo") get the simulated agent: no model, GitHub or builder.
+const demoAgent = new DemoAgent({ sys: sys.db, blobs, webUrl: env.WEB_URL });
+const agentWorker = new Worker(
+  QUEUES.agent,
+  async (job) => {
+    const data = agentJob.parse(job.data);
+    return (await isDemoOrg(sys.db, data.orgId)) ? demoAgent.process(data) : orchestrator.process(data);
+  },
+  {
+    connection,
+    concurrency: 4,
+    // Agent turns can take minutes; the orchestrator refreshes its own task lock.
+    lockDuration: 10 * 60_000,
+  },
+);
 agentWorker.on('failed', async (job, err) => {
   if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
     const data = agentJob.safeParse(job.data);

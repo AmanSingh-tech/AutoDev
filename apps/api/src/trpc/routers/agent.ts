@@ -1,6 +1,7 @@
 import { GitHubRepoReader, PgOverlayStore, PublishError, VirtualWorkspace, WorkspaceError } from '@autodev/agent';
 import { and, asc, desc, eq, isNull, schema, type DocumentKind } from '@autodev/db';
 import { userOctokit } from '@autodev/github';
+import { demoFiles, isDemoOrg } from '@autodev/demo';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { enqueueAgent, resumeStatusOf } from '../../services/agent-control';
@@ -266,6 +267,13 @@ export const agentRouter = router({
       return { t, ws, repo };
     });
     if (!ws || !repo) throw new TRPCError({ code: 'NOT_FOUND', message: 'No changes yet' });
+    // Demo orgs have no GitHub to read the base from: the sample content knows it.
+    if (await isDemoOrg(ctx.deps.sys, ctx.orgId)) {
+      const [file] = await ctx.deps.sys.select().from(workspaceFiles).where(and(eq(workspaceFiles.workspaceId, ws.id), eq(workspaceFiles.path, input.path)));
+      if (!file) throw new TRPCError({ code: 'BAD_REQUEST', message: `"${input.path}" has no changes` });
+      const sample = demoFiles({ key: t.key, title: t.title, descriptionMd: t.descriptionMd, repoName: repo.name }).find((f) => f.path === input.path);
+      return { before: file.op === 'create' ? '' : (sample?.before ?? ''), after: file.op === 'delete' ? '' : (file.content ?? '') };
+    }
     const reader = new GitHubRepoReader({
       repoId: repo.id,
       owner: repo.owner,

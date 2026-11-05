@@ -18,15 +18,23 @@ async function expectNoSidewaysScroll(page: Page) {
   expect(scrollWidth, `page is ${scrollWidth - innerWidth}px wider than the screen`).toBeLessThanOrEqual(innerWidth);
 }
 
-test('at phone width the main pages fit the screen, the nav scrolls on its own row, and inputs do not trigger zoom', async ({ page }) => {
+test('at phone width the main pages fit the screen, the nav opens as a drawer, and inputs do not trigger zoom', async ({ page }) => {
   test.setTimeout(120_000);
   await signInAs(page, 'demo-dev');
-  for (const path of ['/o/acme-demo/repos', '/o/acme-demo/repos/web', '/o/acme-demo/repos/web?view=list', '/o/acme-demo/tasks', '/o/acme-demo/repos/web/room', '/o/acme-demo/repos/web/new', '/o/acme-demo/settings']) {
+  for (const path of ['/o/acme-demo', '/o/acme-demo/repos', '/o/acme-demo/repos/web', '/o/acme-demo/repos/web?view=list', '/o/acme-demo/tasks', '/o/acme-demo/repos/web/room', '/o/acme-demo/repos/web/new', '/o/acme-demo/settings']) {
     await page.goto(path);
-    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Open menu' })).toBeVisible({ timeout: 30_000 });
     await page.waitForLoadState('domcontentloaded');
     await expectNoSidewaysScroll(page);
   }
+  // On a phone the sidebar is a drawer: closed until the menu button opens it, and a link closes it again.
+  await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(nav).toBeVisible();
+  await nav.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await expect(page).toHaveURL(/\/o\/acme-demo\/tasks$/);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
   // iOS zooms into inputs smaller than 16px; on a touch screen they're 16px.
   await page.goto('/o/acme-demo/repos/web/new');
   await expect(page.getByLabel('Title')).toHaveCSS('font-size', '16px');

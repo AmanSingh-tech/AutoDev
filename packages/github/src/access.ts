@@ -18,7 +18,7 @@ import type { GitHubConfig } from './config';
 import { highestPermission } from './permissions';
 import type { TokenVault } from './vault';
 
-const { installations, repos, userRepoAccess } = schema;
+const { installations, orgs, repos, userRepoAccess } = schema;
 
 export const REPO_ACCESS_TTL_SECONDS = 15 * 60;
 
@@ -60,7 +60,8 @@ export class RepoAccessService {
   ) {}
 
   async listWritable(orgId: string, userId: string, opts: { force?: boolean } = {}) {
-    if (opts.force || !(await this.isFresh(orgId, userId))) await this.refresh(orgId, userId);
+    // Demo orgs ("Try the demo") have no GitHub behind them: their access rows are fixed.
+    if ((opts.force || !(await this.isFresh(orgId, userId))) && !(await this.isDemo(orgId))) await this.refresh(orgId, userId);
     return withOrg(this.deps.app, orgId, userId, (tx) =>
       tx
         .select({
@@ -174,6 +175,11 @@ export class RepoAccessService {
       .update(userRepoAccess)
       .set({ expiresAt: sql`now()` })
       .where(eq(userRepoAccess.orgId, orgId));
+  }
+
+  private async isDemo(orgId: string) {
+    const [o] = await this.deps.sys.select({ demo: sql<boolean>`coalesce((${orgs.settings} ->> 'demo')::boolean, false)` }).from(orgs).where(eq(orgs.id, orgId));
+    return !!o?.demo;
   }
 
   private async isFresh(orgId: string, userId: string) {

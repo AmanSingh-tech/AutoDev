@@ -24,8 +24,24 @@ module.exports = {
           baseline: 'var(--viz-baseline)',
         },
         status: { warning: 'var(--status-warning)', critical: 'var(--status-critical)' },
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        info: 'hsl(var(--info))',
+        sidebar: 'hsl(var(--sidebar))',
+        popover: 'hsl(var(--popover))',
       },
-      borderRadius: { lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
+      fontFamily: {
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      // Depth is a hairline plus a soft, tinted shadow; never heavy drop shadows.
+      boxShadow: {
+        xs: '0 1px 2px 0 hsl(var(--shadow-color) / 0.05)',
+        card: '0 1px 2px 0 hsl(var(--shadow-color) / 0.04), 0 1px 3px 0 hsl(var(--shadow-color) / 0.06)',
+        pop: '0 4px 12px -2px hsl(var(--shadow-color) / 0.12), 0 2px 4px -2px hsl(var(--shadow-color) / 0.08)',
+        glow: '0 0 0 1px hsl(var(--primary) / 0.25), 0 8px 24px -6px hsl(var(--primary) / 0.35)',
+      },
+      borderRadius: { xl: 'calc(var(--radius) + 4px)', lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
       // Motion (see docs/frontend.md). The built-in curves are too weak: `ease-out` here is a strong
       // ease-out for things entering or responding, `ease-in-out` for things moving on screen.
       // There is deliberately no ease-in: it makes UI feel sluggish.

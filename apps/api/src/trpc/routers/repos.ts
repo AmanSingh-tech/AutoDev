@@ -1,5 +1,6 @@
 import { and, eq, isNull, schema, TASK_MODES } from '@autodev/db';
 import { installUrl, listBranches, userOctokit } from '@autodev/github';
+import { isDemoOrg } from '@autodev/demo';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminProcedure, authedProcedure, orgProcedure, router } from '../trpc';
@@ -35,6 +36,8 @@ export const reposRouter = router({
   branches: orgProcedure.input(z.object({ repoId: z.string().uuid() })).query(async ({ ctx, input }) => {
     const [repo] = await ctx.inOrg((tx) => tx.select().from(repos).where(and(eq(repos.orgId, ctx.orgId), eq(repos.id, input.repoId))));
     if (!repo) throw new TRPCError({ code: 'NOT_FOUND' });
+    // Demo repos only have their default branch.
+    if (await isDemoOrg(ctx.deps.sys, ctx.orgId)) return [{ name: repo.defaultBranch, protected: false }] as unknown as Awaited<ReturnType<typeof listBranches>>;
     const cacheKey = `branches:${repo.id}`;
     const hit = await ctx.deps.cache.get(cacheKey);
     if (hit) return JSON.parse(hit) as Awaited<ReturnType<typeof listBranches>>;

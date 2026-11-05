@@ -1,18 +1,19 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { SignOutButton } from '@/components/sign-out';
+import { AuthLayout } from '@/components/auth-layout';
 import { OrgPicker } from './org-picker';
 
 export default async function OrgsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/login?callbackUrl=/orgs');
   return (
-    <main className="mx-auto max-w-2xl px-4 py-12">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Your organizations</h1>
-        <SignOutButton />
+    <AuthLayout footer={<SignOutButton />}>
+      <div className="rounded-xl border bg-card p-6 shadow-pop">
+        <h1 className="text-lg font-semibold">Your organizations</h1>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">Choose where to work.</p>
+        <OrgPicker />
       </div>
-      <OrgPicker />
-    </main>
+    </AuthLayout>
   );
 }

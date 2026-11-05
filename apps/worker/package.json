@@ -13,6 +13,7 @@
   "dependencies": {
     "@autodev/agent": "workspace:*",
     "@autodev/billing": "workspace:*",
+    "@autodev/demo": "workspace:*",
     "@autodev/governance": "workspace:*",
     "@autodev/jira": "workspace:*",
     "@autodev/code-index": "workspace:*",

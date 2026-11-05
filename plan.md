@@ -439,6 +439,20 @@ Built as planned above, plus:
 
 `/` now explains AutoDev (what it does, how a task works, six steps to start, how code and keys are protected) and leads to sign-in, or to the setup page when the deployment isn't configured. Signed-in people still go straight to their organizations.
 
+### UI redesign and demo mode (2026-11-05)
+
+Approved: calm and technical, indigo accent, demo mode included, build it all.
+
+- **Look and feel:** new tokens (indigo accent, cooler neutrals, success/warning/info), Inter and JetBrains Mono, soft tinted shadows, Lucide icons, restyled buttons, inputs, selects, badges (phase colors for task status), alerts with icons. Light and dark tuned; a theme menu (system/light/dark) with no flash.
+- **App shell:** a grouped left sidebar with an org switcher and an account menu; a drawer on phones; a slim top bar with ⌘K command palette and notifications.
+- **Org home:** a dashboard (needs you, in progress, recent PRs, this week's numbers, setup progress). "New task" opens a repository picker.
+- **Task page:** breadcrumb and a step tracker (Plan → Design → Code → Tests → Pull request).
+- **Sign-in and organizations** in a shared, branded layout.
+- **Demo mode** (`@autodev/demo`): sample org per person (up to 3), simulated agent in the worker for demo orgs, demo paths where the app would otherwise call GitHub (repo access refresh, branches, file diffs), "Merge (demo)".
+- **Fixed:** real GitHub sign-in failed ("unexpected iss"); the provider now declares GitHub's issuer.
+
+**Still to do in the redesign:** settings grouped into sections, the repo board and list, the landing page with product visuals and pricing, and a canned answer for repo chat in demo orgs (it needs a model today).
+
 ## Next step
 
 **Section B is built.** Review B-6 and B-7, then the remaining items under "Decisions left open" in each phase's notes.

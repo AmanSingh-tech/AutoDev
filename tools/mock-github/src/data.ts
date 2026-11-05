@@ -4,6 +4,8 @@ export const USERS = {
   'demo-admin': { id: 900_002, login: 'demo-admin', name: 'Adrian Admin', orgRole: 'admin' },
   'demo-dev': { id: 900_003, login: 'demo-dev', name: 'Devi Developer', orgRole: 'member' },
   'demo-viewer': { id: 900_004, login: 'demo-viewer', name: 'Victor Viewer', orgRole: 'member' },
+  /** In no GitHub org at all: for "Try the demo", whose orgs would otherwise change where demo users land. */
+  'demo-trial': { id: 900_021, login: 'demo-trial', name: 'Tina Trial', orgRole: 'member' },
   /** Only in the worst-case org, so signing in as a demo user still lands straight in acme-demo. */
   'aleksandra-wisniewska-kowalczyk': { id: 900_011, login: 'aleksandra-wisniewska-kowalczyk', name: 'Aleksandra Wiśniewska-Kowalczyk', orgRole: 'admin' },
 } as const;

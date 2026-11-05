@@ -2,12 +2,14 @@
 
 import { STATUS_LABEL } from '@autodev/db/task-machine';
 import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle, NativeSelect } from '@autodev/ui';
+import { ChevronRight, FolderGit2, GitMerge } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { ActivitySection, AttentionPanel, ChangesSection, DocumentsSection, TestsSection } from '@/components/task-agent';
 import { JiraBox } from '@/components/jira-box';
 import { Markdown } from '@/components/markdown';
+import { TaskSteps } from '@/components/task-steps';
 import { FlagList, PromptScoreBadge } from '@/components/prompt-guide';
 import { MODE_LABEL, PriorityLabel, StatusBadge } from '@/components/task-bits';
 import { PROMPT_FLAGS, type PromptFlag } from '@autodev/protocol/prompt-check';
@@ -42,19 +44,21 @@ export default function TaskPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
       <div className="min-w-0 space-y-6">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-mono">{t.key}</span>
-            <span>·</span>
-            <Link href={`/o/${slug}/repos/${t.repo.name}`} className="min-w-0 [overflow-wrap:anywhere] hover:underline">
+        <div className="space-y-3">
+          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            <Link href={`/o/${slug}/repos/${t.repo.name}`} className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere] hover:text-foreground">
+              <FolderGit2 aria-hidden className="size-3.5 shrink-0" />
               {t.repo.fullName}
             </Link>
-          </div>
-          <h1 className="text-2xl font-semibold [overflow-wrap:anywhere]">{t.title}</h1>
+            <ChevronRight aria-hidden className="size-3.5" />
+            <span className="font-mono text-xs">{t.key}</span>
+          </nav>
+          <h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{t.title}</h1>
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge status={t.status} />
             <PriorityLabel priority={t.priority} />
           </div>
+          <TaskSteps mode={t.mode} status={t.status} />
         </div>
         <Actions task={t} onEdit={() => setEditing(true)} />
         {t.linkedTargets.length > 0 && <ApplyToLinked task={t} slug={slug} />}
@@ -97,6 +101,7 @@ export default function TaskPage() {
               ) : (
                 'Created with the Create PR button'
               )}
+              {org.demo && t.status === 'pr_open' && t.canManage && <DemoMerge taskKey={t.key} />}
             </Meta>
             {t.source && (
               <Meta label="Ported from">
@@ -129,7 +134,7 @@ export default function TaskPage() {
             )}
           </CardContent>
         </Card>
-        <JiraBox task={t} canEdit={t.canLinkJira} />
+        <JiraBox task={t} canEdit={t.canManage} />
       </aside>
     </div>
   );
@@ -347,3 +352,21 @@ const Meta = ({ label, children }: { label: string; children: ReactNode }) => (
 /** Task fields are written by people; shown as plain text with line breaks. */
 const Prose = ({ text }: { text: string }) => <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</div>;
 const Empty = () => <p className="text-sm text-muted-foreground">None</p>;
+
+/** Demo orgs have no GitHub: this does what a merge on GitHub would (the PR merges, the task resolves). */
+function DemoMerge({ taskKey }: { taskKey: string }) {
+  const utils = trpc.useUtils();
+  const merge = trpc.demo.merge.useMutation({
+    onSuccess: () => {
+      toast.success('Pull request merged (demo)');
+      void utils.tasks.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Button size="sm" className="mt-2 w-full" disabled={merge.isPending} onClick={() => merge.mutate({ key: taskKey })}>
+      <GitMerge aria-hidden />
+      Merge (demo)
+    </Button>
+  );
+}

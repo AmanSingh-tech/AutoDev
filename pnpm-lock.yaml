@@ -44,6 +44,9 @@ importers:
       '@autodev/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@autodev/demo':
+        specifier: workspace:*
+        version: link:../../packages/demo
       '@autodev/events':
         specifier: workspace:*
         version: link:../../packages/events
@@ -236,6 +239,9 @@ importers:
       '@trpc/server':
         specifier: ^11.0.0
         version: 11.19.0(typescript@5.9.3)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@19.3.1)
       monaco-editor:
         specifier: 0.52.2
         version: 0.52.2
@@ -309,6 +315,9 @@ importers:
       '@autodev/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@autodev/demo':
+        specifier: workspace:*
+        version: link:../../packages/demo
       '@autodev/events':
         specifier: workspace:*
         version: link:../../packages/events
@@ -492,6 +501,21 @@ importers:
         specifier: ^4.19.2
         version: 4.23.15
 
+  packages/demo:
+    dependencies:
+      '@autodev/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@autodev/db':
+        specifier: workspace:*
+        version: link:../db
+      '@autodev/storage':
+        specifier: workspace:*
+        version: link:../storage
+      uuidv7:
+        specifier: ^1.2.1
+        version: 1.2.1
+
   packages/events:
     dependencies:
       '@autodev/protocol':
@@ -616,6 +640,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@19.3.1)
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.1
@@ -3670,6 +3697,11 @@ packages:
 
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
+
+  lucide-react@0.468.0:
+    resolution: {integrity: sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
 
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
@@ -7459,6 +7491,10 @@ snapshots:
   longest-streak@3.1.0: {}
 
   loupe@3.2.1: {}
+
+  lucide-react@0.468.0(react@19.3.1):
+    dependencies:
+      react: 19.3.1
 
   luxon@3.7.2: {}
 

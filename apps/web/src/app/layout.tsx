@@ -1,8 +1,14 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import './globals.css';
+import { THEME_BOOT_SCRIPT } from '@/components/shell/theme';
 import { Providers } from './providers';
+
+// Self-hosted by Next (no request to Google at runtime), swapped in without layout shift.
+const sans = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export const metadata: Metadata = { title: 'AutoDev', description: 'Hand coding tasks to an AI agent that opens PRs as you.' };
 
@@ -18,14 +24,17 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a101e' },
+    { media: '(prefers-color-scheme: light)', color: '#fcfcfd' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0c0e' },
   ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>
         <Providers>{children}</Providers>
         {/* Mounted once, here, so a toast fired anywhere appears once. */}

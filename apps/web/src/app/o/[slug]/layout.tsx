@@ -15,7 +15,7 @@ export default async function OrgLayout({
   const session = await auth();
   if (!session?.user?.id) redirect(`/login?callbackUrl=/o/${slug}/repos`);
   return (
-    <OrgShell slug={slug} signOut={<SignOutButton />}>
+    <OrgShell slug={slug} signOut={<SignOutButton menu />}>
       {children}
     </OrgShell>
   );

@@ -18,6 +18,7 @@ import {
 import { buildSourceContext, latestPr, readSourceChange } from '@autodev/agent';
 import { assertCanPush, getBranch, isValidBranchName, newBranchName, PushNotAllowed, userOctokit } from '@autodev/github';
 import { billingState } from '@autodev/billing';
+import { isDemoOrg } from '@autodev/demo';
 import { LlmBlocked } from '@autodev/llm';
 import { PROMPT_SCORE_VERSION, scorePrompt, type PromptDraft } from '@autodev/protocol';
 import { TRPCError } from '@trpc/server';
@@ -157,15 +158,19 @@ export async function insertTask(tx: Tx, ctx: Ctx, repoId: string, input: NewTas
 async function startTask(ctx: Ctx, key: string) {
   const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, key));
   if (!canManage(ctx, t)) throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the task owner or an admin can start it' });
+  // Demo orgs run the simulated agent: no plan, AI key or budget is involved.
+  const demo = await isDemoOrg(ctx.deps.sys, ctx.orgId);
   // Billing (B-6): a lapsed trial or plan stops new AI work; nothing else changes.
   const billing = await billingState(ctx.deps.sys, ctx.deps.billing.cfg, ctx.orgId);
-  if (!billing.canRun) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: billing.blockedReason ?? 'The plan is not active.' });
+  if (!billing.canRun && !demo) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: billing.blockedReason ?? 'The plan is not active.' });
   await assertCanWork(ctx, t.repoId, t.ownerId);
-  try {
-    await ctx.deps.gateway.assertRunAllowed(ctx.orgId, t.ownerId);
-  } catch (e) {
-    if (e instanceof LlmBlocked) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: e.message, cause: e });
-    throw e;
+  if (!demo) {
+    try {
+      await ctx.deps.gateway.assertRunAllowed(ctx.orgId, t.ownerId);
+    } catch (e) {
+      if (e instanceof LlmBlocked) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: e.message, cause: e });
+      throw e;
+    }
   }
   const { task, eventId } = await ctx.inOrg((tx) => transition(tx, t, 'queued', { type: 'user', userId: ctx.userId }));
   await ctx.deps.queues.agent.add('run', { kind: 'run', orgId: ctx.orgId, taskId: t.id }, { jobId: `run-${eventId}` });
@@ -272,7 +277,7 @@ export const tasksRouter = router({
         events,
         pullRequests: prs,
         failure: t.status === 'failed' && lastFail ? (lastFail.payload as { reason?: string; message?: string; kind?: string }) : null,
-        canLinkJira: manage,
+        canManage: manage,
         can: {
           createPr: manage && t.status === 'pushed' && !prs.some((p) => p.state === 'open'),
           retryPush: manage && t.status === 'failed' && (lastFail?.payload as { reason?: string } | undefined)?.reason === 'push_failed',

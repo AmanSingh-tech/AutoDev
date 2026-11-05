@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@autodev/ui';
+import { Bell } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { relativeTime } from '@/lib/format';
@@ -30,13 +31,17 @@ export function NotificationsBell({ slug }: { slug: string }) {
   const unread = q.data?.unread ?? 0;
   return (
     <div ref={ref} className="relative">
-      <Button variant="ghost" size="sm" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span aria-hidden>🔔</span>
-        <span className="sr-only">Notifications</span>
-        {unread > 0 && <span className="rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">{unread}</span>}
+      <Button variant="ghost" size="icon" className="relative" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Bell aria-hidden />
+        <span className="sr-only">Notifications{unread > 0 ? ` (${unread} unread)` : ''}</span>
+        {unread > 0 && (
+          <span aria-hidden className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground ring-2 ring-background">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
       </Button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-card shadow-lg">
+        <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right animate-enter overflow-hidden rounded-xl border bg-popover shadow-pop">
           <div className="flex items-center justify-between border-b px-3 py-2 text-sm font-medium">
             Notifications
             {unread > 0 && (
