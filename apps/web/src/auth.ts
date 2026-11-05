@@ -22,6 +22,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       GitHub({
         clientId: env.GITHUB_APP_CLIENT_ID,
         clientSecret: env.GITHUB_APP_CLIENT_SECRET,
+        // GitHub now returns `iss` on the callback (RFC 9207); without the matching issuer here,
+        // Auth.js compares it to its placeholder and rejects every sign-in.
+        issuer: `${env.GITHUB_WEB_URL}/login/oauth`,
         // Explicit endpoints, so tests can point at tools/mock-github. GitHub Apps ignore scopes.
         authorization: {
           url: `${env.GITHUB_WEB_URL}/login/oauth/authorize`,
