@@ -122,6 +122,8 @@ export class DemoAgent {
     const { sys, blobs } = this.deps;
     const input = await this.input(t);
     const files = demoFiles(input);
+    // A run paused on a question (answered now) is finished by this one.
+    await sys.update(agentRuns).set({ status: 'succeeded', endedAt: new Date() }).where(and(eq(agentRuns.taskId, t.id), eq(agentRuns.status, 'paused')));
     await this.run(
       t,
       'code',

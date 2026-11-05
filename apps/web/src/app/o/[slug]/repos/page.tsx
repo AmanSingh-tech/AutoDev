@@ -22,7 +22,7 @@ export default function ReposPage() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Repositories</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Repositories</h1>
           <p className="text-sm text-muted-foreground">
             Repos where you can push on GitHub (push, maintain or admin). Checked again live before every push.
           </p>

@@ -26,7 +26,7 @@ export default function UsagePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">AI usage</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">AI usage</h1>
           <p className="text-sm text-muted-foreground">{s?.scope === 'mine' ? 'Your usage.' : 'Usage across the organization.'} Metered from the provider’s own token counts.</p>
         </div>
         <div className="flex items-center gap-1" role="group" aria-label="Month">
@@ -68,12 +68,12 @@ export default function UsagePage() {
 
 function Breakdown<T extends Totals>({ title, rows, name, mono }: { title: string; rows: T[]; name: (r: T) => string; mono?: boolean }) {
   return (
-    <section className="rounded-lg border bg-card p-4">
-      <h2 className="mb-2 text-sm font-medium">{title}</h2>
+    <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+      <h2 className="px-4 pb-2 pt-4 text-sm font-medium">{title}</h2>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No usage.</p>
+        <p className="px-4 pb-4 text-sm text-muted-foreground">No usage.</p>
       ) : (
-        <Table>
+        <Table framed={false}>
           <THead>
             <TR>
               <TH>Name</TH>

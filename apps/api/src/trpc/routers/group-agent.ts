@@ -1,5 +1,6 @@
 import { groupAgentScanJobId } from '@autodev/config';
 import { and, asc, desc, eq, FINDING_KINDS, FINDING_SEVERITIES, inArray, isNull, schema, sql, WRITE_PERMISSIONS } from '@autodev/db';
+import { isDemoOrg } from '@autodev/demo';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { adminProcedure, router } from '../trpc';
@@ -171,6 +172,8 @@ export const groupAgentRouter = router({
 
   /** Run a scan now instead of waiting for the night. Repeated clicks share one queued run. */
   scanNow: adminProcedure.mutation(async ({ ctx }) => {
+    // Demo repos aren't on GitHub: a real scan would find nothing and close the sample findings.
+    if (await isDemoOrg(ctx.deps.sys, ctx.orgId)) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Demo repositories can’t be scanned; the findings here are sample data.' });
     await ctx.deps.queues.groupAgent.add('scan', { kind: 'scan', orgId: ctx.orgId }, { jobId: groupAgentScanJobId(ctx.orgId) });
     await ctx.inOrg((tx) => ctx.audit(tx, { action: 'group_agent.scan_requested', targetType: 'org', targetId: ctx.orgId }));
     return { queued: true };

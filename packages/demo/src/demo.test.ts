@@ -22,7 +22,7 @@ describe('demo org', () => {
     expect(slug).toMatch(/^demo-real-owner-[0-9a-f]{4}$/);
     expect(await isDemoOrg(sys.db, orgId)).toBe(true);
     const tasks = await sys.db.select().from(schema.tasks).where(eq(schema.tasks.orgId, orgId));
-    expect(tasks.map((t) => t.status).sort()).toEqual(['awaiting_lld_approval', 'awaiting_plan_approval', 'draft', 'pr_open', 'pr_open', 'resolved', 'resolved']);
+    expect(tasks.map((t) => t.status).sort()).toEqual(['awaiting_lld_approval', 'awaiting_plan_approval', 'draft', 'needs_input', 'pr_open', 'pr_open', 'resolved', 'resolved']);
     const merged = tasks.find((t) => t.status === 'resolved')!;
     expect(merged.summaryMd).toContain('All tests pass');
     const prs = await sys.db.select().from(schema.pullRequests).where(eq(schema.pullRequests.orgId, orgId));
@@ -30,7 +30,10 @@ describe('demo org', () => {
     expect(prs.filter((p) => p.state === 'merged')).toHaveLength(2);
     expect(prs.some((p) => p.createdBy === 'group_agent')).toBe(true);
     const jobs = await sys.db.select().from(schema.builderJobs).where(eq(schema.builderJobs.orgId, orgId));
-    expect(jobs.every((j) => j.status === 'passed' && j.logHash)).toBe(true);
+    expect(jobs.filter((j) => j.status === 'failed')).toHaveLength(1);
+    expect(jobs.every((j) => j.logHash)).toBe(true);
+    expect(await sys.db.select().from(schema.recommendations).where(eq(schema.recommendations.orgId, orgId))).toHaveLength(3);
+    expect((await sys.db.select().from(schema.taskQuestions).where(eq(schema.taskQuestions.orgId, orgId)))[0]!.answeredAt).toBeNull();
     expect((await blobs.get(jobs[0]!.logHash!))!.toString()).toContain('passed');
     expect((await sys.db.select().from(schema.tokenUsage).where(eq(schema.tokenUsage.orgId, orgId))).length).toBeGreaterThan(20);
     expect(await isDemoOrg(sys.db, (await makeOrg(sys.db, 'other')).org.id)).toBe(false);

@@ -45,7 +45,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">General</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">General</h1>
       {readOnly && <Alert>Only admins can change these settings.</Alert>}
       <Card>
         <CardHeader>

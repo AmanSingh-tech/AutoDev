@@ -32,7 +32,7 @@ export default function JiraSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Jira</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Jira</h1>
         <p className="text-sm text-muted-foreground">
           Link tasks to Jira issues, or create an issue from a task. Status changes and the pull request are posted to the issue as comments every few minutes.
         </p>

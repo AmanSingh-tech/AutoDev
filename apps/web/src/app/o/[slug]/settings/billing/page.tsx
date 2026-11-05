@@ -70,7 +70,7 @@ export default function BillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Billing</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         <p className="text-sm text-muted-foreground">Plans are per seat: every active member of the organization is one seat. AI usage is billed by your own provider keys.</p>
       </div>
 

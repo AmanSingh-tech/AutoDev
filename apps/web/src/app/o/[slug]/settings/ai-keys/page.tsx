@@ -37,7 +37,7 @@ export default function AiKeysPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">AI keys</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">AI keys</h1>
         <p className="text-sm text-muted-foreground">
           Bring your own key (Anthropic, OpenAI, Azure OpenAI or Amazon Bedrock). The most specific key wins: personal, then team, then organization.
           Keys are encrypted, checked when saved and every day, and can never be viewed again.

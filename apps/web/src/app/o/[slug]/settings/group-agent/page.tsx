@@ -42,7 +42,7 @@ export default function GroupAgentSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Group Agent</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Group Agent</h1>
         <p className="text-sm text-muted-foreground">
           Scans every repository nightly at 03:30 UTC and sends admins a digest on Mondays. Dependency checks send package names and versions to
           OSV.dev and the package registries, never code.
@@ -97,7 +97,7 @@ export default function GroupAgentSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table framed={false}>
             <THead>
               <TR>
                 <TH className="min-w-[12rem]">Repository</TH>

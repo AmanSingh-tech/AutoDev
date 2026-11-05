@@ -6,7 +6,9 @@ async function signInAs(page: Page, login: string) {
   await page.goto(`http://localhost:4010/_login-as?login=${login}`);
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
 }
 
 async function removeKeys(page: Page) {

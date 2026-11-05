@@ -13,7 +13,7 @@ export default async function OrgLayout({
 }) {
   const { slug } = await params;
   const session = await auth();
-  if (!session?.user?.id) redirect(`/login?callbackUrl=/o/${slug}/repos`);
+  if (!session?.user?.id) redirect(`/login?callbackUrl=/o/${slug}`);
   return (
     <OrgShell slug={slug} signOut={<SignOutButton menu />}>
       {children}

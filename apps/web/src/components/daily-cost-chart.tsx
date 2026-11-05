@@ -23,7 +23,7 @@ export function DailyCostChart({ month, daily }: { month: string; daily: { day: 
   const ticks = new Set([1, 8, 15, 22, daysInMonth]);
 
   return (
-    <section className="rounded-lg border bg-card p-4" aria-labelledby="daily-cost-title">
+    <section className="rounded-xl border bg-card p-4 shadow-card" aria-labelledby="daily-cost-title">
       <div className="mb-3 flex items-center justify-between">
         <h2 id="daily-cost-title" className="text-sm font-medium">
           Daily cost (UTC)

@@ -10,7 +10,12 @@ import { Providers } from './providers';
 const sans = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
-export const metadata: Metadata = { title: 'AutoDev', description: 'Hand coding tasks to an AI agent that opens PRs as you.' };
+export const metadata: Metadata = {
+  // Absolute links for the share preview (opengraph-image.tsx).
+  metadataBase: new URL(process.env.WEB_URL ?? 'http://localhost:3000'),
+  title: 'AutoDev',
+  description: 'Hand coding tasks to an AI agent that opens PRs as you.',
+};
 
 /**
  * Phones: draw under the notch (content is padded back with safe-area insets), let the keyboard

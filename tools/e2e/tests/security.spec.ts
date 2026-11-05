@@ -7,7 +7,9 @@ test('an owner sets retention, sees their address for the allowlist, and downloa
   await page.goto('http://localhost:4010/_login-as?login=demo-owner');
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
 
   await page.goto('/o/acme-demo/settings/security');
   await expect(page.getByRole('heading', { name: 'Security', exact: true })).toBeVisible({ timeout: 30_000 });

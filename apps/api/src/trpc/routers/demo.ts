@@ -43,6 +43,20 @@ export const demoRouter = router({
     return { ok: true };
   }),
 
+  /**
+   * A fresh copy of the demo, e.g. before showing it to someone: you leave this demo org and get a
+   * new one. (Nothing is deleted: the audit log keeps what happened in the old one.)
+   */
+  reset: orgProcedure.mutation(async ({ ctx }) => {
+    if (!(await isDemoOrg(ctx.deps.sys, ctx.orgId))) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only demo organizations can be reset' });
+    if (ctx.role !== 'owner') throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the demo’s owner can reset it' });
+    await ctx.deps.sys.update(orgMembers).set({ status: 'removed' }).where(and(eq(orgMembers.orgId, ctx.orgId), eq(orgMembers.userId, ctx.userId)));
+    const [user] = await ctx.deps.sys.select({ login: users.githubLogin }).from(users).where(eq(users.id, ctx.userId));
+    const { orgId, slug } = await createDemoOrg({ sys: ctx.deps.sys, kms: ctx.deps.kms, blobs: ctx.deps.blobs, webUrl: ctx.deps.env.WEB_URL }, { id: ctx.userId, login: user!.login });
+    await ctx.deps.queues.insights.add('insights', { orgId }, { jobId: insightsJobId(orgId) });
+    return { slug };
+  }),
+
   /** How many demo orgs the person has, for the "Try the demo" buttons. */
   mine: authedProcedure.query(async ({ ctx }) => {
     const [r] = await ctx.deps.sys

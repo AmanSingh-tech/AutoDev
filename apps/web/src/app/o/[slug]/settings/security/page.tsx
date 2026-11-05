@@ -63,7 +63,7 @@ export default function SecuritySettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Security</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Security</h1>
         <p className="text-sm text-muted-foreground">Data retention, network access and the audit log. Every change here is itself audited.</p>
       </div>
 

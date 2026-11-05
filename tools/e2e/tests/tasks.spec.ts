@@ -4,7 +4,9 @@ async function signInAs(page: Page, login: string) {
   await page.goto(`http://localhost:4010/_login-as?login=${login}`);
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
 }
 
 test('the board groups seeded tasks into columns', async ({ page }) => {
@@ -49,7 +51,9 @@ test('a viewer can browse tasks but not create them', async ({ page }) => {
   await page.goto('http://localhost:4010/_login-as?login=demo-viewer');
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   // The first visit compiles the page in Next dev.
   await expect(page.getByText('Add rate limiting to the public API')).toBeVisible({ timeout: 30_000 });

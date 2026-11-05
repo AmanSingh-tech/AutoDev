@@ -32,8 +32,9 @@
 
   /* Data viz (validated against this surface): one accent, its lighter step as the meter
      track, and the fixed status colors, which always come with an icon and label. */
-  --viz-accent: #2a78d6;
-  --viz-track: #cde2fb;
+  /* Charts use the brand's indigo; the track is its lightest step. */
+  --viz-accent: #5754e0;
+  --viz-track: #dddcfb;
   --viz-grid: #e1e0d9;
   --viz-baseline: #c3c2b7;
   --status-warning: #fab219;
@@ -66,8 +67,8 @@
     --sidebar: 240 9% 6.5%;
     --shadow-color: 240 50% 2%;
   
-    --viz-accent: #3987e5;
-    --viz-track: #184f95;
+    --viz-accent: #8487f2;
+    --viz-track: #2b2a63;
     --viz-grid: #2c2c2a;
     --viz-baseline: #383835;
   }
@@ -98,8 +99,8 @@
   --sidebar: 240 9% 6.5%;
   --shadow-color: 240 50% 2%;
 
-  --viz-accent: #3987e5;
-  --viz-track: #184f95;
+  --viz-accent: #8487f2;
+  --viz-track: #2b2a63;
   --viz-grid: #2c2c2a;
   --viz-baseline: #383835;
 }

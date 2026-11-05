@@ -50,7 +50,7 @@ export default function GroupAgentPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Group Agent</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Group Agent</h1>
           <p className="text-sm text-muted-foreground">
             Nightly scans of every repository: dependencies, tests, linked repos, spend and stuck work.
             {o?.lastScan ? ` Last scan ${relativeTime(o.lastScan.finishedAt ?? o.lastScan.startedAt)}.` : ''}
@@ -175,7 +175,7 @@ function RecommendationCard({ rec: r, slug }: { rec: Rec; slug: string }) {
   const reopen = trpc.groupAgent.reopen.useMutation({ onSuccess: refresh });
 
   return (
-    <li className="rounded-lg border bg-card p-4">
+    <li className="rounded-xl border bg-card p-4 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

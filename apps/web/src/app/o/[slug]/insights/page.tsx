@@ -70,7 +70,7 @@ export default function InsightsPage() {
   if (!settings.data?.canSeeOverview)
     return (
       <div className="space-y-3">
-        <h1 className="text-xl font-semibold">Insights</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
         <p className="text-sm text-muted-foreground">Insights are for admins and team leads.</p>
         {settings.data?.canSeeLeaderboard && (
           <Button asChild variant="outline">
@@ -89,7 +89,7 @@ export default function InsightsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Insights</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
           <p className="text-sm text-muted-foreground">
             {effectiveTeam ? `Team ${teamOptions.find((t) => t.id === effectiveTeam)?.name ?? ''}` : org.name}. Rebuilt nightly
             {o?.dataThrough ? `; last ${relativeTime(o.dataThrough)}` : ''}. Days are UTC.

@@ -5,10 +5,12 @@ import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { relativeTime, tokens, usd } from '@/lib/format';
 import { trpc, type RouterOutputs } from '@/lib/trpc';
+import { TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ConfigCommands } from './commands';
 import { Markdown } from './markdown';
+import { useOrg } from '@/app/o/[slug]/org-shell';
 import { toast } from 'sonner';
 
 // Monaco is large: load it only when a document's source or a diff is opened.
@@ -53,7 +55,7 @@ function ReviewPanel({ task: t, doc }: { task: Task; doc: Doc }) {
   const label = doc.kind === 'plan' ? 'Plan' : 'Low-level design';
   const can = canAct(t);
   return (
-    <section className="space-y-4 rounded-lg border-2 border-viz-accent/60 bg-card p-4" aria-label={`${label} review`}>
+    <section className="space-y-4 rounded-xl border border-primary/40 bg-card p-5 shadow-glow" aria-label={`${label} review`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">
           {label} v{doc.version} is ready for your review
@@ -114,7 +116,7 @@ function QuestionPanel({ task: t, question: q }: { task: Task; question: NonNull
   const send = trpc.agent.answer.useMutation({ onSuccess: refresh });
   const deviation = q.kind === 'deviation';
   return (
-    <section className="space-y-3 rounded-lg border-2 border-status-warning bg-card p-4" aria-label="Question from the agent">
+    <section className="space-y-3 rounded-xl border border-warning/50 bg-warning/5 p-5 shadow-card" aria-label="Question from the agent">
       <h2 className="flex items-center gap-2 text-base font-semibold">
         <span aria-hidden>{deviation ? '⚠️' : '💬'}</span>
         {deviation ? 'The agent wants to go beyond the approved design' : 'The agent has a question'}
@@ -211,9 +213,9 @@ export function DocumentsSection({ task: t }: { task: Task }) {
   const current = list.find((d) => d.version === version) ?? list[0];
   if (!docs.data?.docs.length) return null;
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 rounded-xl border bg-card p-5 shadow-card">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Documents</h2>
+        <h2 className="text-sm font-semibold">Documents</h2>
         <div className="flex rounded-md border p-0.5" role="group" aria-label="Document">
           {(['plan', 'lld'] as const).map((k) => (
             <button key={k} type="button" aria-pressed={kind === k} onClick={() => (setKind(k), setVersion(null))} className={cn('rounded px-3 py-1 text-sm', kind === k && 'bg-muted font-medium')}>
@@ -261,8 +263,8 @@ export function ChangesSection({ task: t }: { task: Task }) {
   if (!changes.data?.files.length) return null;
   const OP = { create: 'added', modify: 'modified', delete: 'deleted' } as const;
   return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-medium text-muted-foreground">
+    <section className="space-y-3 rounded-xl border bg-card p-5 shadow-card">
+      <h2 className="text-sm font-semibold">
         Changes ({changes.data.files.length} file{changes.data.files.length === 1 ? '' : 's'}) on top of <span className="font-mono">{changes.data.baseSha?.slice(0, 10)}</span>
       </h2>
       <ul className="divide-y rounded-md border text-sm">
@@ -293,8 +295,8 @@ export function ActivitySection({ task: t }: { task: Task }) {
   if (!q.data?.runs.length) return null;
   const steps = q.data.steps.filter((s) => s.kind === 'tool_call');
   return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-medium text-muted-foreground">Agent runs</h2>
+    <section className="space-y-3 rounded-xl border bg-card p-5 shadow-card">
+      <h2 className="text-sm font-semibold">Agent runs</h2>
       <ul className="space-y-1 text-sm">
         {q.data.runs.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -340,6 +342,7 @@ function PrPanel({ task: t }: { task: Task }) {
     },
   });
   const pr = t.pullRequests[0];
+  const org = useOrg();
   if (pr) {
     const label = pr.state === 'merged' ? 'merged' : pr.state === 'closed' ? 'closed without merging' : 'open';
     return (
@@ -349,11 +352,14 @@ function PrPanel({ task: t }: { task: Task }) {
           Pull request #{pr.number} is {label}
           {pr.state === 'merged' ? ', so this task is resolved.' : pr.state === 'open' ? ` against ${pr.baseBranch}.` : '.'}
         </span>
-        <Button asChild size="sm" variant={pr.state === 'open' ? 'default' : 'outline'}>
-          <a href={pr.url} target="_blank" rel="noopener noreferrer">
-            Open PR #{pr.number} on GitHub
-          </a>
-        </Button>
+        {/* Demo orgs have no GitHub; the PR lives on this page. */}
+        {!org.demo && (
+          <Button asChild size="sm" variant={pr.state === 'open' ? 'default' : 'outline'}>
+            <a href={pr.url} target="_blank" rel="noopener noreferrer">
+              Open PR #{pr.number} on GitHub
+            </a>
+          </Button>
+        )}
       </Alert>
     );
   }
@@ -419,8 +425,8 @@ function WaitingForBuilder({ task: t }: { task: Task }) {
   const consent = trpc.agent.consent.useMutation({ onSuccess: refresh });
   if (job?.consent === 'pending') {
     return (
-      <section className="space-y-3 rounded-lg border-2 border-status-warning bg-card p-4" aria-label="Test run consent">
-        <h2 className="text-base font-semibold"><span aria-hidden>⚠️ </span>The change edits .autodev.yml</h2>
+      <section className="space-y-3 rounded-xl border border-warning/50 bg-warning/5 p-5 shadow-card" aria-label="Test run consent">
+        <h2 className="flex items-center gap-2 text-base font-semibold"><TriangleAlert aria-hidden className="size-4 text-warning" />The change edits .autodev.yml</h2>
         <p className="text-sm">
           The agent changed your test configuration. Tests always run the <span className="font-medium">base branch’s</span> commands below, but the
           patched files are on disk during the run. Review the .autodev.yml change under “Changes” before allowing it.
@@ -461,8 +467,8 @@ export function TestsSection({ task: t }: { task: Task }) {
   const [open, setOpen] = useState<string | null>(null);
   if (!jobs.data?.length) return null;
   return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-medium text-muted-foreground">Test runs</h2>
+    <section className="space-y-3 rounded-xl border bg-card p-5 shadow-card">
+      <h2 className="text-sm font-semibold">Test runs</h2>
       <ul className="divide-y rounded-md border text-sm">
         {jobs.data.map((j) => (
           <li key={j.id} className="space-y-2 px-3 py-2">

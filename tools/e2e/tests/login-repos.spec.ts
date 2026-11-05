@@ -11,7 +11,9 @@ test('a developer signs in with GitHub and sees only repos they can push to', as
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
 
   // demo-dev belongs to one org, so the picker jumps straight to its repos.
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
   await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 
   const rows = page.locator('tbody tr');
@@ -27,7 +29,9 @@ test('a developer can view settings but not change them', async ({ page }) => {
   await page.goto('http://localhost:4010/_login-as?login=demo-dev');
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page.getByText('Only admins can change these settings.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);

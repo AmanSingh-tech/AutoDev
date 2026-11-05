@@ -39,7 +39,7 @@ export default function RepoAgentPage() {
     <section className="space-y-4">
       <RepoNav slug={slug} name={name} fullName={repo.data.fullName} />
       <div>
-        <h1 className="text-xl font-semibold">Repo Agent memory</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Repo Agent memory</h1>
         <p className="text-sm text-muted-foreground">
           The Repo Agent and private chat read these notes before answering. Keep them short and true; if a note disagrees with the code, the code
           wins. {memory.data && !memory.data.canEdit && 'People who can push to this repository, and admins, can edit them.'}

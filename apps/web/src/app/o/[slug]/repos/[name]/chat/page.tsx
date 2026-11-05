@@ -63,7 +63,7 @@ export default function RepoChatPage() {
       <RepoNav slug={slug} name={name} fullName={r.fullName} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Ask the repo</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Ask the repo</h1>
           <p className="text-sm text-muted-foreground">Private to you. For questions the team should see, use the team room.</p>
           <CodeIndexStatus orgId={org.orgId} repoId={r.id} />
         </div>

@@ -4,6 +4,7 @@ import { and, eq, insertOrgWithOwner, schema, sql, transitionTask, type SystemDb
 import type { BlobStore } from '@autodev/storage';
 import { uuidv7 } from 'uuidv7';
 import { DemoAgent } from './agent';
+import { enrichDemoOrg } from './enrich';
 
 const { installations, orgMembers, orgs, pullRequests, repos, taskDocuments, taskEvents, tasks, tokenUsage, userRepoAccess, users } = schema;
 
@@ -189,6 +190,7 @@ export async function createDemoOrg(deps: CreateDemoDeps, user: { id: string; lo
       }
     }
   }
+  n = await enrichDemoOrg({ sys, blobs: deps.blobs }, { id: org.id, repos: repoRows, you: user.id, people, nextNumber: n });
   await sys.update(orgs).set({ taskSeq: n }).where(eq(orgs.id, org.id));
   await seedUsage(sys, org.id, [...people.values()], repoRows.map((r) => r.id));
   return { orgId: org.id, slug: org.slug };

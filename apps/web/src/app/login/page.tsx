@@ -40,7 +40,7 @@ export default async function LoginPage({
       }
     >
       <div className="rounded-xl border bg-card p-6 shadow-pop sm:p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Sign in to AutoDev</h1>
+        <h1 className="text-2xl font-semibold tracking-tight tracking-tight">Sign in to AutoDev</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">Use your GitHub account. Your team’s repositories and permissions come with it.</p>
         <div className="mt-6 space-y-4">
           {params.reauth && <Alert>Your GitHub session expired. Sign in again to continue.</Alert>}

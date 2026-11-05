@@ -25,7 +25,7 @@ export function TrendChart({ title, points, format, empty }: { title: string; po
   const tickEvery = Math.max(1, Math.ceil(points.length / 4));
 
   return (
-    <section className="rounded-lg border bg-card p-4" aria-labelledby={id}>
+    <section className="rounded-xl border bg-card p-4 shadow-card" aria-labelledby={id}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 id={id} className="text-sm font-medium">
           {title}
@@ -111,7 +111,7 @@ export function BarList({ title, rows, format, empty, limit = 8 }: { title: stri
   const all = rest > 0 ? [...shown, { label: `${sorted.length - limit} more`, value: rest }] : shown;
   const max = Math.max(0, ...all.map((r) => r.value));
   return (
-    <section className="rounded-lg border bg-card p-4" aria-labelledby={id}>
+    <section className="rounded-xl border bg-card p-4 shadow-card" aria-labelledby={id}>
       <h2 id={id} className="mb-3 text-sm font-medium">
         {title}
       </h2>

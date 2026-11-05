@@ -218,7 +218,7 @@ function ApplyToLinked({ task: t, slug }: { task: Task; slug: string }) {
 
 function Details({ task: t }: { task: Task }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 rounded-xl border bg-card p-5 shadow-card">
       <Section title="Description">{t.descriptionMd ? <Prose text={t.descriptionMd} /> : <Empty />}</Section>
       <Section title="Acceptance criteria">{t.acceptanceCriteriaMd ? <Prose text={t.acceptanceCriteriaMd} /> : <Empty />}</Section>
       {t.extraContext && (
@@ -299,10 +299,12 @@ function EditTask({ task: t, onDone }: { task: Task; onDone: () => void }) {
 
 function Timeline({ task: t }: { task: Task }) {
   return (
-    <Section title="Activity">
-      <ol className="space-y-2 text-sm">
+    <section className="rounded-xl border bg-card p-5 shadow-card">
+      <h2 className="mb-4 text-sm font-semibold">Activity</h2>
+      <ol className="relative space-y-3 text-sm before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-border">
         {t.events.map((e) => (
-          <li key={e.id} className="flex flex-wrap gap-x-2">
+          <li key={e.id} className="relative flex flex-wrap gap-x-2 pl-6">
+            <span aria-hidden className={`absolute left-0 top-1.5 size-[11px] rounded-full border-2 border-card ${e.actorType === 'agent' ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
             <span className="font-medium">{e.actorLogin ?? (e.actorType === 'agent' ? 'Agent' : 'AutoDev')}</span>
             <span className="text-muted-foreground">
               {e.type === 'created'
@@ -320,7 +322,7 @@ function Timeline({ task: t }: { task: Task }) {
           </li>
         ))}
       </ol>
-    </Section>
+    </section>
   );
 }
 

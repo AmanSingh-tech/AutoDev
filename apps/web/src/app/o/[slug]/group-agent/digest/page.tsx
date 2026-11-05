@@ -19,7 +19,7 @@ export default function DigestPage() {
         <Link href={`/o/${slug}/group-agent`} className="text-sm text-muted-foreground hover:underline">
           ← Group Agent
         </Link>
-        <h1 className="text-xl font-semibold">Weekly digest</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Weekly digest</h1>
         {d && (
           <p className="text-sm text-muted-foreground">
             {new Date(d.at).toLocaleDateString('en-US', { dateStyle: 'long', timeZone: 'UTC' })}, covering changes since{' '}

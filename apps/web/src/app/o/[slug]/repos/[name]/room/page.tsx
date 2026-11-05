@@ -46,7 +46,7 @@ export default function TeamRoomPage() {
     <section className="space-y-4">
       <RepoNav slug={slug} name={name} fullName={r.fullName} />
       <div>
-        <h1 className="text-xl font-semibold">Team room</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Team room</h1>
         <p className="text-sm text-muted-foreground">
           Everyone with access to {r.fullName} sees this room. Mention <span className="font-mono">@agent</span> to ask the Repo Agent; it answers with
           your access and your AI budget.

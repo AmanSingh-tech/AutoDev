@@ -41,7 +41,7 @@ export default function ModelsPage() {
   const prices = trpc.models.prices.useQuery();
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Models & prices</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Models & prices</h1>
       <PolicyCard
         isAdmin={isAdmin}
         models={
@@ -205,7 +205,7 @@ function PricesCard({ isAdmin, prices }: { isAdmin: boolean; prices: Price[] }) 
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
+        <Table framed={false}>
           <THead>
             <TR>
               <TH>Model</TH>

@@ -56,7 +56,7 @@ export default function MembersPage() {
     <div className="space-y-8">
       <section className="space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">Members</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Members</h1>
           <p className="text-sm text-muted-foreground">
             GitHub org members join automatically as{' '}
             <span className="font-medium">developer</span> (change the default in Settings) the

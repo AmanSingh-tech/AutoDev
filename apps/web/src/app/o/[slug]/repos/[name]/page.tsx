@@ -39,7 +39,7 @@ export default function RepoBoardPage() {
       <RepoNav slug={slug} name={name} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold [overflow-wrap:anywhere]">{repo.data.fullName}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{repo.data.fullName}</h1>
           <ModePolicy repo={repo.data} canEdit={org.role === 'owner' || org.role === 'admin'} />
         </div>
         <div className="flex gap-2">

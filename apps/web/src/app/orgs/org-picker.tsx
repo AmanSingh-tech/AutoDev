@@ -17,7 +17,7 @@ export function OrgPicker() {
   const pick = useSearchParams().get('pick') === '1';
 
   useEffect(() => {
-    if (orgs.length === 1 && !pick) router.replace(`/o/${orgs[0]!.slug}/repos`);
+    if (orgs.length === 1 && !pick) router.replace(`/o/${orgs[0]!.slug}`);
   }, [orgs, router, pick]);
 
   if (me.isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -48,7 +48,7 @@ export function OrgPicker() {
       <ul className="space-y-2">
         {orgs.map((o) => (
           <li key={o.orgId}>
-            <Link href={`/o/${o.slug}/repos`} className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-card">
+            <Link href={`/o/${o.slug}`} className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-card">
               <OrgMark name={o.name} className="size-8" />
               <span className="min-w-0 flex-1 truncate font-medium">{o.name}</span>
               {o.demo && <Badge variant="accent">Demo</Badge>}

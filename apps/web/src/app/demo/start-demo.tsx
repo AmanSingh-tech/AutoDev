@@ -33,7 +33,7 @@ export function StartDemo() {
 
   return (
     <div className="rounded-xl border bg-card p-6 shadow-pop sm:p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Setting up your demo</h1>
+      <h1 className="text-2xl font-semibold tracking-tight tracking-tight">Setting up your demo</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">A sample organization with a simulated agent. No GitHub repositories, AI key or builder needed, and nothing leaves AutoDev.</p>
       <ul className="mt-6 space-y-3 text-sm">
         {STEPS.map((s, i) => (

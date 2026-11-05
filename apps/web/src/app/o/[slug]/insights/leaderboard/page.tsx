@@ -40,7 +40,7 @@ export default function LeaderboardPage() {
   if (!settings.data?.canSeeLeaderboard)
     return (
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold">Leaderboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
         <p className="text-sm text-muted-foreground">
           {settings.data?.leaderboardVisibility === 'team_leads' ? 'The leaderboard is open to admins and team leads in this organization.' : 'Only admins can see the leaderboard in this organization.'}
         </p>
@@ -51,7 +51,7 @@ export default function LeaderboardPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Leaderboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
           <p className="text-sm text-muted-foreground">
             Impact = merged PRs × (0.5 + 0.5 × first-pass approval rate). Ties go to the lower cost per PR.
             {b?.computedAt ? ` Updated ${relativeTime(b.computedAt)}.` : ''}

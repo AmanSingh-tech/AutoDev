@@ -25,7 +25,7 @@ export default function TemplatesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Task templates</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Task templates</h1>
         <p className="text-sm text-muted-foreground">
           Templates fill in a new task’s description and acceptance criteria. Write placeholders as [TODO: …]; the prompt
           score flags them until the author fills them in.

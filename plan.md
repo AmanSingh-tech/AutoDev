@@ -455,6 +455,9 @@ Approved: calm and technical, indigo accent, demo mode included, build it all.
 - **Home page:** a product preview built from the app's own pieces, "Try the live demo", pricing (prices come from `NEXT_PUBLIC_PRICE_TEAM` / `NEXT_PUBLIC_PRICE_BUSINESS`; until set, the cards say "14-day free trial", so no made-up numbers), and an FAQ.
 - **Demo chat:** repo chat and the team room answer from the sample repo in demo orgs, labeled as demo answers.
 
+- **Second pass (2026-11-05):** sign-in lands on Home; one title style; framed tables with tinted headers; card sections on the task page (review in indigo, questions in amber, a timeline for activity); charts in the brand indigo; a link preview image.
+- **Demo, second pass:** a guided tour (six steps, ticks off as you visit them), **Reset demo** (leaves the old demo org, creates a fresh one), and richer data: the agent waiting on a question, a failed-then-fixed test run, Group Agent findings, recommendations and a digest, a team-room conversation. "Scan now" and the GitHub PR button are disabled in demo orgs.
+
 **Decisions left open:** the plan prices and what Business includes over Team (the page copy is a starting point).
 
 ## Next step

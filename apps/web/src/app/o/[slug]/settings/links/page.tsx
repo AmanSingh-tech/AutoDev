@@ -18,7 +18,7 @@ export default function LinksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Linked repositories</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Linked repositories</h1>
         <p className="text-sm text-muted-foreground">
           A finished task in a source repository can be applied to its linked repository: AutoDev creates a draft task there with the change attached, and the agent
           ports it. Two-way links work in both directions.

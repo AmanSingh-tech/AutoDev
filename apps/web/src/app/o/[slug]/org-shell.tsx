@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@autodev/ui';
-import { Menu, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { Menu, Search, ShieldAlert, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { toast } from 'sonner';
 import { OrgBanner } from '@/components/billing-bits';
 import { NotificationsBell } from '@/components/notifications-bell';
+import { DemoGuide } from '@/components/demo-guide';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { AutoDevMark, SidebarContent } from '@/components/shell/sidebar';
 import { setCurrentOrgId, trpc, type RouterOutputs } from '@/lib/trpc';
@@ -155,17 +156,7 @@ export function OrgShell({ slug, signOut, children }: { slug: string; signOut: R
             </div>
           </header>
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8 lg:pt-8">
-            {org.demo && (
-              <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-primary/20 bg-accent/60 px-3.5 py-2.5 text-sm text-accent-foreground">
-                <Sparkles aria-hidden className="size-4 shrink-0" />
-                <span className="min-w-0 flex-1">
-                  <span className="font-medium">Demo organization.</span> The agent is simulated: start a task, approve its plan and watch it work. Nothing reaches GitHub or an AI provider.
-                </span>
-                <Link href="/orgs?pick=1" className="shrink-0 font-medium underline-offset-4 hover:underline">
-                  Use your own repos
-                </Link>
-              </div>
-            )}
+            {org.demo && <DemoGuide slug={slug} isOwner={org.role === 'owner'} />}
             {!pathname.startsWith(`/o/${slug}/onboarding`) && <OrgBanner slug={slug} isAdmin={org.role === 'owner' || org.role === 'admin'} billingManager={org.billingManager} hideSetup={pathname === `/o/${slug}`} />}
             {children}
           </main>

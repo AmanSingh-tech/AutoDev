@@ -7,7 +7,7 @@ import { missingConfig } from './lib/config-check';
  */
 export function middleware(req: NextRequest) {
   // The home page explains AutoDev and links to the setup page itself, so it shows even before setup.
-  if (req.nextUrl.pathname === '/setup/config' || req.nextUrl.pathname === '/') return NextResponse.next();
+  if (req.nextUrl.pathname === '/setup/config' || req.nextUrl.pathname === '/' || req.nextUrl.pathname.startsWith('/opengraph-image')) return NextResponse.next();
   if (missingConfig().length === 0) return NextResponse.next();
   return NextResponse.rewrite(new URL('/setup/config', req.url));
 }

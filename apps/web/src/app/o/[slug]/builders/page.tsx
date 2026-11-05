@@ -34,7 +34,7 @@ export default function BuildersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Builders</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Builders</h1>
         <p className="text-sm text-muted-foreground">
           Builders run your tasks’ tests on your own machine. They connect out to AutoDev (no open ports) and only run the commands in the base branch’s
           .autodev.yml, in Docker, in a temporary copy of the repo.

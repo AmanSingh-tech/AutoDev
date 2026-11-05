@@ -14,6 +14,9 @@ test('try the demo: a sample org opens, and the simulated agent takes an approve
   await expect(page).toHaveURL(/\/o\/demo-demo-trial-[0-9a-f]{4}$/, { timeout: 60_000 });
   await expect(page.getByText('Demo organization.')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('heading', { name: 'Needs you' })).toBeVisible();
+  // The tour and Reset are part of every demo org.
+  await expect(page.getByRole('link', { name: /Answer the agent/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset demo' })).toBeVisible();
   const slug = new URL(page.url()).pathname.split('/')[2];
 
   // A new task each run (the demo org is reused), through the repo picker.

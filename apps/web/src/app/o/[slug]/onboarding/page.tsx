@@ -41,7 +41,7 @@ export default function OnboardingPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Set up AutoDev</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Set up AutoDev</h1>
         <p className="text-sm text-muted-foreground">
           {complete ? 'All set. Create a task from any repository to start.' : `${done} of ${steps.length} done.`}
         </p>

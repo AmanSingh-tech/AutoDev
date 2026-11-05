@@ -30,7 +30,7 @@ export default function NewTaskPage() {
   if (!repo.data.canCreate) return <p className="text-sm">You need push access to {repo.data.fullName} on GitHub to create tasks here.</p>;
   return (
     <section className="max-w-3xl space-y-6">
-      <h1 className="text-xl font-semibold">New task in {repo.data.fullName}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">New task in {repo.data.fullName}</h1>
       <TaskForm
         repo={repo.data}
         initial={initial}

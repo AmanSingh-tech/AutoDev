@@ -19,7 +19,7 @@ export default function BudgetsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Budgets</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Budgets</h1>
         <p className="text-sm text-muted-foreground">
           Monthly limits in USD (calendar month, UTC). Admins are notified at the warning threshold. At the limit, new agent
           runs are blocked; runs already going finish within their per-task token cap.

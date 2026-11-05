@@ -7,7 +7,9 @@ test('an owner sees the setup checklist, and the billing page says billing is of
   await page.goto('http://localhost:4010/_login-as?login=demo-owner');
   await page.goto('/login');
   await page.getByRole('button', { name: 'Continue with GitHub' }).click();
-  await expect(page).toHaveURL(/\/o\/acme-demo\/repos/, { timeout: 30_000 });
+  // Sign-in lands on the org's home; these tests start from the repository list.
+  await expect(page).toHaveURL(/\/o\/acme-demo$/, { timeout: 30_000 });
+  await page.goto('/o/acme-demo/repos');
 
   await page.goto('/o/acme-demo/onboarding');
   await expect(page.getByRole('heading', { name: 'Set up AutoDev' })).toBeVisible({ timeout: 30_000 });
