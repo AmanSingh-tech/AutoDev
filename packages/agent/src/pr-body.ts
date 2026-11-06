@@ -14,6 +14,8 @@ export interface PrContext {
   usage: { models: string[]; inputTokens: number; outputTokens: number; cacheReadTokens: number; costUsd: number };
   /** A Group Agent fix (B-5): opened by the GitHub App bot, not a person. */
   groupAgent?: { recommendationUrl: string } | null;
+  /** Autopilot (overnight): what it decided on the person's behalf, listed for the morning reviewer. */
+  autopilot?: { decisions: { question: string; answer: string }[] } | null;
 }
 
 const MAX_DOC_CHARS = 15_000;
@@ -55,6 +57,12 @@ export function buildPrBody(ctx: PrContext): string {
     `## Task\n[${ctx.task.key}: ${ctx.task.title}](${ctx.task.url})\n\n**Acceptance criteria**\n${ctx.task.acceptanceCriteriaMd.trim() || '_None given._'}`,
     ctx.source &&
       `## Source\nPorts [${ctx.source.key}: ${ctx.source.title}](${ctx.source.url}) from \`${ctx.source.repoFullName}\`${ctx.source.pr ? ` (${ctx.source.pr.url})` : ''}.`,
+    ctx.autopilot &&
+      `## Autopilot\nDone on Autopilot: the plan and design were approved by Autopilot, and this PR stays a draft until a person marks it ready.${
+        ctx.autopilot.decisions.length
+          ? `\n\n**Decisions made without a person**\n${ctx.autopilot.decisions.map((d) => `- **Asked:** ${d.question.replace(/\s+/g, ' ').slice(0, 300)}\n  **Autopilot:** ${d.answer.replace(/\s+/g, ' ').slice(0, 200)}`).join('\n')}\n\nThe agent lists the assumptions it made in the summary above.`
+          : ''
+      }`,
     `## Approved Plan\n${doc('Plan', ctx.plan) ?? '_No plan step for this task._'}`,
     `## Approved LLD\n${doc('Low-level design', ctx.lld) ?? '_No design step for this task._'}`,
     `## Changes\n${changesSection(ctx.changes)}`,

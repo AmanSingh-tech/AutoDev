@@ -14,6 +14,7 @@
     "@autodev/crypto": "workspace:*",
     "@autodev/db": "workspace:*",
     "@autodev/storage": "workspace:*",
-    "uuidv7": "^1.2.1"
+    "uuidv7": "^1.2.1",
+    "@autodev/autopilot": "workspace:*"
   }
 }

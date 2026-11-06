@@ -22,11 +22,19 @@ describe('demo org', () => {
     expect(slug).toMatch(/^demo-real-owner-[0-9a-f]{4}$/);
     expect(await isDemoOrg(sys.db, orgId)).toBe(true);
     const tasks = await sys.db.select().from(schema.tasks).where(eq(schema.tasks.orgId, orgId));
-    expect(tasks.map((t) => t.status).sort()).toEqual(['awaiting_lld_approval', 'awaiting_plan_approval', 'draft', 'needs_input', 'pr_open', 'pr_open', 'resolved', 'resolved']);
+    expect(tasks.map((t) => t.status).sort()).toEqual(['awaiting_lld_approval', 'awaiting_plan_approval', 'draft', 'draft', 'needs_input', 'pr_open', 'pr_open', 'pr_open', 'pr_open', 'resolved', 'resolved']);
+    // Last night's Autopilot run: two draft PRs, approved by Autopilot, and a morning notification.
+    const [run] = await sys.db.select().from(schema.autopilotRuns).where(eq(schema.autopilotRuns.orgId, orgId));
+    expect(run).toMatchObject({ status: 'done', tasksStarted: 2, summary: { prs: 2 } });
+    const night = tasks.filter((t) => t.autopilotRunId === run!.id);
+    expect(night.map((t) => t.status)).toEqual(['pr_open', 'pr_open']);
+    const docs = await sys.db.select().from(schema.taskDocuments).where(eq(schema.taskDocuments.taskId, night[0]!.id));
+    expect(docs.every((d) => d.status === 'approved' && d.comment === 'Approved by Autopilot')).toBe(true);
+    expect((await sys.db.select().from(schema.pullRequests).where(eq(schema.pullRequests.taskId, night[0]!.id)))[0]!.draft).toBe(true);
     const merged = tasks.find((t) => t.status === 'resolved')!;
     expect(merged.summaryMd).toContain('All tests pass');
     const prs = await sys.db.select().from(schema.pullRequests).where(eq(schema.pullRequests.orgId, orgId));
-    expect(prs).toHaveLength(4);
+    expect(prs).toHaveLength(6);
     expect(prs.filter((p) => p.state === 'merged')).toHaveLength(2);
     expect(prs.some((p) => p.createdBy === 'group_agent')).toBe(true);
     const jobs = await sys.db.select().from(schema.builderJobs).where(eq(schema.builderJobs.orgId, orgId));

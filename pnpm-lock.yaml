@@ -32,6 +32,9 @@ importers:
       '@autodev/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@autodev/autopilot':
+        specifier: workspace:*
+        version: link:../../packages/autopilot
       '@autodev/billing':
         specifier: workspace:*
         version: link:../../packages/billing
@@ -303,6 +306,9 @@ importers:
       '@autodev/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@autodev/autopilot':
+        specifier: workspace:*
+        version: link:../../packages/autopilot
       '@autodev/billing':
         specifier: workspace:*
         version: link:../../packages/billing
@@ -426,6 +432,12 @@ importers:
         specifier: ^2.7.0
         version: 2.15.0(@types/node@22.20.5)(typescript@5.9.3)
 
+  packages/autopilot:
+    dependencies:
+      '@autodev/db':
+        specifier: workspace:*
+        version: link:../db
+
   packages/billing:
     dependencies:
       '@autodev/db':
@@ -503,6 +515,9 @@ importers:
 
   packages/demo:
     dependencies:
+      '@autodev/autopilot':
+        specifier: workspace:*
+        version: link:../autopilot
       '@autodev/crypto':
         specifier: workspace:*
         version: link:../crypto

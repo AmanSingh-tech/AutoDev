@@ -64,6 +64,10 @@ export const tasks = pgTable(
     jiraIssueKey: text('jira_issue_key'),
     jiraIssueStatus: text('jira_issue_status'),
     jiraSyncedStatus: text('jira_synced_status'),
+    /** Autopilot: queued to run on its own in the owner's window; and the session that ran it. */
+    autopilot: boolean('autopilot').notNull().default(false),
+    autopilotRunId: uuid('autopilot_run_id'),
+    autopilotQueuedAt: tsz('autopilot_queued_at'),
     /** Prompt guide (B-1): the rule-based draft score from @autodev/protocol, set on create and edit. */
     promptScore: integer('prompt_score'),
     promptScoreDetails: jsonb('prompt_score_details').$type<{ version: number; flags: string[] }>(),

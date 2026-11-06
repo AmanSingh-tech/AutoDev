@@ -1,4 +1,4 @@
-import { Bot, ChartColumn, FolderGit2, Gauge, LayoutDashboard, ListChecks, Server, Settings, Users, type LucideIcon } from 'lucide-react';
+import { Bot, ChartColumn, FolderGit2, Gauge, LayoutDashboard, ListChecks, MoonStar, Server, Settings, Users, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -36,6 +36,7 @@ export function navGroups(access: NavAccess | undefined): NavGroup[] {
       label: 'Work',
       items: [
         { href: 'tasks', label: 'Tasks', icon: ListChecks },
+        { href: 'autopilot', label: 'Autopilot', icon: MoonStar },
         { href: 'repos', label: 'Repositories', icon: FolderGit2 },
         { href: 'builders', label: 'Builders', icon: Server },
       ],

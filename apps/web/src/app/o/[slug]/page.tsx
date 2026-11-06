@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, Card, CardContent, CardHeader, CardTitle, cn } from '@autodev/ui';
-import { ArrowRight, CircleCheck, Coins, FolderGit2, GitMerge, GitPullRequest, Hand, ListChecks, Loader, Plus, Server, Sparkles } from 'lucide-react';
+import { ArrowRight, CircleCheck, Coins, FolderGit2, GitMerge, GitPullRequest, Hand, ListChecks, Loader, MoonStar, Plus, Server, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -46,6 +46,8 @@ export default function OrgHome() {
       />
 
       {isAdmin && !org.demo && onboarding.data && !onboarding.data.complete && !onboarding.data.dismissed && <SetupCard slug={slug} steps={onboarding.data.steps} />}
+
+      <AutopilotMorning slug={slug} />
 
       <section aria-label="This week" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile icon={ListChecks} label="Tasks this week" value={d ? String(d.stats.tasksThisWeek) : '–'} />
@@ -200,5 +202,29 @@ function SetupCard({ slug, steps }: { slug: string; steps: { id: string; done: b
         </Button>
       </div>
     </div>
+  );
+}
+
+/** After an Autopilot run: what it left for you to review. */
+function AutopilotMorning({ slug }: { slug: string }) {
+  const q = trpc.autopilot.get.useQuery(undefined, { staleTime: 60_000 });
+  const run = q.data?.runs.find((r) => r.status === 'done' && r.tasks.length > 0);
+  const toReview = run?.tasks.filter((t) => t.prState === 'open' && t.prDraft).length ?? 0;
+  if (!run || !toReview) return null;
+  return (
+    <Link href={`/o/${slug}/autopilot`} className="group flex items-center gap-4 rounded-xl border border-primary/30 bg-accent/50 p-4 shadow-card transition-colors hover:bg-accent">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <MoonStar aria-hidden className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">
+          Autopilot finished {toReview} task{toReview === 1 ? '' : 's'} {run.endedAt ? relativeTime(run.endedAt) : ''}
+        </span>
+        <span className="block text-sm text-muted-foreground">
+          {toReview} draft pull request{toReview === 1 ? '' : 's'} waiting for your review.
+        </span>
+      </span>
+      <ArrowRight aria-hidden className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+    </Link>
   );
 }

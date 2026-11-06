@@ -1,8 +1,8 @@
 'use client';
 
 import { STATUS_LABEL } from '@autodev/db/task-machine';
-import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle, NativeSelect } from '@autodev/ui';
-import { ChevronRight, FolderGit2, GitMerge } from 'lucide-react';
+import { Alert, Avatar, Badge, Button, Card, CardContent, CardHeader, CardTitle, NativeSelect } from '@autodev/ui';
+import { ChevronRight, FolderGit2, GitMerge, MoonStar } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
@@ -57,6 +57,13 @@ export default function TaskPage() {
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge status={t.status} />
             <PriorityLabel priority={t.priority} />
+            {t.autopilot && (
+              <Badge variant="accent">
+                <MoonStar aria-hidden />
+                Autopilot
+              </Badge>
+            )}
+            <AutopilotToggle task={t} />
           </div>
           <TaskSteps mode={t.mode} status={t.status} />
         </div>
@@ -370,5 +377,35 @@ function DemoMerge({ taskKey }: { taskKey: string }) {
       <GitMerge aria-hidden />
       Merge (demo)
     </Button>
+  );
+}
+
+/** Queue a draft task for Autopilot (it runs in your window, overnight by default), or take it out. */
+function AutopilotToggle({ task: t }: { task: Task }) {
+  const { slug } = useParams<{ slug: string }>();
+  const utils = trpc.useUtils();
+  const me = trpc.me.get.useQuery().data?.user?.id;
+  const queue = trpc.autopilot.queue.useMutation({
+    onSuccess: (_r, v) => {
+      toast.success(v.on ? 'Queued for Autopilot. It runs in your Autopilot window.' : 'Taken out of the Autopilot queue');
+      void utils.tasks.get.invalidate({ key: t.key });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (t.status !== 'draft' || t.ownerId !== me) return null;
+  return t.autopilot ? (
+    <Button size="sm" variant="ghost" disabled={queue.isPending} onClick={() => queue.mutate({ key: t.key, on: false })}>
+      Remove from Autopilot
+    </Button>
+  ) : (
+    <span className="flex items-center gap-2">
+      <Button size="sm" variant="outline" disabled={queue.isPending} onClick={() => queue.mutate({ key: t.key, on: true })}>
+        <MoonStar aria-hidden />
+        Run on Autopilot
+      </Button>
+      <Link href={`/o/${slug}/autopilot`} className="text-xs text-muted-foreground hover:underline">
+        What’s this?
+      </Link>
+    </span>
   );
 }

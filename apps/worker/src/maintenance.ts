@@ -5,6 +5,7 @@ import { StripeClient, syncAllSeats, type BillingConfig } from '@autodev/billing
 import type { KeyWrapper } from '@autodev/crypto';
 import { purgeAll, pushAllAudit } from '@autodev/governance';
 import { pushAllTaskUpdates } from '@autodev/jira';
+import { autopilotTick, type SchedulerDeps } from '@autodev/autopilot';
 import { runInsights } from './insights';
 
 /**
@@ -16,6 +17,7 @@ import { runInsights } from './insights';
  *  - retention: B-7, purges chat, agent traces and notifications past each org's retention (before blob-retention).
  *  - siem: B-7, every few minutes, pushes new audit entries to each org's SIEM endpoint.
  *  - jira: B-7, every few minutes, comments task status changes on linked Jira issues.
+ *  - autopilot: every 2 minutes, starts people's queued Autopilot tasks inside their window.
  */
 export const createMaintenanceProcessor =
   (deps: {
@@ -26,9 +28,11 @@ export const createMaintenanceProcessor =
     outboundAllowPrivate?: boolean;
     webUrl?: string;
     jiraBaseUrl?: string;
+    autopilot?: SchedulerDeps;
   }) =>
   async (job: { name: string; data?: { orgId?: string } }) => {
     if (job.name === 'retention') return purgeAll(deps.sys);
+    if (job.name === 'autopilot') return deps.autopilot ? autopilotTick(deps.autopilot) : { autopilot: 'off' };
     if (job.name === 'jira')
       return deps.kms ? pushAllTaskUpdates({ sys: deps.sys, kms: deps.kms, webUrl: deps.webUrl ?? 'http://localhost:3000', baseUrl: deps.jiraBaseUrl }) : { jira: 'no kms' };
     if (job.name === 'siem')

@@ -237,7 +237,7 @@ export function DocumentsSection({ task: t }: { task: Task }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge variant={current.status === 'approved' ? 'outline' : 'secondary'}>{DOC_STATUS[current.status]}</Badge>
-            {current.reviewerLogin && <span>by {current.reviewerLogin}</span>}
+            {current.reviewerLogin ? <span>by {current.reviewerLogin}</span> : current.status === 'approved' && current.comment === 'Approved by Autopilot' && <span>by Autopilot</span>}
             {current.reviewedAt && <span>{relativeTime(current.reviewedAt)}</span>}
           </div>
           {current.comment && (

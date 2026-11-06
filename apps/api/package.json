@@ -16,6 +16,7 @@
   "dependencies": {
     "@auth/core": "^0.37.4",
     "@autodev/agent": "workspace:*",
+    "@autodev/autopilot": "workspace:*",
     "@autodev/billing": "workspace:*",
     "@autodev/demo": "workspace:*",
     "@autodev/governance": "workspace:*",

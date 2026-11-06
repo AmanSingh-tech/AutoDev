@@ -232,6 +232,13 @@
       "when": 1793114587649,
       "tag": "0032_jira",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793998916023,
+      "tag": "0033_autopilot",
+      "breakpoints": true
     }
   ]
 }

@@ -162,6 +162,25 @@ remove their own team's members.
 - **Onboarding:** `/o/{slug}/onboarding` lists the setup steps and ticks them off from the org's data;
   admins see a reminder until it's done or hidden.
 
+## Autopilot
+
+Queue tasks before you leave; the agent works through them on its own and you review in the morning.
+
+- **Queue:** on a draft task, **Run on Autopilot**. Your queue, schedule and results are on the
+  **Autopilot** page.
+- **When:** your schedule (default weekdays 19:00–07:00 in your time zone) or **Run until morning**.
+  One task at a time, within a nightly spend cap and a task limit; a task still running at the end
+  of the window finishes, no new ones start.
+- **Instead of you:** the agent writes its plan and design and Autopilot approves them ("by
+  Autopilot"); a question gets "use your best judgement and list the assumption"; changes outside
+  the approved files and runs of a modified `.autodev.yml` are refused.
+- **Safe by default:** pull requests are always drafts with an Autopilot section listing every
+  decision made without a person. Nothing merges.
+- **Morning review:** per task, **Ready for review** (marks the PR ready on GitHub), **Send back**
+  (a follow-up task with your notes, queued for tonight on the same branch) or **Discard** (closes
+  the PR). A notification says when a session finished.
+- Admins can turn Autopilot off for the organization. Demo orgs include a finished overnight run.
+
 ## Demo mode
 
 **Try the demo** (`/demo`, also on the home page and the organization list) creates a sample

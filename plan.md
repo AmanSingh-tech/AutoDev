@@ -460,6 +460,21 @@ Approved: calm and technical, indigo accent, demo mode included, build it all.
 
 **Decisions left open:** the plan prices and what Business includes over Team (the page copy is a starting point).
 
+### Autopilot (2026-11-07, approved)
+
+Decisions: built into AutoDev (not a separate service); per person, admins can turn it off for the org; on a question it assumes, notes it and continues; PRs always drafts, never merged; default window weekdays 19:00–07:00 in the person's time zone, plus "Run until morning".
+
+- **`@autodev/autopilot`:** time windows (time zones, overnight wrap, weekdays), the scheduler (every 2 minutes in the worker: one task at a time per person, nightly spend cap, task limit, the same billing/key checks as a manual start, a closing summary and notification), and the stand-in decisions run after every agent job (approve plan/design "by Autopilot", answer questions with "assume and list it", deny deviations and modified `.autodev.yml` runs).
+- **Publisher:** Autopilot PRs are drafts with an "Autopilot" section listing every decision made without a person.
+- **API `autopilot`:** settings, queue, run until morning, stop, morning review (ready for review via GitHub GraphQL, send back as a queued follow-up on the same branch, discard closes the PR), admin switch. A manual start takes a task out of the queue.
+- **Web:** an Autopilot page (status, this session, morning review, queue, schedule, history), "Run on Autopilot" on draft tasks, a morning card on Home, Autopilot first in the demo tour.
+- **Demo:** every demo org has last night's run (two draft PRs, one assumption) and a task queued for tonight; the scheduler runs demo orgs live with the simulated agent. The simulated agent now records usage, so costs and the nightly cap work in the demo.
+
+**Decisions left open:**
+- Team-wide queues (several people's tasks in one session) and per-repo Autopilot rules.
+- Email and Slack for the morning summary (in-app notification today).
+- A session can't pause a task mid-run at the window's end; it finishes it.
+
 ## Next step
 
 **Section B is built.** Review B-6 and B-7, then the remaining items under "Decisions left open" in each phase's notes.

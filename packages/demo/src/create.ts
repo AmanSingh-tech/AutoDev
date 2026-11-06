@@ -6,7 +6,7 @@ import { uuidv7 } from 'uuidv7';
 import { DemoAgent } from './agent';
 import { enrichDemoOrg } from './enrich';
 
-const { installations, orgMembers, orgs, pullRequests, repos, taskDocuments, taskEvents, tasks, tokenUsage, userRepoAccess, users } = schema;
+const { agentRuns, autopilotRuns, autopilotSettings, installations, orgMembers, orgs, pullRequests, repos, taskDocuments, taskEvents, taskQuestions, tasks, tokenUsage, userRepoAccess, users } = schema;
 
 export interface CreateDemoDeps {
   sys: SystemDb;
@@ -191,6 +191,7 @@ export async function createDemoOrg(deps: CreateDemoDeps, user: { id: string; lo
     }
   }
   n = await enrichDemoOrg({ sys, blobs: deps.blobs }, { id: org.id, repos: repoRows, you: user.id, people, nextNumber: n });
+  n = await seedAutopilotNight(sys, agent, { orgId: org.id, you: user.id, repos: repoRows, nextNumber: n });
   await sys.update(orgs).set({ taskSeq: n }).where(eq(orgs.id, org.id));
   await seedUsage(sys, org.id, [...people.values()], repoRows.map((r) => r.id));
   return { orgId: org.id, slug: org.slug };
@@ -263,4 +264,83 @@ async function seedUsage(sys: SystemDb, orgId: string, members: string[], repoId
     }
   }
   if (rows.length) await sys.insert(tokenUsage).values(rows);
+}
+
+/**
+ * Last night's Autopilot run, finished: two of your tasks done with draft PRs (plans and designs
+ * approved by Autopilot, one assumption written down), and one more queued for tonight. Driven by
+ * the real Autopilot decisions, at instant speed.
+ */
+async function seedAutopilotNight(sys: SystemDb, agent: DemoAgent, o: { orgId: string; you: string; repos: { id: string; name: string }[]; nextNumber: number }) {
+  const { advanceAutopilotTask } = await import('@autodev/autopilot');
+  const now = Date.now();
+  const started = new Date(now - 14 * 3_600_000);
+  const [run] = await sys
+    .insert(autopilotRuns)
+    .values({ orgId: o.orgId, userId: o.you, startedAt: started, endsAt: new Date(now - 2 * 3_600_000), status: 'running' })
+    .returning();
+  await sys
+    .insert(autopilotSettings)
+    .values({ orgId: o.orgId, userId: o.you, enabled: true, timezone: 'UTC' })
+    .onConflictDoNothing();
+  let n = o.nextNumber;
+  const night = [
+    { title: 'Validate the signup request body', description: 'POST /signup accepts any JSON. Reject missing or malformed email and password with 400 and a clear message.', repo: 'api', mode: 'plan_lld' as const, priority: 'high' as const },
+    { title: 'Lazy-load images on the pricing page', description: 'The pricing page loads every image up front. Load below-the-fold images lazily.', repo: 'web', mode: 'plan_only' as const, priority: 'medium' as const },
+  ];
+  const done: string[] = [];
+  for (const [i, s] of night.entries()) {
+    n++;
+    const repo = o.repos.find((r) => r.name === s.repo)!;
+    const key = `ACME-${n}`;
+    const [t] = await sys
+      .insert(tasks)
+      .values({ orgId: o.orgId, repoId: repo.id, number: n, key, title: s.title, descriptionMd: s.description, acceptanceCriteriaMd: '- Works as described\n- Covered by tests', priority: s.priority, mode: s.mode, branchMode: 'new', workBranch: `autodev/${key.toLowerCase()}`, ownerId: o.you, createdBy: o.you, createPrOnCompletion: true, autopilot: true, autopilotQueuedAt: started, autopilotRunId: run!.id })
+      .returning();
+    await sys.insert(taskEvents).values({ orgId: o.orgId, taskId: t!.id, actorType: 'user', actorUserId: o.you, type: 'created' });
+    await transitionTask(sys, t!, 'queued', { type: 'agent', userId: null }, { autopilot: true, runId: run!.id });
+    for (let guard = 0; guard < 6; guard++) {
+      await agent.process({ orgId: o.orgId, taskId: t!.id });
+      const acted = await advanceAutopilotTask({ sys, enqueue: async () => null }, t!.id);
+      if (!acted) break;
+    }
+    // The first one shows what an assumption looks like in the morning review.
+    if (i === 0) {
+      const [r] = await sys.select({ id: agentRuns.id }).from(agentRuns).where(eq(agentRuns.taskId, t!.id)).limit(1);
+      await sys.insert(taskQuestions).values({
+        orgId: o.orgId,
+        taskId: t!.id,
+        agentRunId: r!.id,
+        kind: 'question',
+        questionMd: 'Should a password shorter than 8 characters be rejected, or only an empty one? The task doesn’t say.',
+        answerMd: 'Autopilot is on and nobody is available to answer. Use your best judgement, carry on, and list this decision under "Assumptions" in your summary.',
+        answeredAt: new Date(now - 10 * 3_600_000),
+      });
+      await sys
+        .update(tasks)
+        .set({ summaryMd: `${(await sys.select({ s: tasks.summaryMd }).from(tasks).where(eq(tasks.id, t!.id)))[0]!.s ?? ''}\n\n**Assumptions**\n- Passwords under 8 characters are rejected (the task didn’t say; 8 is the existing minimum in the web form).` })
+        .where(eq(tasks.id, t!.id));
+    }
+    const at = new Date(started.getTime() + (i + 1) * 2 * 3_600_000);
+    await sys.update(tasks).set({ createdAt: started, updatedAt: at }).where(eq(tasks.id, t!.id));
+    await sys.update(pullRequests).set({ createdAt: at }).where(eq(pullRequests.taskId, t!.id));
+    done.push(key);
+  }
+  await closeDemoRun(sys, run!.id, new Date(now - 2 * 3_600_000));
+  // One more waiting for tonight.
+  n++;
+  const web = o.repos.find((r) => r.name === 'mobile') ?? o.repos[0]!;
+  const [queued] = await sys
+    .insert(tasks)
+    .values({ orgId: o.orgId, repoId: web.id, number: n, key: `ACME-${n}`, title: 'Show a retry button when the feed fails to load', descriptionMd: 'When the feed request fails, the screen stays blank. Show the error and a Retry button.', acceptanceCriteriaMd: '- Retry reloads the feed\n- Covered by tests', priority: 'medium', mode: 'plan_only', branchMode: 'new', workBranch: `autodev/acme-${n}`, ownerId: o.you, createdBy: o.you, createPrOnCompletion: true, autopilot: true, autopilotQueuedAt: new Date() })
+    .returning();
+  await sys.insert(taskEvents).values({ orgId: o.orgId, taskId: queued!.id, actorType: 'user', actorUserId: o.you, type: 'created' });
+  return n;
+}
+
+async function closeDemoRun(sys: SystemDb, runId: string, at: Date) {
+  const { closeRun } = await import('@autodev/autopilot');
+  const [run] = await sys.select().from(autopilotRuns).where(eq(autopilotRuns.id, runId));
+  await closeRun(sys, { ...run!, stopReason: 'queue_empty' }, 'queue_empty', at);
+  await sys.update(autopilotRuns).set({ tasksStarted: 2 }).where(eq(autopilotRuns.id, runId));
 }

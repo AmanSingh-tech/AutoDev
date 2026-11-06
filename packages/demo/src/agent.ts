@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, FIRST_PHASE, max, schema, sql, transitionTask, type SystemDb } from '@autodev/db';
 import type { BlobStore } from '@autodev/storage';
+import { uuidv7 } from 'uuidv7';
 import { demoDesign, demoFiles, demoPlan, demoSummary, demoTestLog, type DemoTaskInput } from './content';
 
-const { agentRuns, agentSteps, builderJobs, orgs, pullRequests, repos, taskDocuments, tasks, workspaceFiles, workspaces } = schema;
+const { agentRuns, agentSteps, builderJobs, orgs, pullRequests, repos, taskDocuments, tasks, tokenUsage, workspaceFiles, workspaces } = schema;
 
 type Task = typeof tasks.$inferSelect;
 const AGENT = { type: 'agent' as const, userId: null };
@@ -74,6 +75,22 @@ export class DemoAgent {
       });
     }
     const tokens = 18_000 + steps.length * 4_200;
+    // Metered like a real run (Opus prices), so usage, costs and Autopilot's nightly cap mean something.
+    const output = Math.round(tokens / 6);
+    await sys.insert(tokenUsage).values({
+      id: uuidv7(),
+      orgId: t.orgId,
+      userId: t.ownerId,
+      repoId: t.repoId,
+      taskId: t.id,
+      provider: 'anthropic',
+      model: 'claude-opus-5-5',
+      useCase: t.byGroupAgent ? 'group_agent' : 'agent',
+      inputTokens: tokens,
+      outputTokens: output,
+      cacheReadTokens: tokens * 3,
+      costUsd: ((tokens * 5 + output * 25 + tokens * 3 * 0.5) / 1_000_000).toFixed(6),
+    });
     await sys
       .update(agentRuns)
       .set({ status: 'succeeded', endedAt: new Date(), turns: steps.length, inputTokens: tokens, outputTokens: Math.round(tokens / 6) })
@@ -178,6 +195,8 @@ export async function openDemoPr(sys: SystemDb, t: Task, webUrl: string, opts: {
     headBranch: t.workBranch,
     baseBranch: 'main',
     state: opts.mergedAt ? 'merged' : 'open',
+    // Like real Autopilot PRs: drafts until a person marks them ready.
+    draft: t.autopilot && !opts.mergedAt,
     mergedAt: opts.mergedAt ?? null,
     createdBy: opts.createdBy ?? 'agent_on_completion',
   });

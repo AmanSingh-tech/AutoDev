@@ -155,6 +155,14 @@ live in `orgs.settings`. Aggregate `array_cat_agg(anycompatiblearray)` concatena
 | ✅ jira_connections | org (PK), site (name only), email, token_enc (org data key), token_last4, default_project, webhook_token, last_error, last_synced_at | Admins manage it; the worker and webhook use the system role |
 | ✅ tasks (added) | jira_issue_key, jira_issue_status, jira_synced_status | Migration 0032; partial index on (org, jira_issue_key) |
 
+## Autopilot
+
+| Table | Columns that matter | Notes |
+|---|---|---|
+| ✅ autopilot_settings | org + user (PK), enabled, timezone, start_minute, end_minute (wraps past midnight), days (ISO weekdays), nightly_budget_usd, max_tasks, run_until | One per person per org; changed through the API (own row only) |
+| ✅ autopilot_runs | org, user, status, started_at, ends_at, ended_at, stop_reason, tasks_started, summary, reviewed_at | One per session (window or "run until morning"); written by the worker's scheduler |
+| ✅ tasks (added) | autopilot, autopilot_queued_at, autopilot_run_id | Migration 0033 |
+
 ## Billing (B-6)
 
 | Table | Columns that matter | Notes |

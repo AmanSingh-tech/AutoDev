@@ -18,3 +18,4 @@ export * from './billing';
 export * from './governance';
 export * from './sso';
 export * from './jira';
+export * from './autopilot';

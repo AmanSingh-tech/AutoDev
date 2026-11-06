@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, schema, sql, transitionTask, type SystemDb } from '@autodev/db';
+import { and, desc, eq, inArray, isNotNull, isNull, schema, sql, transitionTask, type SystemDb } from '@autodev/db';
 import {
   assertCanPush,
   commitToBranch,
@@ -21,7 +21,7 @@ import { PgOverlayStore } from './overlay';
 import { appendToBody, buildPrBody, buildUpdateSection, type PrContext } from './pr-body';
 import { GitHubRepoReader } from './repo-reader';
 
-const { agentPolicies, auditLog, builderJobs, builders, installations, notifications, orgs, pullRequests, recommendations, repos, taskDocuments, taskEvents, tasks, tokenUsage, users, workspaces } = schema;
+const { agentPolicies, auditLog, builderJobs, builders, installations, notifications, orgs, pullRequests, recommendations, repos, taskDocuments, taskEvents, taskQuestions, tasks, tokenUsage, users, workspaces } = schema;
 
 type Task = typeof tasks.$inferSelect;
 export type PublishFailure = 'not_allowed' | 'conflict' | 'reauth';
@@ -120,7 +120,8 @@ export class Publisher {
 
     const bot = opts.createdBy === 'group_agent';
     // Group Agent PRs are drafts unless the repo allows normal PRs (safety level 3) and the tests passed.
-    const draft = bot && !((await this.safetyLevel(task)) >= 3 && ctx.testing.status === 'passed');
+    // Autopilot PRs are always drafts: a person marks them ready in the morning review.
+    const draft = task.autopilot || (bot && !((await this.safetyLevel(task)) >= 3 && ctx.testing.status === 'passed'));
     const write = async (gh: ReturnType<typeof userOctokit>) => {
       if (!bot) await assertCanPush(gh, repo.owner, repo.name);
       const open = await findOpenPr(gh, repo.owner, repo.name, task.workBranch);
@@ -208,7 +209,14 @@ export class Publisher {
       ? await sys.select({ id: tasks.id, key: tasks.key, title: tasks.title, repoFullName: repos.fullName }).from(tasks).innerJoin(repos, eq(repos.id, tasks.repoId)).where(eq(tasks.id, task.sourceTaskId))
       : [];
     const sourcePr = source ? await latestPr(sys, source.id) : null;
+    const decisions = task.autopilot
+      ? await sys
+          .select({ question: taskQuestions.questionMd, answer: taskQuestions.answerMd })
+          .from(taskQuestions)
+          .where(and(eq(taskQuestions.taskId, task.id), isNull(taskQuestions.answeredBy), isNotNull(taskQuestions.answeredAt)))
+      : [];
     return {
+      autopilot: task.autopilot ? { decisions: decisions.map((d) => ({ question: d.question, answer: d.answer ?? '' })) } : null,
       groupAgent: task.byGroupAgent ? { recommendationUrl: `${this.deps.webUrl}/o/${slug}/group-agent` } : null,
       source: source ? { key: source.key, title: source.title, url: this.taskUrl(slug, source.key), repoFullName: source.repoFullName, pr: sourcePr && { number: sourcePr.number, url: sourcePr.url } } : null,
       task: { key: task.key, title: task.title, url: this.taskUrl(slug, task.key), summaryMd: task.summaryMd, acceptanceCriteriaMd: task.acceptanceCriteriaMd, mode: task.mode },

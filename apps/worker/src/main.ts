@@ -16,6 +16,8 @@ import { createGroupAgentProcessor } from './group-agent/processor';
 import { createKeyValidationProcessor } from './key-validation';
 import { createMaintenanceProcessor } from './maintenance';
 import { answerDemoChat, answerDemoRoom, DemoAgent, isDemoOrg } from '@autodev/demo';
+import { advanceAutopilotTask, autopilotTick } from '@autodev/autopilot';
+import { billingState } from '@autodev/billing';
 import { createRepoSyncProcessor } from './repo-sync';
 import { sweepStaleBranches } from './stale-branch';
 
@@ -87,11 +89,29 @@ await groupAgentQueue.upsertJobScheduler('nightly-group-agent-scan', { pattern: 
 await groupAgentQueue.upsertJobScheduler('weekly-group-agent-digest', { pattern: '0 8 * * 1', tz: 'UTC' }, { name: 'digest', data: { kind: 'digest' } });
 await maintenance.upsertJobScheduler('nightly-retention', { pattern: '45 3 * * *', tz: 'UTC' }, { name: 'retention' });
 await maintenance.upsertJobScheduler('siem-push', { pattern: '*/5 * * * *', tz: 'UTC' }, { name: 'siem' });
+await maintenance.upsertJobScheduler('autopilot', { every: 2 * 60_000 }, { name: 'autopilot' });
 await maintenance.upsertJobScheduler('jira-push', { pattern: '2-59/5 * * * *', tz: 'UTC' }, { name: 'jira' });
 await maintenance.upsertJobScheduler('nightly-seats', { pattern: '45 2 * * *', tz: 'UTC' }, { name: 'seats' });
 await maintenance.upsertJobScheduler('nightly-insights', { pattern: '30 0 * * *', tz: 'UTC' }, { name: 'insights' });
 await codeIndexQueue.upsertJobScheduler('nightly-code-index', { pattern: '0 5 * * *', tz: 'UTC' }, { name: 'nightly', data: { kind: 'nightly' } });
 await maintenance.add('partitions', {}, { jobId: `partitions-boot-${new Date().toISOString().slice(0, 10)}`, removeOnComplete: true });
+
+const autopilotDeps = {
+  sys: sys.db,
+  enqueue: (orgId: string, taskId: string, eventId: string) => agentQueue.add('run', { kind: 'run' as const, orgId, taskId }, { jobId: `run-${eventId}` }),
+  // The same checks a manual start does: a lapsed plan, or no key/budget, stops tonight's session.
+  canStart: async (orgId: string, userId: string) => {
+    if (await isDemoOrg(sys.db, orgId)) return null;
+    const billing = await billingState(sys.db, env, orgId);
+    if (!billing.canRun) return billing.blockedReason ?? 'The plan is not active';
+    try {
+      await gateway.assertRunAllowed(orgId, userId);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : 'The agent can’t run';
+    }
+  },
+};
 
 // Demo orgs ("Try the demo") get the simulated agent: no model, GitHub or builder.
 const demoAgent = new DemoAgent({ sys: sys.db, blobs, webUrl: env.WEB_URL });
@@ -99,7 +119,10 @@ const agentWorker = new Worker(
   QUEUES.agent,
   async (job) => {
     const data = agentJob.parse(job.data);
-    return (await isDemoOrg(sys.db, data.orgId)) ? demoAgent.process(data) : orchestrator.process(data);
+    const result = (await isDemoOrg(sys.db, data.orgId)) ? await demoAgent.process(data) : await orchestrator.process(data);
+    // Autopilot plays the person's part (approve, assume, refuse) when the run stops to wait for one.
+    await advanceAutopilotTask(autopilotDeps, data.taskId);
+    return result;
   },
   {
     connection,
@@ -125,7 +148,7 @@ const workers = [
   // Embedding is CPU-bound and the model runs one batch at a time, so two repos at once is plenty.
   new Worker(QUEUES.codeIndex, createCodeIndexProcessor({ indexer, queue: codeIndexQueue }), { connection, concurrency: 2, lockDuration: 10 * 60_000 }),
   new Worker(QUEUES.keyValidation, createKeyValidationProcessor(credentials), { connection, concurrency: 1 }),
-  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env, kms, outboundAllowPrivate: env.OUTBOUND_ALLOW_PRIVATE === '1', webUrl: env.WEB_URL, jiraBaseUrl: env.JIRA_BASE_URL }), { connection, concurrency: 1 }),
+  new Worker(QUEUES.maintenance, createMaintenanceProcessor({ sys: sys.db, blobs, billing: env, kms, outboundAllowPrivate: env.OUTBOUND_ALLOW_PRIVATE === '1', webUrl: env.WEB_URL, jiraBaseUrl: env.JIRA_BASE_URL, autopilot: autopilotDeps }), { connection, concurrency: 1 }),
   // Scans read every repo's lockfiles and call OSV and the registries; one org at a time.
   new Worker(QUEUES.groupAgent, (job) => groupAgent({ data: groupAgentJob.parse(job.data) }), { connection, concurrency: 1, lockDuration: 10 * 60_000 }),
   new Worker(

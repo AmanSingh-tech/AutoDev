@@ -172,7 +172,11 @@ async function startTask(ctx: Ctx, key: string) {
       throw e;
     }
   }
-  const { task, eventId } = await ctx.inOrg((tx) => transition(tx, t, 'queued', { type: 'user', userId: ctx.userId }));
+  const { task, eventId } = await ctx.inOrg(async (tx) => {
+    // Started by hand: the person reviews it themselves, so it leaves the Autopilot queue.
+    if (t.autopilot) await tx.update(tasks).set({ autopilot: false, autopilotQueuedAt: null }).where(eq(tasks.id, t.id));
+    return transition(tx, t, 'queued', { type: 'user', userId: ctx.userId });
+  });
   await ctx.deps.queues.agent.add('run', { kind: 'run', orgId: ctx.orgId, taskId: t.id }, { jobId: `run-${eventId}` });
   return task;
 }

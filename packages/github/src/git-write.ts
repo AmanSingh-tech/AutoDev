@@ -109,3 +109,14 @@ export async function getPr(gh: Octokit, owner: string, repo: string, number: nu
   const { data } = await gh.rest.pulls.get({ owner, repo, pull_number: number });
   return toInfo(data);
 }
+
+/** Draft → ready for review (Autopilot's morning review). GitHub only allows this through GraphQL. */
+export async function markPrReady(gh: Octokit, owner: string, repo: string, number: number) {
+  const { data } = await gh.rest.pulls.get({ owner, repo, pull_number: number });
+  if (!data.draft) return;
+  await gh.graphql(`mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }`, { id: data.node_id });
+}
+
+export async function closePr(gh: Octokit, owner: string, repo: string, number: number) {
+  await gh.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });
+}

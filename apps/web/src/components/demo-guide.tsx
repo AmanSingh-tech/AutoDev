@@ -10,12 +10,12 @@ import { trpc } from '@/lib/trpc';
 
 /** The tour, pointing at the sample data every demo org is created with. */
 const STEPS: { path: string; label: string; hint: string }[] = [
+  { path: '/autopilot', label: 'Review last night’s Autopilot run', hint: 'Two draft pull requests the agent finished overnight, on its own.' },
   { path: '/tasks/ACME-1', label: 'Approve a plan', hint: 'The agent planned a bug fix. Approve it and watch the design, code, tests and PR follow.' },
   { path: '/tasks/ACME-8', label: 'Answer the agent', hint: 'It stopped to ask a question instead of guessing.' },
   { path: '/tasks/ACME-4', label: 'Merge a pull request', hint: 'Review the diff and test run, then merge.' },
   { path: '/repos/api/chat', label: 'Ask the codebase', hint: 'A private chat that answers from the repository.' },
   { path: '/group-agent', label: 'See what the Group Agent found', hint: 'Nightly scans, recommendations and a weekly digest.' },
-  { path: '/insights', label: 'Open Insights', hint: 'Cost, merged PRs and the leaderboard.' },
 ];
 
 const key = (slug: string) => `autodev-demo-tour:${slug}`;
