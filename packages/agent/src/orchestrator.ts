@@ -476,6 +476,14 @@ export class AgentOrchestrator {
       await builderJobs.dispatch(job.id);
       return 'tests:retrying';
     }
+    if (job.status === 'error') {
+      // The builder still could not run the tests at all (Docker, network, disk). That isn't the
+      // code's fault, so no fix attempt is spent on it: the task waits, and the owner runs the
+      // tests again once the builder is sorted out.
+      await transitionTask(sys, task, 'waiting_for_builder', agent, { reason: 'builder_error', jobId: job.id });
+      await this.notifyOwner(task, 'test.builder_error', `${task.key}: your builder could not run the tests`, `${(job.error ?? 'The builder reported an error').slice(0, 300)}. Fix it on the builder, then choose "Run tests again" on the task.`);
+      return 'tests:builder_error';
+    }
 
     if (ok && job.final) {
       await sys.update(agentRuns).set({ status: 'succeeded', endedAt: new Date(), state: {} }).where(eq(agentRuns.id, run.id));

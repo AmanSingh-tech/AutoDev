@@ -211,4 +211,35 @@ describe('builder jobs', () => {
     await sys.db.update(schema.builderJobs).set({ status: 'queued' }).where(eq(schema.builderJobs.id, job!.id));
     expect(await jobs.dispatch(job!.id)).toBeNull();
   });
+
+  it('does not spend a fix attempt when the builder cannot run the tests: it retries once, then waits for "Run tests again"', async () => {
+    const t = await codingTask();
+    editAndFinish();
+    const run = () => orchestrator.process({ kind: 'run', orgId: fx.org.id, taskId: t.id });
+    await run();
+    const [job] = await allJobs(t.id);
+    const fail = async () => {
+      await jobs.accepted(builderId, job!.id);
+      await jobs.finished(builderId, result(job!.id, 'error', { step: 'system', exitCode: null, error: 'Docker could not pull the image' }), null);
+    };
+
+    // First error: one automatic retry. Each attempt wakes the orchestrator under its own queue id.
+    await fail();
+    expect(await run()).toEqual({ result: 'tests:retrying' });
+    await fail();
+    expect(enqueued).toHaveLength(2);
+    expect(await run()).toEqual({ result: 'tests:builder_error' });
+    expect((await task(t.id)).status).toBe('waiting_for_builder');
+    expect(seen).toHaveLength(2); // the model was not asked to "fix" anything
+    const [note] = await sys.db.select().from(schema.notifications).where(eq(schema.notifications.type, 'test.builder_error'));
+    expect(note!.body).toContain('Docker could not pull the image');
+
+    // The owner sorts out the builder and runs the tests again: same job, same fix cycle.
+    expect(await jobs.rerun(t.id)).toBe(true);
+    expect((await allJobs(t.id))[0]).toMatchObject({ status: 'offered', fixCycle: 0, error: null });
+    await jobs.accepted(builderId, job!.id);
+    await jobs.finished(builderId, result(job!.id, 'passed'), null);
+    expect(await run()).toEqual({ result: 'tests:passed' });
+    expect(await jobs.rerun(t.id)).toBe(false);
+  });
 });

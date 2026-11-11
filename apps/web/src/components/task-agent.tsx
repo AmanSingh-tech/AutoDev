@@ -429,6 +429,8 @@ function WaitingForBuilder({ task: t }: { task: Task }) {
   const job = jobs.data?.[0];
   const refresh = useRefresh(t.key);
   const consent = trpc.agent.consent.useMutation({ onSuccess: refresh });
+  const utils = trpc.useUtils();
+  const rerun = trpc.agent.rerunTests.useMutation({ onSuccess: () => Promise.all([refresh(), utils.agent.testJobs.invalidate({ key: t.key })]) });
   if (job?.consent === 'pending') {
     return (
       <section className="space-y-3 rounded-xl border border-warning/50 bg-warning/5 p-5 shadow-card" aria-label="Test run consent">
@@ -449,6 +451,23 @@ function WaitingForBuilder({ task: t }: { task: Task }) {
   }
   const mineOnline = builders.data?.some((b) => b.mine && b.online);
   const needsConfirm = pending.data?.length;
+  if (job?.status === 'error') {
+    return (
+      <Alert tone="warning" className="space-y-2">
+        <p className="font-medium">Your builder could not run the tests</p>
+        <p>
+          This is a problem on the builder, not in the change, so no fix attempt was used: <span className="break-all font-mono text-xs">{job.error ?? 'see the log below'}</span>
+        </p>
+        <p>Sort it out on that machine (for example: is Docker running, and can it reach the internet?), then run the tests again.</p>
+        {canAct(t) && (
+          <Button size="sm" onClick={() => rerun.mutate({ key: t.key })} disabled={rerun.isPending}>
+            {rerun.isPending ? 'Starting…' : 'Run tests again'}
+          </Button>
+        )}
+        {rerun.error && <p className="text-sm">{rerun.error.message}</p>}
+      </Alert>
+    );
+  }
   return (
     <Alert className="space-y-1">
       <p className="font-medium">Waiting for your builder</p>

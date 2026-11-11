@@ -195,6 +195,16 @@ export const agentRouter = router({
     return { status: job.status, text: text.length > MAX ? `[showing the last 2 MB]\n${text.slice(-MAX)}` : text, live: !job.logHash };
   }),
 
+  /** The builder could not run the tests (Docker, network): run them again once it is sorted out. */
+  rerunTests: requireRole('developer')
+    .input(keyInput)
+    .mutation(async ({ ctx, input }) => {
+      const t = await ctx.inOrg((tx) => loadTask(tx, ctx.orgId, input.key));
+      if (t.ownerId !== ctx.userId && !roleAtLeast(ctx.role, 'admin')) throw new TRPCError({ code: 'FORBIDDEN' });
+      if (!(await ctx.deps.builderJobs.rerun(t.id))) throw new TRPCError({ code: 'BAD_REQUEST', message: 'There is no test run to start again' });
+      return { ok: true };
+    }),
+
   /** The patch edits .autodev.yml: the owner allows or refuses running it. */
   consent: requireRole('developer')
     .input(keyInput.extend({ jobId: z.string().uuid(), allow: z.boolean() }))

@@ -43,7 +43,9 @@ export class JobRunner {
       const executor = this.opts.executorFor(offer);
       await executor.prepare(sys);
       sys(executor.kind === 'docker' ? `Running in Docker (${offer.dockerImage}), ${offer.limits.cpus} CPUs, ${offer.limits.memoryMb} MB.` : 'Running directly on this machine (no Docker).');
-      const deadline = started + (this.opts.timeoutMsOverride ?? offer.limits.timeoutMin * 60_000);
+      // The time limit covers the repo's own commands. Getting the container image (a large download
+      // the first time) is the builder's business and doesn't count against the tests.
+      const deadline = Date.now() + (this.opts.timeoutMsOverride ?? offer.limits.timeoutMin * 60_000);
 
       let tail = '';
       for (const { step, commands } of steps(offer.config)) {

@@ -301,7 +301,8 @@ export class BuilderJobs {
       .returning();
     await this.deps.cache.del(busyKey(builderId));
     if (!job) return null;
-    await this.deps.enqueueAgent({ kind: 'run', orgId: job.orgId, taskId: job.taskId }, `job-${job.id}`);
+    // Each attempt gets its own queue id: a job that is run again would otherwise be dropped as a duplicate.
+    await this.deps.enqueueAgent({ kind: 'run', orgId: job.orgId, taskId: job.taskId }, `job-${job.id}-${job.attempts}`);
     // The builder is free again: give it the next queued job.
     await this.dispatchFor(builderId);
     return job;
@@ -355,7 +356,8 @@ export class BuilderJobs {
         })
         .where(eq(agentRuns.id, job.agentRunId));
     }
-    await this.deps.enqueueAgent({ kind: 'run', orgId: job.orgId, taskId: job.taskId }, `job-${job.id}`);
+    // Each attempt gets its own queue id: a job that is run again would otherwise be dropped as a duplicate.
+    await this.deps.enqueueAgent({ kind: 'run', orgId: job.orgId, taskId: job.taskId }, `job-${job.id}-${job.attempts}`);
     await this.dispatchFor(builderId);
     return job;
   }
@@ -393,6 +395,26 @@ export class BuilderJobs {
     // A run that was waiting for Claude Code on a builder ends with the job.
     const runIds = jobs.filter((j) => j.kind === 'agent' && j.agentRunId).map((j) => j.agentRunId!);
     if (runIds.length) await this.deps.sys.update(agentRuns).set({ status: 'cancelled', endedAt: new Date(), state: {} }).where(and(inArray(agentRuns.id, runIds), eq(agentRuns.status, 'running')));
+  }
+
+  /**
+   * Run a test job again after the builder could not run it (Docker down, no network, disk full).
+   * The owner asks for this once the builder is sorted out. Returns false when there is nothing to re-run.
+   */
+  async rerun(taskId: string): Promise<boolean> {
+    const { sys } = this.deps;
+    const [task] = await sys.select().from(tasks).where(eq(tasks.id, taskId));
+    if (!task || task.status !== 'waiting_for_builder') return false;
+    const [latest] = await sys.select().from(builderJobs).where(and(eq(builderJobs.taskId, taskId), eq(builderJobs.kind, 'test'))).orderBy(desc(builderJobs.queuedAt)).limit(1);
+    if (!latest || latest.status !== 'error') return false;
+    const [job] = await sys
+      .update(builderJobs)
+      .set({ status: 'queued', builderId: null, offeredAt: null, startedAt: null, finishedAt: null, error: null, offlineNotifiedAt: null })
+      .where(and(eq(builderJobs.id, latest.id), eq(builderJobs.status, 'error')))
+      .returning();
+    if (!job) return false;
+    await this.dispatch(job.id);
+    return true;
   }
 
   /** The run's latest test job (the default), or its latest agent job. */
