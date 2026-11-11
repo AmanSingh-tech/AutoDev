@@ -3,7 +3,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { LlmRequest } from '../types';
 import { BedrockProvider } from './bedrock';
-import { AzureOpenAiProvider, OpenAiProvider } from './openai';
+import { AzureOpenAiProvider, OpenAiProvider, retryAfterMs } from './openai';
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -88,6 +88,32 @@ describe('OpenAI', () => {
     expect(err.message).not.toContain('sk-openai');
     expect(await provider.validateKey({ apiKey: 'good-key-123456789012', config: {} })).toEqual({ ok: true });
     expect(await provider.validateKey(creds)).toMatchObject({ ok: false, kind: 'auth' });
+  });
+
+  it('waits out a short retry-after on rate limits and retries in place; long or missing waits fail fast', async () => {
+    let calls = 0;
+    server.use(
+      http.post('http://openai.test/v1/chat/completions', () =>
+        ++calls < 3 ? HttpResponse.json({ error: { code: 'rate_limit_exceeded' } }, { status: 429, headers: { 'retry-after': '0.01' } }) : HttpResponse.json(completion()),
+      ),
+    );
+    expect((await provider.complete(request, creds)).stopReason).toBe('tool_use');
+    expect(calls).toBe(3);
+
+    for (const headers of [{ 'retry-after': '3600' }, {} as Record<string, string>]) {
+      calls = 0;
+      server.use(http.post('http://openai.test/v1/chat/completions', () => (calls++, HttpResponse.json({ error: { code: 'rate_limit_exceeded' } }, { status: 429, headers }))));
+      expect(await provider.complete(request, creds).catch((e) => e)).toMatchObject({ kind: 'rate_limit', status: 429 });
+      expect(calls).toBe(1);
+    }
+  });
+
+  it('reads retry-after in seconds, milliseconds or as a date', () => {
+    expect(retryAfterMs(new Headers({ 'retry-after': '7' }))).toBe(7000);
+    expect(retryAfterMs(new Headers({ 'retry-after-ms': '250', 'retry-after': '7' }))).toBe(250);
+    expect(retryAfterMs(new Headers({ 'retry-after': new Date(10_000).toUTCString() }), 4_000)).toBe(6000);
+    expect(retryAfterMs(new Headers({ 'retry-after': 'soon' }))).toBeNull();
+    expect(retryAfterMs(new Headers())).toBeNull();
   });
 });
 

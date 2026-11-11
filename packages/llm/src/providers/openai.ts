@@ -75,18 +75,29 @@ abstract class ChatCompletionsProvider implements LlmProvider {
 
   private async fetch(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
     const timeout = AbortSignal.timeout(this.opts.timeoutMs ?? 600_000);
-    let res: Response;
-    try {
-      res = await fetch(url, { ...init, signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
-    } catch (e) {
-      if ((e as Error).name === 'AbortError' && signal?.aborted) throw e;
-      throw new LlmError('connection', `Could not reach ${this.label}`);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    for (let attempt = 0; ; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(url, { ...init, signal: combined });
+      } catch (e) {
+        if ((e as Error).name === 'AbortError' && signal?.aborted) throw e;
+        throw new LlmError('connection', `Could not reach ${this.label}`);
+      }
+      if (res.ok) return res;
+      // Error bodies never contain the key; keep only the provider's code.
+      const err = (await res.json().catch(() => ({}))) as { error?: { code?: string; type?: string } };
+      const code = err.error?.code ?? err.error?.type ?? '';
+      const kind = errorKind(res.status, code);
+      // Per-minute limits (tight on free tiers) say how long to wait: wait and retry in place,
+      // rather than failing the whole job. Longer waits go back to the job's own backoff.
+      const wait = retryAfterMs(res.headers);
+      if ((kind === 'rate_limit' || kind === 'overloaded') && wait !== null && wait <= MAX_RETRY_AFTER_MS && attempt < MAX_RATE_RETRIES) {
+        await sleep(wait, combined);
+        continue;
+      }
+      throw new LlmError(kind, `${this.label} ${res.status} ${code}`.trim(), res.status);
     }
-    if (res.ok) return res;
-    // Error bodies never contain the key; keep only the provider's code.
-    const err = (await res.json().catch(() => ({}))) as { error?: { code?: string; type?: string } };
-    const code = err.error?.code ?? err.error?.type ?? '';
-    throw new LlmError(errorKind(res.status, code), `${this.label} ${res.status} ${code}`.trim(), res.status);
   }
 }
 
@@ -176,6 +187,29 @@ function mapFinish(r: string): StopReason {
       return 'other';
   }
 }
+
+const MAX_RATE_RETRIES = 5;
+const MAX_RETRY_AFTER_MS = 60_000;
+
+/** `retry-after-ms`, or `retry-after` in seconds or as an HTTP date. Null when absent or unreadable. */
+export function retryAfterMs(h: Headers, now = Date.now()): number | null {
+  const ms = Number(h.get('retry-after-ms'));
+  if (h.get('retry-after-ms') && Number.isFinite(ms) && ms >= 0) return ms;
+  const v = h.get('retry-after');
+  if (!v) return null;
+  const secs = Number(v);
+  if (Number.isFinite(secs) && secs >= 0) return secs * 1000;
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? null : Math.max(0, at - now);
+}
+
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const t = setTimeout(() => (signal.removeEventListener('abort', onAbort), resolve()), ms);
+    const onAbort = () => (clearTimeout(t), reject(signal.reason));
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 
 function errorKind(status: number, code: string): LlmErrorKind {
   if (status === 401) return 'auth';
