@@ -31,9 +31,11 @@ export const helloFromBuilder = z.object({
   dockerAvailable: z.boolean(),
   /** A job the builder was running when it lost the connection, if any. */
   runningJobId: id.nullable(),
+  /** The Claude Code version found on this machine (null: none), for agent jobs. */
+  claudeCode: z.string().max(50).nullable().optional(),
 });
 export const jobAccept = z.object({ type: z.literal('job.accept'), jobId: id });
-export const jobReject = z.object({ type: z.literal('job.reject'), jobId: id, reason: z.enum(['busy', 'docker_unavailable', 'repo_unavailable', 'invalid_offer', 'shutting_down']), message: z.string().max(2000).optional() });
+export const jobReject = z.object({ type: z.literal('job.reject'), jobId: id, reason: z.enum(['busy', 'docker_unavailable', 'claude_unavailable', 'repo_unavailable', 'invalid_offer', 'shutting_down']), message: z.string().max(2000).optional() });
 export const logChunk = z.object({
   type: z.literal('log.chunk'),
   jobId: id,
@@ -58,7 +60,46 @@ export const jobResult = z.object({
 });
 export const heartbeat = z.object({ type: z.literal('heartbeat'), ts: z.number() });
 
-export const builderMessage = z.discriminatedUnion('type', [helloFromBuilder, jobAccept, jobReject, logChunk, jobResult, heartbeat]);
+// ---- Agent jobs: one agent phase run by the builder owner's own Claude Code ----
+export const MAX_AGENT_TEXT = 200_000;
+export const MAX_AGENT_FILES = 300;
+/** All returned file contents together. The gateway accepts messages up to 12 MB. */
+export const MAX_AGENT_FILES_BYTES = 8 * 1024 * 1024;
+export const agentPhase = z.enum(['plan', 'lld', 'code', 'fix']);
+
+/** A line for the task page while Claude Code works: what it said, or the tool it used. */
+export const agentEvent = z.object({
+  type: z.literal('agent.event'),
+  jobId: id,
+  seq: z.number().int().nonnegative(),
+  kind: z.enum(['text', 'tool']),
+  toolName: z.string().max(100).optional(),
+  text: z.string().max(8000),
+});
+export const agentUsage = z.object({
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative(),
+  cacheWriteTokens: z.number().int().nonnegative(),
+});
+export const agentResult = z.object({
+  type: z.literal('agent.result'),
+  jobId: id,
+  status: z.enum(['done', 'error', 'timed_out', 'cancelled']),
+  /** Claude Code's final message: the plan or design document, or a summary of the change. */
+  text: z.string().max(MAX_AGENT_TEXT),
+  /** Every file that differs from baseSha afterwards (text only). content null = deleted. */
+  files: z.array(z.object({ path: z.string().min(1).max(500), content: z.string().nullable() })).max(MAX_AGENT_FILES),
+  usage: agentUsage,
+  turns: z.number().int().nonnegative(),
+  model: z.string().max(100).nullable(),
+  durationMs: z.number().int().nonnegative(),
+  error: z.string().max(2000).optional(),
+  /** Why it could not run, so the task can say what to do about it. */
+  errorKind: z.enum(['not_installed', 'not_signed_in', 'usage_limit', 'too_large', 'other']).optional(),
+});
+
+export const builderMessage = z.discriminatedUnion('type', [helloFromBuilder, jobAccept, jobReject, logChunk, jobResult, agentEvent, agentResult, heartbeat]);
 export type BuilderMessage = z.infer<typeof builderMessage>;
 
 // gateway → builder
@@ -84,10 +125,31 @@ export const jobOffer = z.object({
   limits,
 });
 export const jobCancel = z.object({ type: z.literal('job.cancel'), jobId: id });
+export const agentOffer = z.object({
+  type: z.literal('agent.offer'),
+  jobId: id,
+  taskKey: z.string(),
+  repo: z.object({ fullName: z.string(), cloneUrl: z.string().url(), localPath: z.string().nullable() }),
+  baseSha: z.string().regex(/^[0-9a-f]{40}$/i),
+  /** The task's changes so far (git apply), so a fix continues from the current code. */
+  patch: z.string().max(MAX_PATCH_BYTES),
+  patchSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  phase: agentPhase,
+  /** AutoDev's rules for this phase, appended to Claude Code's own system prompt. */
+  system: z.string().max(MAX_AGENT_TEXT),
+  /** The task, with the approved documents and any review comments or failing tests. */
+  prompt: z.string().max(400_000),
+  /** False for plan and design: Claude Code gets read-only tools. */
+  allowEdits: z.boolean(),
+  timeoutMin: z.number().int().positive().max(120),
+});
 
-export const gatewayMessage = z.discriminatedUnion('type', [helloFromGateway, jobOffer, jobCancel, heartbeat]);
+export const gatewayMessage = z.discriminatedUnion('type', [helloFromGateway, jobOffer, agentOffer, jobCancel, heartbeat]);
 export type GatewayMessage = z.infer<typeof gatewayMessage>;
 export type JobOffer = z.infer<typeof jobOffer>;
+export type AgentOffer = z.infer<typeof agentOffer>;
+export type AgentResult = z.infer<typeof agentResult>;
+export type AgentEvent = z.infer<typeof agentEvent>;
 export type JobResult = z.infer<typeof jobResult>;
 export type FailedTest = z.infer<typeof failedTest>;
 

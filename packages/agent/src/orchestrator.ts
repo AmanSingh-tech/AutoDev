@@ -1,5 +1,6 @@
 import type { AgentJob } from '@autodev/config';
 import {
+  agentEngine,
   and,
   desc,
   eq,
@@ -18,12 +19,12 @@ import { KeyFailure, LlmBlocked, LlmError, type LlmGateway, type Message } from 
 import type { BlobStore } from '@autodev/storage';
 import type { BuilderJob, BuilderJobs } from './builder-jobs';
 import type { Publisher } from './publisher';
-import { isAllowedByDesign, mentionedPaths } from './documents';
+import { isAllowedByDesign, mentionedPaths, missingSections } from './documents';
 import { runLoop, type Outcome, type ToolResult } from './loop';
 import { PgOverlayStore } from './overlay';
-import { buildSystem, buildTaskMessage, type RepoContext, type TaskContext } from './prompts';
+import { buildClaudeCodePrompt, buildClaudeCodeSystem, buildSystem, buildTaskMessage, type RepoContext, type TaskContext } from './prompts';
 import { GitHubRepoReader } from './repo-reader';
-import { VirtualWorkspace } from './workspace';
+import { VirtualWorkspace, WorkspaceError } from './workspace';
 
 const { agentRuns, agentSteps, notifications, repos, taskDocuments, taskQuestions, tasks, workspaces } = schema;
 
@@ -48,7 +49,13 @@ interface RunState {
   pendingResults?: ToolResult[];
   pendingToolUseId?: string | null;
   pendingTool?: string | null;
+  /** Claude Code engine: how often a document came back without its required sections. */
+  docRetries?: number;
 }
+
+/** `pendingTool` while a run waits for Claude Code on the owner's builder. */
+const CLAUDE_CODE = 'claude_code';
+const MAX_DOC_RETRIES = 1;
 
 export interface OrchestratorDeps {
   sys: SystemDb;
@@ -145,6 +152,10 @@ export class AgentOrchestrator {
     const rootView = new VirtualWorkspace(reader, overlay, { scope: '' });
 
     const docs = await this.approvedDocs(task.id);
+    // The org's tasks are done by each owner's own Claude Code, on their builder (not the Group Agent's: it has no builder).
+    if (this.deps.builderJobs && !task.byGroupAgent && (await agentEngine(sys, task.orgId)) === 'claude_code') {
+      return this.runPhaseWithClaudeCode(task, requested, { workspace, rootView, ws, lockKey, docs });
+    }
     const system = buildSystem(phase, await this.repoContext(rootView, reader, repo.fullName, ws.baseRef, ws.baseSha));
     const allowedPaths = phase === 'code' || phase === 'fix' ? await this.allowedPaths(task, docs) : null;
 
@@ -153,7 +164,8 @@ export class AgentOrchestrator {
     let transcript: Message[];
     if (paused) {
       run = paused;
-      transcript = await this.loadTranscript(run);
+      // A run whose very first call failed (e.g. rate-limited) saved nothing yet: start it over.
+      transcript = run.transcriptHash ? await this.loadTranscript(run) : [buildTaskMessage(phase, await this.taskContext(task, docs))];
       const resume = await this.resumeMessage(run);
       if (resume) transcript = [...transcript, resume];
       await sys.update(agentRuns).set({ status: 'running', resumeStatus: null, pendingToolUseId: null }).where(eq(agentRuns.id, run.id));
@@ -225,6 +237,144 @@ export class AgentOrchestrator {
     } catch (e) {
       return this.handleError(task, run, e);
     }
+  }
+
+  /**
+   * The Claude Code engine. A phase is one job on the task owner's builder: this creates it (with
+   * the review comments or failing tests, when the phase is being redone), and when the builder
+   * reports back, turns the result into the same outcomes the built-in agent produces. Gates,
+   * tests, pushing and the PR are unchanged.
+   */
+  private async runPhaseWithClaudeCode(
+    task: Task,
+    requested: AgentPhase,
+    ctx: { workspace: VirtualWorkspace; rootView: VirtualWorkspace; ws: typeof workspaces.$inferSelect; lockKey: string; docs: { plan: string | null; lld: string | null } },
+  ): Promise<string> {
+    const { sys } = this.deps;
+    const builderJobs = this.deps.builderJobs!;
+    const phases: AgentPhase[] = requested === 'code' || requested === 'fix' ? ['code', 'fix'] : [requested];
+    // The run this continues: one waiting for Claude Code, or one paused on a review or a test run.
+    const [open] = await sys
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.taskId, task.id), inArray(agentRuns.phase, phases), inArray(agentRuns.status, ['running', 'paused'])))
+      .orderBy(desc(agentRuns.startedAt))
+      .limit(1);
+
+    if (open && (open.state as RunState).pendingTool === CLAUDE_CODE) {
+      const job = await builderJobs.latestForRun(open.id, 'agent');
+      if (job && ['queued', 'offered', 'running'].includes(job.status)) {
+        if (job.status === 'queued') await builderJobs.dispatch(job.id);
+        return 'claude_code:waiting';
+      }
+      if (job) return this.handleClaudeCodeResult(task, open, job, requested, ctx);
+    }
+
+    let run = open;
+    const feedback = run ? await this.claudeCodeFeedback(run) : null;
+    if (!run) {
+      // Earlier phases that ended with an approved document are done.
+      await sys
+        .update(agentRuns)
+        .set({ status: 'succeeded', endedAt: new Date(), state: {} })
+        .where(and(eq(agentRuns.taskId, task.id), eq(agentRuns.status, 'paused'), sql`${agentRuns.phase} <> ${requested}`, sql`${agentRuns.state}->>'pendingTool' in ('submit_plan', 'submit_design')`));
+      [run] = (await sys.insert(agentRuns).values({ orgId: task.orgId, taskId: task.id, phase: requested, status: 'running' }).returning()) as [Run];
+    }
+    return this.startClaudeCodeJob(task, run, requested, feedback, ctx);
+  }
+
+  private async startClaudeCodeJob(
+    task: Task,
+    run: Run,
+    phase: AgentPhase,
+    feedback: string | null,
+    ctx: { workspace: VirtualWorkspace; ws: typeof workspaces.$inferSelect; docs: { plan: string | null; lld: string | null } },
+    docRetries = 0,
+  ): Promise<string> {
+    const { sys } = this.deps;
+    const builderJobs = this.deps.builderJobs!;
+    const allowed = phase === 'code' || phase === 'fix' ? await this.allowedPaths(task, ctx.docs) : null;
+    const [w] = await sys.select({ revision: workspaces.revision }).from(workspaces).where(eq(workspaces.taskId, task.id));
+    const job = await builderJobs.createAgent({
+      task,
+      agentRunId: run.id,
+      phase,
+      system: buildClaudeCodeSystem(phase, { scopePath: task.scopePath, allowedPaths: allowed ? [...allowed].sort() : null }),
+      prompt: buildClaudeCodePrompt(phase, await this.taskContext(task, ctx.docs), feedback),
+      patch: await ctx.workspace.patch(),
+      baseSha: ctx.ws.baseSha,
+      revision: w?.revision ?? 0,
+    });
+    await sys
+      .update(agentRuns)
+      .set({ status: 'running', error: null, resumeStatus: null, pendingToolUseId: null, state: { pendingTool: CLAUDE_CODE, docRetries } satisfies RunState })
+      .where(eq(agentRuns.id, run.id));
+    await builderJobs.dispatch(job.id);
+    return `claude_code:${phase}`;
+  }
+
+  /** What a redone phase needs to know: the reviewer's comment on the last document, or the failing tests. */
+  private async claudeCodeFeedback(run: Run): Promise<string | null> {
+    const state = run.state as RunState;
+    if (state.pendingTool === 'submit_plan' || state.pendingTool === 'submit_design') {
+      const kind = state.pendingTool === 'submit_plan' ? 'plan' : 'lld';
+      const [doc] = await this.deps.sys.select().from(taskDocuments).where(and(eq(taskDocuments.agentRunId, run.id), eq(taskDocuments.kind, kind))).orderBy(desc(taskDocuments.version)).limit(1);
+      if (!doc) return null;
+      return `## Your previous ${kind === 'plan' ? 'plan' : 'design'} (v${doc.version})\n${doc.contentMd}\n\n## Changes the reviewer requested\n${doc.comment ?? '(no comment)'}\n\nWrite the complete revised document.`;
+    }
+    if (state.pendingTool === 'finish' && this.deps.builderJobs) {
+      const job = await this.deps.builderJobs.latestForRun(run.id);
+      if (job) return `## Test result\n${testResultText(job, true).replace(/, then call finish again\.$/, '.')}`;
+    }
+    return null;
+  }
+
+  private async handleClaudeCodeResult(
+    task: Task,
+    run: Run,
+    job: BuilderJob,
+    requested: AgentPhase,
+    ctx: { workspace: VirtualWorkspace; rootView: VirtualWorkspace; ws: typeof workspaces.$inferSelect; lockKey: string; docs: { plan: string | null; lld: string | null } },
+  ): Promise<string> {
+    const { sys } = this.deps;
+    const result = await this.deps.builderJobs!.agentResult(job);
+    const fail = async (reason: string, kind = 'claude_code') => {
+      await sys.update(agentRuns).set({ status: 'failed', error: reason, endedAt: new Date(), state: {} }).where(eq(agentRuns.id, run.id));
+      await transitionTask(sys, task, 'failed', agent, { reason, kind }).catch(() => {});
+      await this.notifyOwner(task, 'task.failed', `${task.key} stopped`, reason);
+      return `failed:${kind}`;
+    };
+    if (job.status === 'cancelled') return 'cancelled';
+    if (job.status !== 'passed' || !result || result.status !== 'done') {
+      return fail(result?.error ?? job.error ?? 'Claude Code did not finish on the builder.', result?.errorKind ?? 'claude_code');
+    }
+    const phase = job.agentPhase ?? requested;
+
+    if (phase === 'plan' || phase === 'lld') {
+      const markdown = result.text.trim();
+      const missing = missingSections(phase, markdown);
+      if (missing.length) {
+        const retries = (run.state as RunState).docRetries ?? 0;
+        if (retries >= MAX_DOC_RETRIES) return fail(`Claude Code's ${phase === 'plan' ? 'plan' : 'design'} is missing required sections: ${missing.join(', ')}.`);
+        const feedback = `## Your previous answer\n${markdown.slice(0, 60_000)}\n\n## What was wrong\nIt is missing these sections (as markdown headings): ${missing.join(', ')}. Your final message must be the complete document with all the required headings, and nothing else.`;
+        return this.startClaudeCodeJob(task, run, phase, feedback, ctx, retries + 1);
+      }
+      return this.handleOutcome(task, run, phase, { type: 'submitted', kind: phase, markdown, toolUseId: CLAUDE_CODE }, [], ctx);
+    }
+
+    // Code or fix: the approved design still decides which files may change. It's checked here, after the fact.
+    const allowed = await this.allowedPaths(task, ctx.docs);
+    const outside = allowed ? result.files.map((f) => f.path).filter((p) => !isAllowedByDesign(p, allowed)) : [];
+    if (outside.length) return fail(`Claude Code changed files that aren't in the approved design: ${outside.slice(0, 10).join(', ')}${outside.length > 10 ? ', …' : ''}. Nothing was kept.`, 'outside_design');
+    if (!result.files.length) return fail("Claude Code finished without changing any files.", 'no_changes');
+    try {
+      await ctx.workspace.replaceChanges(result.files);
+    } catch (e) {
+      if (e instanceof WorkspaceError) return fail(`Claude Code's change can't be used: ${e.message}.`, 'outside_scope');
+      throw e;
+    }
+    const summary = result.text.trim() || 'Change made by Claude Code.';
+    return this.handleOutcome(task, run, phase, { type: 'finished', summary, files: [], toolUseId: CLAUDE_CODE }, [], ctx);
   }
 
   private async handleOutcome(

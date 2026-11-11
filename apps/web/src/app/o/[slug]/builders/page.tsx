@@ -8,6 +8,11 @@ import { useEvents } from '@/lib/use-events';
 import { useOrg } from '../org-shell';
 import { toast } from 'sonner';
 
+const ENGINES = [
+  { id: 'claude_code', title: 'Claude Code on your builder', body: 'Each person’s own Claude Code does the work on their machine, with their own Claude sign-in. No API key is needed. The builder must be online.' },
+  { id: 'api', title: 'AutoDev’s agent with an AI key', body: 'AutoDev calls the model itself with the key under Settings → AI keys. Works with no builder online; usage is billed to that key.' },
+] as const;
+
 export default function BuildersPage() {
   const org = useOrg();
   const isAdmin = org.role === 'owner' || org.role === 'admin';
@@ -29,6 +34,14 @@ export default function BuildersPage() {
   });
   const share = trpc.builders.setShared.useMutation({ onSuccess: refresh });
   const confirm = trpc.builders.confirmRepo.useMutation({ onSuccess: refresh });
+  const engine = trpc.builders.engine.useQuery();
+  const setEngine = trpc.builders.setEngine.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.engine === 'claude_code' ? 'Tasks now use Claude Code on each person’s builder' : 'Tasks now use AutoDev’s agent with your AI key');
+      return utils.builders.engine.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const apiUrl = typeof window === 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000');
 
   return (
@@ -36,10 +49,49 @@ export default function BuildersPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Builders</h1>
         <p className="text-sm text-muted-foreground">
-          Builders run your tasks’ tests on your own machine. They connect out to AutoDev (no open ports) and only run the commands in the base branch’s
-          .autodev.yml, in Docker, in a temporary copy of the repo.
+          Builders run your tasks’ tests on your own machine, and can do the agent’s work there with your own Claude Code. They connect out to AutoDev (no
+          open ports), work in a temporary copy of the repo, and only run the commands in the base branch’s .autodev.yml, in Docker.
         </p>
       </div>
+
+      {engine.data && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Who does the agent’s work</CardTitle>
+            <CardDescription>Planning, design and coding for this organization’s tasks. Approvals, tests and pull requests work the same either way.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div role="radiogroup" aria-label="Agent engine" className="grid gap-3 md:grid-cols-2">
+              {ENGINES.map((e) => {
+                const selected = engine.data.engine === e.id;
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={!engine.data.canChange || setEngine.isPending}
+                    onClick={() => !selected && setEngine.mutate({ engine: e.id })}
+                    className={`rounded-lg border p-3 text-left text-sm transition-colors disabled:cursor-not-allowed ${selected ? 'border-primary bg-accent/50' : 'hover:bg-secondary disabled:opacity-60'}`}
+                  >
+                    <span className="flex items-center justify-between gap-2 font-medium">
+                      {e.title}
+                      {selected && <Badge variant="accent">In use</Badge>}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{e.body}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!engine.data.canChange && <p className="mt-3 text-xs text-muted-foreground">Only admins can change this.</p>}
+            {engine.data.engine === 'claude_code' && list.data && !list.data.some((b) => b.mine && b.kind === 'personal' && b.claudeCode) && (
+              <Alert tone="warning" className="mt-3">
+                None of your builders has Claude Code yet. Install Claude Code on your machine, sign in once with <code className="font-mono">claude</code>, then start your builder. Your tasks wait until it is online.
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {pending.data?.map((p) => (
         <Card key={`${p.builderId}-${p.repoId}`} className="border-2 border-status-warning">
@@ -89,6 +141,10 @@ export default function BuildersPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">Claude Code</div>
+                  {b.claudeCode ? <p>Version {b.claudeCode}, signed in as the builder’s owner</p> : <p className="text-muted-foreground">Not found on this machine. This builder only runs tests.</p>}
+                </div>
                 {!b.dockerAvailable && b.os && <Alert>Docker isn’t available on this builder, so it can only run jobs if started with --no-docker.</Alert>}
                 <div>
                   <div className="text-xs text-muted-foreground">Repositories</div>

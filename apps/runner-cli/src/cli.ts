@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import Docker from 'dockerode';
 import { simpleGit } from 'simple-git';
 import { Builder } from './builder';
+import { detectClaudeCode } from './claude-code';
 import { DockerExecutor, ShellExecutor } from './executors';
 import { sameRepo } from './job-runner';
 import { cacheDir, clearSettings, loadSettings, saveSettings, settingsPath } from './settings';
@@ -11,7 +12,7 @@ declare const __AUTODEV_VERSION__: string | undefined;
 const VERSION = typeof __AUTODEV_VERSION__ === 'string' ? __AUTODEV_VERSION__ : '0.1.0';
 const DEFAULT_API = process.env.AUTODEV_API_URL ?? 'http://localhost:4000';
 
-const HELP = `autodev-runner ${VERSION}: runs AutoDev test jobs on this machine
+const HELP = `autodev-runner ${VERSION}: runs AutoDev test jobs (and Claude Code agent work) on this machine
 
   autodev login [--api URL] [--name NAME]   Pair this machine (approve the code in the dashboard)
   autodev start [--no-docker]                Connect and run jobs automatically
@@ -20,7 +21,10 @@ const HELP = `autodev-runner ${VERSION}: runs AutoDev test jobs on this machine
   autodev logout                             Forget this machine's builder token
 
 Jobs only run commands from the base branch's .autodev.yml, in Docker by default, inside a
-temporary git worktree that is deleted afterwards. No inbound ports are opened.`;
+temporary git worktree that is deleted afterwards. No inbound ports are opened.
+
+When Claude Code is installed here, the builder can also plan and write code for your tasks with
+your own Claude sign-in, in the same kind of worktree, with no command-running tools.`;
 
 function flag(args: string[], name: string) {
   const i = args.indexOf(name);
@@ -77,7 +81,13 @@ async function start(args: string[]) {
   } else {
     console.warn('Running without Docker: test commands run directly on this machine.');
   }
-  const builder = new Builder({ gatewayUrl: s.gatewayUrl, token: s.token, cliVersion: VERSION, cacheDir: cacheDir(), dockerExecutor, shellExecutor: new ShellExecutor(), log: (l) => console.log(`[${new Date().toLocaleTimeString()}] ${l}`) });
+  const claudeCode = await detectClaudeCode();
+  console.log(
+    claudeCode
+      ? `Claude Code ${claudeCode.version} found: this builder can do agent work with your own Claude sign-in.`
+      : 'Claude Code was not found (install it, or set AUTODEV_CLAUDE_PATH): this builder only runs tests.',
+  );
+  const builder = new Builder({ gatewayUrl: s.gatewayUrl, token: s.token, cliVersion: VERSION, cacheDir: cacheDir(), dockerExecutor, shellExecutor: new ShellExecutor(), claudeCode, log: (l) => console.log(`[${new Date().toLocaleTimeString()}] ${l}`) });
   builder.start();
   const stop = () => {
     console.log('Stopping…');

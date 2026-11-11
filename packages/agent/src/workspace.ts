@@ -152,6 +152,21 @@ export class VirtualWorkspace {
   }
 
   /**
+   * Makes the change set equal to a set of files produced elsewhere (Claude Code in a builder's
+   * worktree): each file is written or deleted, and earlier changes that aren't in the set are
+   * dropped. The same path rules apply as for any write, and nothing is written if one path fails.
+   */
+  async replaceChanges(files: { path: string; content: string | null }[]) {
+    const checked = files.map((f) => ({ path: this.path(f.path, 'write'), content: f.content }));
+    for (const f of checked) {
+      if (f.content !== null) await this.write(f.path, f.content);
+      else if (await this.exists(f.path)) await this.deleteFile(f.path);
+    }
+    const keep = new Set(checked.map((f) => f.path));
+    for (const o of await this.overlay.list()) if (!keep.has(o.path)) await this.overlay.remove(o.path);
+  }
+
+  /**
    * Regex search. It runs locally over at most 400 text files / 8 MB under `path` (base plus edits).
    * Beyond that it falls back to GitHub code search, which only covers the default branch.
    */

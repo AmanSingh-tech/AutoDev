@@ -34,24 +34,11 @@ export class JobRunner {
       return result({ status: 'error', step: 'system', exitCode: null, failedTests: [], logTail: '', error: 'patch checksum mismatch' });
     }
 
-    let repo: SimpleGit | null = null;
-    let worktree: string | null = null;
-    const scratch = mkdtempSync(join(tmpdir(), 'autodev-job-'));
+    let checkout: Checkout | null = null;
     try {
       sys(`AutoDev job for ${offer.taskKey} (${offer.repo.fullName} @ ${offer.baseSha.slice(0, 12)})`);
-      repo = await this.repository(offer, sys);
-      if (!(await hasCommit(repo, offer.baseSha))) {
-        sys('Fetching the base commit…');
-        await repo.fetch(['origin', offer.baseSha, '--depth=1', '--no-tags']).catch(async () => repo!.fetch(['origin', '--no-tags']));
-      }
-      worktree = join(scratch, 'worktree');
-      await repo.raw(['worktree', 'add', '--detach', worktree, offer.baseSha]);
-      if (offer.patch.trim()) {
-        const patchFile = join(scratch, 'change.patch');
-        writeFileSync(patchFile, offer.patch);
-        await git(worktree).raw(['apply', '--whitespace=nowarn', patchFile]);
-        sys('Applied the patch.');
-      }
+      checkout = await checkOut(this.opts.cacheDir, offer, sys);
+      const worktree = checkout.worktree;
 
       const executor = this.opts.executorFor(offer);
       await executor.prepare(sys);
@@ -87,32 +74,76 @@ export class JobRunner {
       sys(`Error: ${msg}`);
       return result({ status: 'error', step: 'system', exitCode: null, failedTests: [], logTail: msg.slice(-TAIL_CHARS), error: msg.slice(0, 500) });
     } finally {
-      if (repo && worktree) await repo.raw(['worktree', 'remove', '--force', worktree]).catch(() => {});
-      await repo?.raw(['worktree', 'prune']).catch(() => {});
-      rmSync(scratch, { recursive: true, force: true });
+      await checkout?.cleanup();
     }
   }
+}
 
-  /** The developer's bound clone if it really is this repo; otherwise a cached clone of our own. */
-  private async repository(offer: JobOffer, sys: (m: string) => void): Promise<SimpleGit> {
-    if (offer.repo.localPath && existsSync(join(offer.repo.localPath, '.git'))) {
-      const local = git(offer.repo.localPath);
-      // The configured URL, not `get-url`, which applies insteadOf rewrites.
-      const remote = (await local.raw(['config', '--get', 'remote.origin.url']).catch(() => '')).trim();
-      if (sameRepo(remote, offer.repo.fullName)) {
-        sys(`Using your clone at ${offer.repo.localPath} (a separate worktree; your checkout isn't touched).`);
-        return local;
-      }
-      sys(`${offer.repo.localPath} is not a clone of ${offer.repo.fullName}; using a cached clone instead.`);
+/** What a job needs checked out: the repo, the pinned base commit, and the task's changes so far. */
+export interface CheckoutSource {
+  repo: { fullName: string; cloneUrl: string; localPath: string | null };
+  baseSha: string;
+  patch: string;
+}
+export interface Checkout {
+  worktree: string;
+  git: SimpleGit;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * A throwaway worktree of the base commit with the patch applied, in a temp directory. The
+ * developer's own checkout is never touched. Always call cleanup().
+ */
+export async function checkOut(cacheDir: string, source: CheckoutSource, sys: (m: string) => void): Promise<Checkout> {
+  const scratch = mkdtempSync(join(tmpdir(), 'autodev-job-'));
+  let repo: SimpleGit | null = null;
+  let worktree: string | null = null;
+  const cleanup = async () => {
+    if (repo && worktree) await repo.raw(['worktree', 'remove', '--force', worktree]).catch(() => {});
+    await repo?.raw(['worktree', 'prune']).catch(() => {});
+    rmSync(scratch, { recursive: true, force: true });
+  };
+  try {
+    repo = await repository(cacheDir, source, sys);
+    if (!(await hasCommit(repo, source.baseSha))) {
+      sys('Fetching the base commit…');
+      await repo.fetch(['origin', source.baseSha, '--depth=1', '--no-tags']).catch(async () => repo!.fetch(['origin', '--no-tags']));
     }
-    const dir = join(this.opts.cacheDir, 'repos', offer.repo.fullName.replace('/', '__'));
-    if (!existsSync(join(dir, '.git'))) {
-      sys(`Cloning ${offer.repo.fullName} (with your own git credentials)…`);
-      mkdirSync(dir, { recursive: true });
-      await git(dir).clone(offer.repo.cloneUrl, dir, ['--no-checkout', '--filter=blob:none']);
+    worktree = join(scratch, 'worktree');
+    await repo.raw(['worktree', 'add', '--detach', worktree, source.baseSha]);
+    if (source.patch.trim()) {
+      const patchFile = join(scratch, 'change.patch');
+      writeFileSync(patchFile, source.patch);
+      await git(worktree).raw(['apply', '--whitespace=nowarn', patchFile]);
+      sys('Applied the patch.');
     }
-    return git(dir);
+    return { worktree, git: git(worktree), cleanup };
+  } catch (e) {
+    await cleanup();
+    throw e;
   }
+}
+
+/** The developer's bound clone if it really is this repo; otherwise a cached clone of our own. */
+async function repository(cacheDir: string, source: CheckoutSource, sys: (m: string) => void): Promise<SimpleGit> {
+  if (source.repo.localPath && existsSync(join(source.repo.localPath, '.git'))) {
+    const local = git(source.repo.localPath);
+    // The configured URL, not `get-url`, which applies insteadOf rewrites.
+    const remote = (await local.raw(['config', '--get', 'remote.origin.url']).catch(() => '')).trim();
+    if (sameRepo(remote, source.repo.fullName)) {
+      sys(`Using your clone at ${source.repo.localPath} (a separate worktree; your checkout isn't touched).`);
+      return local;
+    }
+    sys(`${source.repo.localPath} is not a clone of ${source.repo.fullName}; using a cached clone instead.`);
+  }
+  const dir = join(cacheDir, 'repos', source.repo.fullName.replace('/', '__'));
+  if (!existsSync(join(dir, '.git'))) {
+    sys(`Cloning ${source.repo.fullName} (with your own git credentials)…`);
+    mkdirSync(dir, { recursive: true });
+    await git(dir).clone(source.repo.cloneUrl, dir, ['--no-checkout', '--filter=blob:none']);
+  }
+  return git(dir);
 }
 
 async function hasCommit(git: SimpleGit, sha: string) {

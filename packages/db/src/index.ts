@@ -9,3 +9,4 @@ export * from './task-machine';
 export { alias } from 'drizzle-orm/pg-core';
 export * from './ops/tasks';
 export * from './ops/insights-settings';
+export * from './ops/agent-engine';

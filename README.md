@@ -181,6 +181,32 @@ Queue tasks before you leave; the agent works through them on its own and you re
   the PR). A notification says when a session finished.
 - Admins can turn Autopilot off for the organization. Demo orgs include a finished overnight run.
 
+## Claude Code engine (bring your own agent)
+
+An org can have its tasks done by each person's own Claude Code instead of AutoDev's agent and an
+API key. Admins choose under **Builders → Who does the agent's work** (`orgs.settings.agent.engine`:
+`api`, the default, or `claude_code`).
+
+- **How it runs:** each phase (plan, design, code, fix) is one job for the task owner's own personal
+  builder. The runner starts the `claude` command that is already installed and signed in there, in
+  a throwaway worktree of the base commit with the task's changes so far applied. AutoDev never sees
+  the Claude sign-in, and calls no model itself.
+- **What Claude Code may do:** read-only tools for plan and design; `Read, Glob, Grep, Edit, Write`
+  for code. It runs with `--restricted` (no command-running tools, no user or project settings,
+  hooks or MCP servers, files confined to the worktree) and nobody answers permission prompts.
+- **What comes back:** its final message (the plan or design, or the PR summary) and every text
+  file that differs from the base commit. The files replace the task's change set, so tests, diffs,
+  pushing and the PR work as before.
+- **Gates are unchanged:** documents need their required sections (one retry), reviews send the
+  comment back with the previous version, failing tests come back as a fix job on the same run.
+  The approved design still limits which files may change: it is checked when the result arrives,
+  and a change outside it fails the task and keeps nothing.
+- **Usage:** token counts are recorded on the run; there is no dollar cost (it's the person's plan).
+- **Not yet (phase 2):** questions and deviation approvals mid-run, pausing on a usage limit and
+  resuming, Autopilot checks for an online builder, repo chat and the Group Agent on this engine.
+- The runner looks for `claude` in `AUTODEV_CLAUDE_PATH`, the `PATH`, then `~/.local/bin` and
+  `~/.claude/local`, and reports the version in its hello (`builders.claude_code`).
+
 ## Demo mode
 
 **Try the demo** (`/demo`, also on the home page and the organization list) creates a sample

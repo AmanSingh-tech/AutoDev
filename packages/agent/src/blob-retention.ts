@@ -64,6 +64,8 @@ async function referencedHashes(sys: SystemDb): Promise<Set<string>> {
   const rows = await sys.execute(sql`
     select patch_hash as hash from builder_jobs
     union select log_hash from builder_jobs where log_hash is not null
+    union select prompt_hash from builder_jobs where prompt_hash is not null
+    union select result_hash from builder_jobs where result_hash is not null
     union select transcript_hash from agent_runs where transcript_hash is not null`);
   return new Set(rows.map((r) => (r as { hash: string }).hash));
 }

@@ -239,6 +239,13 @@
       "when": 1793998916023,
       "tag": "0033_autopilot",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794362997596,
+      "tag": "0034_claude_code_jobs",
+      "breakpoints": true
     }
   ]
 }

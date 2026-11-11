@@ -29,6 +29,8 @@ export const builders = pgTable(
     arch: text('arch'),
     cliVersion: text('cli_version'),
     dockerAvailable: boolean('docker_available').notNull().default(false),
+    /** The Claude Code version on this machine, when it can run agent jobs with the owner's own login. */
+    claudeCode: text('claude_code'),
     maxCpus: integer('max_cpus').notNull().default(2),
     maxMemoryMb: integer('max_memory_mb').notNull().default(4096),
     lastSeenAt: tsz('last_seen_at'),
@@ -80,6 +82,12 @@ export const builderJobs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     builderId: uuid('builder_id').references(() => builders.id, { onDelete: 'set null' }),
+    /** 'test' runs the repo's commands; 'agent' runs one agent phase with the owner's Claude Code. */
+    kind: text('kind').$type<'test' | 'agent'>().notNull().default('test'),
+    /** Agent jobs: the phase, the prompt sent (blob), and what came back (blob: text, files, usage). */
+    agentPhase: text('agent_phase').$type<'plan' | 'lld' | 'code' | 'fix'>(),
+    promptHash: text('prompt_hash'),
+    resultHash: text('result_hash'),
     baseSha: text('base_sha').notNull(),
     workspaceRevision: integer('workspace_revision').notNull(),
     /** sha256 of the patch in the blob store. Kept forever. */

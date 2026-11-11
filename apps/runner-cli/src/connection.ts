@@ -1,4 +1,4 @@
-import { HEARTBEAT_INTERVAL_MS, parseGatewayMessage, PROTOCOL_VERSION, type BuilderMessage, type GatewayMessage, type JobOffer } from '@autodev/protocol';
+import { HEARTBEAT_INTERVAL_MS, parseGatewayMessage, PROTOCOL_VERSION, type BuilderMessage, type AgentOffer, type GatewayMessage, type JobOffer } from '@autodev/protocol';
 import { WebSocket } from 'ws';
 
 export interface ConnectionOptions {
@@ -6,7 +6,10 @@ export interface ConnectionOptions {
   token: string;
   cliVersion: string;
   dockerAvailable: boolean;
+  /** The Claude Code version on this machine, or null when agent jobs can't run here. */
+  claudeCode?: string | null;
   onOffer: (offer: JobOffer) => void;
+  onAgentOffer?: (offer: AgentOffer) => void;
   onCancel: (jobId: string) => void;
   onStatus?: (s: 'connecting' | 'online' | 'offline' | 'revoked', detail?: string) => void;
   runningJobId: () => string | null;
@@ -45,7 +48,7 @@ export class BuilderConnection {
     this.ws = ws;
     ws.on('open', () => {
       this.retry = 0;
-      this.send({ type: 'hello', protocol: PROTOCOL_VERSION, cliVersion: this.opts.cliVersion, os: process.platform, arch: process.arch, dockerAvailable: this.opts.dockerAvailable, runningJobId: this.opts.runningJobId() });
+      this.send({ type: 'hello', protocol: PROTOCOL_VERSION, cliVersion: this.opts.cliVersion, os: process.platform, arch: process.arch, dockerAvailable: this.opts.dockerAvailable, runningJobId: this.opts.runningJobId(), claudeCode: this.opts.claudeCode ?? null });
       this.heartbeat = setInterval(() => this.send({ type: 'heartbeat', ts: Date.now() }), HEARTBEAT_INTERVAL_MS);
     });
     ws.on('message', (raw) => {
@@ -77,6 +80,7 @@ export class BuilderConnection {
   private handle(msg: GatewayMessage) {
     if (msg.type === 'hello') this.opts.onStatus?.('online');
     else if (msg.type === 'job.offer') this.opts.onOffer(msg);
+    else if (msg.type === 'agent.offer') this.opts.onAgentOffer?.(msg);
     else if (msg.type === 'job.cancel') this.opts.onCancel(msg.jobId);
   }
 

@@ -16,7 +16,8 @@ export function PairBuilder({ initialCode }: { initialCode: string }) {
   const org = orgs.find((o) => o.orgId === orgId);
 
   useEffect(() => {
-    if (!orgId && orgs.length) setOrgId(orgs[0]!.orgId);
+    // A real organization first: a builder paired with the demo by accident does nothing useful.
+    if (!orgId && orgs.length) setOrgId((orgs.find((o) => !o.demo) ?? orgs[0]!).orgId);
   }, [orgs, orgId]);
   useEffect(() => setCurrentOrgId(orgId || null), [orgId]);
 
@@ -58,6 +59,7 @@ export function PairBuilder({ initialCode }: { initialCode: string }) {
                 {orgs.map((o) => (
                   <option key={o.orgId} value={o.orgId}>
                     {o.name}
+                    {o.demo ? ' (demo)' : ''}
                   </option>
                 ))}
               </NativeSelect>

@@ -63,7 +63,8 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
     if (req.url === '/healthz') return void res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
     res.writeHead(404).end();
   });
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  // Agent results carry the changed files (up to 8 MB of text), so messages may be larger than logs.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 12 * 1024 * 1024 });
 
   server.on('upgrade', async (req, socket, head) => {
     try {
@@ -175,7 +176,7 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
       case 'hello': {
         await deps.sys
           .update(builders)
-          .set({ os: msg.os, arch: msg.arch, cliVersion: msg.cliVersion, dockerAvailable: msg.dockerAvailable, lastSeenAt: new Date() })
+          .set({ os: msg.os, arch: msg.arch, cliVersion: msg.cliVersion, dockerAvailable: msg.dockerAvailable, claudeCode: msg.claudeCode ?? null, lastSeenAt: new Date() })
           .where(eq(builders.id, conn.builderId));
         await markSeen(conn);
         await presence(conn, true);
@@ -206,6 +207,14 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
         await bufferLog(msg.jobId, msg.data);
         return;
       }
+      case 'agent.event':
+        if ((await deps.cache.get(busyKey(conn.builderId))) !== msg.jobId) return; // not this builder's job
+        await deps.jobs.agentEvent(conn.builderId, msg);
+        return;
+      case 'agent.result':
+        if ((await deps.cache.get(busyKey(conn.builderId))) !== msg.jobId) return;
+        await deps.jobs.agentFinished(conn.builderId, msg);
+        return;
       case 'job.result': {
         if ((await deps.cache.get(busyKey(conn.builderId))) !== msg.jobId) return;
         // The last lines go out before the result, so the page never shows a result without its log.
@@ -238,7 +247,7 @@ export function createGateway(deps: GatewayDeps): { server: Server; close: () =>
     const msg = parseGatewayMessage(raw);
     if (!conn || !msg) return;
     send(conn, msg);
-    if (msg.type === 'job.offer') {
+    if (msg.type === 'job.offer' || msg.type === 'agent.offer') {
       conn.offerTimers.set(
         msg.jobId,
         setTimeout(() => {

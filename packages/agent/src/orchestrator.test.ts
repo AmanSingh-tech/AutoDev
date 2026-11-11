@@ -221,6 +221,19 @@ describe('AgentOrchestrator', () => {
     expect(await sys.db.select().from(schema.agentRuns)).toHaveLength(1);
   });
 
+  it('retries a run whose very first call was rate-limited, from the start', async () => {
+    const t = await newTask();
+    failNext = new LlmError('rate_limit', 'OpenAI 429 rate_limit_exceeded', 429);
+    await expect(orchestrator.process(job(t.id))).rejects.toMatchObject({ kind: 'rate_limit' });
+    expect((await sys.db.select().from(schema.agentRuns))[0]).toMatchObject({ status: 'paused', transcriptHash: null });
+
+    // BullMQ retries the job: the same run starts over instead of failing for lack of a transcript.
+    script.push([toolUse('submit_plan', { markdown: PLAN })]);
+    expect(await orchestrator.process(job(t.id))).toEqual({ result: 'submitted:plan' });
+    expect(await sys.db.select().from(schema.agentRuns)).toHaveLength(1);
+    expect(seen.at(-1)!.messages).toHaveLength(1);
+  });
+
   it('goes straight to coding in direct mode, with no file restriction', async () => {
     const t = await newTask('direct');
     script.push([toolUse('create_file', { path: 'src/new.ts', content: 'x' })], [toolUse('finish', { summary: 'added' })]);

@@ -475,6 +475,21 @@ Decisions: built into AutoDev (not a separate service); per person, admins can t
 - Email and Slack for the morning summary (in-app notification today).
 - A session can't pause a task mid-run at the window's end; it finishes it.
 
+### Claude Code engine, phase 1 (2026-11-11, approved)
+
+Direction change agreed with the user: AutoDev becomes the control layer (tasks, approvals, tests,
+audit, Autopilot, PRs) and the customer's own agent does the thinking. Most startups have a Claude
+subscription, not API access, so this is the main path; the API key stays as the other option.
+
+- Built: agent jobs on the builder (`builder_jobs.kind = 'agent'`, protocol `agent.offer` /
+  `agent.event` / `agent.result`), the runner's Claude Code launcher, the orchestrator's Claude Code
+  path, the engine setting, and the Builders page and task page UI. Migration 0034.
+- Phases still to do: (2) questions and deviations, usage-limit pause/resume, retry that resumes at
+  the failed phase; (3) "Connect Claude Code" onboarding and the runner on npm; (4) Autopilot, chat
+  and Group Agent on this engine; (5) a connector (MCP) for Claude chat, which needs hosting.
+- Open: Anthropic's terms for a product that starts a customer's own signed-in Claude Code. Check
+  before selling it. Using it on your own machine for your own work is ordinary use.
+
 ## Next step
 
 **Section B is built.** Review B-6 and B-7, then the remaining items under "Decisions left open" in each phase's notes.

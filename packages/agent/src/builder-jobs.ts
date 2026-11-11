@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto';
 import { uuidv7 } from 'uuidv7';
 import type { AgentJob } from '@autodev/config';
-import { and, asc, desc, eq, inArray, isNull, schema, sql, transitionTask, type SystemDb } from '@autodev/db';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, schema, sql, transitionTask, type AgentPhase, type SystemDb } from '@autodev/db';
 import type { KvCache } from '@autodev/github';
-import { DEFAULT_DOCKER_IMAGE, MAX_PATCH_BYTES, parseAutodevConfig, type AutodevConfig, type GatewayMessage, type JobResult } from '@autodev/protocol';
+import { DEFAULT_DOCKER_IMAGE, MAX_PATCH_BYTES, parseAutodevConfig, type AgentEvent, type AgentResult, type AutodevConfig, type GatewayMessage, type JobResult } from '@autodev/protocol';
 import type { BlobStore } from '@autodev/storage';
 import type { VirtualWorkspace } from './workspace';
 
-const { builderJobs, builderRepoBindings, builders, notifications, orgs, repos, tasks } = schema;
+const { agentRuns, agentSteps, builderJobs, builderRepoBindings, builders, notifications, orgs, repos, tasks } = schema;
 
 export type BuilderJob = typeof builderJobs.$inferSelect;
 
@@ -28,6 +28,13 @@ export const publishBus = (publish: (channel: string, message: string) => Promis
 });
 
 const DEFAULT_LIMITS = { cpus: 2, memoryMb: 4096, networkInSetupOnly: true };
+/** How long one agent phase may take on a builder. The builder's "busy" claim outlives it. */
+export const AGENT_JOB_TIMEOUT_MIN = 30;
+/** Task statuses during which an agent job (plan, design, code, fix) is wanted. */
+const AGENT_JOB_STATUSES = ['planning', 'designing', 'coding', 'fixing'];
+
+/** What an agent job's result blob holds: the builder's agent.result, minus the envelope. */
+export type AgentJobResult = Pick<AgentResult, 'status' | 'text' | 'files' | 'usage' | 'turns' | 'model' | 'error' | 'errorKind'>;
 const builderActor = { type: 'builder' as const, userId: null };
 
 /**
@@ -95,13 +102,44 @@ export class BuilderJobs {
     return job!;
   }
 
+  /**
+   * One agent phase for the task owner's own builder to run with Claude Code. The prompt is kept
+   * as a blob; `patch` is the task's changes so far, so the phase starts from the current code.
+   */
+  async createAgent(input: { task: typeof tasks.$inferSelect; agentRunId: string; phase: AgentPhase; system: string; prompt: string; patch: string; baseSha: string; revision: number }): Promise<BuilderJob> {
+    const { task, patch } = input;
+    if (Buffer.byteLength(patch) > MAX_PATCH_BYTES) throw new Error('The change is larger than 10 MB and cannot be sent to a builder');
+    const [job] = await this.deps.sys
+      .insert(builderJobs)
+      .values({
+        id: uuidv7(),
+        orgId: task.orgId,
+        taskId: task.id,
+        agentRunId: input.agentRunId,
+        repoId: task.repoId,
+        requestedBy: task.ownerId,
+        kind: 'agent',
+        agentPhase: input.phase,
+        promptHash: await this.deps.blobs.put(JSON.stringify({ system: input.system, prompt: input.prompt })),
+        baseSha: input.baseSha,
+        workspaceRevision: input.revision,
+        patchHash: await this.deps.blobs.put(patch),
+        patchSha256: createHash('sha256').update(patch).digest('hex'),
+        // Claude Code runs as the owner on their own machine, with their sign-in: never in a container.
+        docker: false,
+        status: 'queued',
+      })
+      .returning();
+    return job!;
+  }
+
   /** Try to hand a queued job to an online builder. Returns the builder used, or null if it stays queued. */
   async dispatch(jobId: string): Promise<string | null> {
     const { sys } = this.deps;
     const [job] = await sys.select().from(builderJobs).where(eq(builderJobs.id, jobId));
     if (!job || job.status !== 'queued' || job.consent === 'pending' || job.consent === 'denied') return null;
     const [task] = await sys.select().from(tasks).where(eq(tasks.id, job.taskId));
-    if (!task || task.status !== 'waiting_for_builder') return null;
+    if (!task || !(job.kind === 'agent' ? AGENT_JOB_STATUSES.includes(task.status) : task.status === 'waiting_for_builder')) return null;
 
     for (const b of await this.candidates(job)) {
       // One job at a time per builder: claim it, then claim the job.
@@ -121,7 +159,10 @@ export class BuilderJobs {
 
     if (!job.offlineNotifiedAt) {
       const [first] = await sys.update(builderJobs).set({ offlineNotifiedAt: new Date() }).where(and(eq(builderJobs.id, job.id), isNull(builderJobs.offlineNotifiedAt))).returning();
-      if (first) await this.notify(task.orgId, task.ownerId, 'job.queued_offline', `${task.key} is waiting for your builder`, 'Start it with `autodev start`. Queued tests run as soon as it connects.', task.key);
+      if (first) {
+        const body = job.kind === 'agent' ? 'This task uses the Claude Code on your builder. Start it with `autodev start` (with Claude Code installed and signed in); the work begins as soon as it connects.' : 'Start it with `autodev start`. Queued tests run as soon as it connects.';
+        await this.notify(task.orgId, task.ownerId, 'job.queued_offline', `${task.key} is waiting for your builder`, body, task.key);
+      }
     }
     return null;
   }
@@ -132,6 +173,16 @@ export class BuilderJobs {
    */
   private async candidates(job: BuilderJob) {
     const { sys, cache } = this.deps;
+    if (job.kind === 'agent') {
+      // Agent work uses a person's own Claude sign-in: only the task owner's own builders, never a shared one.
+      const mine = await sys
+        .select()
+        .from(builders)
+        .where(and(eq(builders.orgId, job.orgId), eq(builders.ownerUserId, job.requestedBy), eq(builders.kind, 'personal'), isNull(builders.revokedAt), isNotNull(builders.claudeCode)));
+      const up: typeof mine = [];
+      for (const b of mine) if ((await cache.get(presenceKey(b.id))) !== null) up.push(b);
+      return up;
+    }
     const rows = await sys
       .select({ b: builders, binding: builderRepoBindings })
       .from(builders)
@@ -172,6 +223,24 @@ export class BuilderJobs {
     const [task] = await this.deps.sys.select({ key: tasks.key }).from(tasks).where(eq(tasks.id, job.taskId));
     const config = job.configSnapshot as unknown as AutodevConfig;
     const patch = (await this.deps.blobs.get(job.patchHash))?.toString('utf8') ?? '';
+    if (job.kind === 'agent') {
+      const { system, prompt } = JSON.parse((await this.deps.blobs.get(job.promptHash!))?.toString('utf8') ?? '{}') as { system: string; prompt: string };
+      const phase = job.agentPhase!;
+      return {
+        type: 'agent.offer',
+        jobId: job.id,
+        taskKey: task!.key,
+        repo: { fullName: repo!.fullName, cloneUrl: `https://github.com/${repo!.fullName}.git`, localPath: binding?.localPath ?? null },
+        baseSha: job.baseSha,
+        patch,
+        patchSha256: job.patchSha256,
+        phase,
+        system,
+        prompt,
+        allowEdits: phase === 'code' || phase === 'fix',
+        timeoutMin: AGENT_JOB_TIMEOUT_MIN,
+      };
+    }
     return {
       type: 'job.offer',
       jobId: job.id,
@@ -228,7 +297,7 @@ export class BuilderJobs {
         error: r.error ?? null,
         finishedAt: new Date(),
       })
-      .where(and(eq(builderJobs.id, r.jobId), eq(builderJobs.builderId, builderId), eq(builderJobs.status, 'running')))
+      .where(and(eq(builderJobs.id, r.jobId), eq(builderJobs.builderId, builderId), eq(builderJobs.kind, 'test'), eq(builderJobs.status, 'running')))
       .returning();
     await this.deps.cache.del(busyKey(builderId));
     if (!job) return null;
@@ -236,6 +305,66 @@ export class BuilderJobs {
     // The builder is free again: give it the next queued job.
     await this.dispatchFor(builderId);
     return job;
+  }
+
+  /** A line from Claude Code while it works, shown as a step of the run on the task page. */
+  async agentEvent(builderId: string, e: AgentEvent) {
+    const { sys } = this.deps;
+    const [job] = await sys.select().from(builderJobs).where(and(eq(builderJobs.id, e.jobId), eq(builderJobs.builderId, builderId), eq(builderJobs.kind, 'agent'), eq(builderJobs.status, 'running')));
+    if (!job?.agentRunId) return;
+    await sys.insert(agentSteps).values({
+      orgId: job.orgId,
+      taskId: job.taskId,
+      agentRunId: job.agentRunId,
+      seq: sql`(select coalesce(max(${agentSteps.seq}), 0) + 1 from ${agentSteps} where ${agentSteps.agentRunId} = ${job.agentRunId})`,
+      kind: e.kind === 'tool' ? 'tool_call' : 'message',
+      toolName: e.toolName ?? null,
+      input: e.kind === 'tool' ? { path: e.text } : null,
+      output: e.kind === 'text' ? e.text : null,
+    });
+  }
+
+  /** Claude Code finished a phase (or could not run): keep what it returned and wake the orchestrator. */
+  async agentFinished(builderId: string, r: AgentResult) {
+    const { sys } = this.deps;
+    const result: AgentJobResult = { status: r.status, text: r.text, files: r.files, usage: r.usage, turns: r.turns, model: r.model, error: r.error, errorKind: r.errorKind };
+    const resultHash = await this.deps.blobs.put(JSON.stringify(result));
+    const [job] = await sys
+      .update(builderJobs)
+      .set({
+        status: r.status === 'done' ? 'passed' : r.status === 'timed_out' ? 'timed_out' : r.status === 'cancelled' ? 'cancelled' : 'error',
+        resultHash,
+        durationMs: r.durationMs,
+        error: r.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(and(eq(builderJobs.id, r.jobId), eq(builderJobs.builderId, builderId), eq(builderJobs.kind, 'agent'), eq(builderJobs.status, 'running')))
+      .returning();
+    await this.deps.cache.del(busyKey(builderId));
+    if (!job) return null;
+    if (job.agentRunId) {
+      await sys
+        .update(agentRuns)
+        .set({
+          model: r.model ?? undefined,
+          turns: sql`${agentRuns.turns} + ${r.turns}`,
+          inputTokens: sql`${agentRuns.inputTokens} + ${r.usage.inputTokens}`,
+          outputTokens: sql`${agentRuns.outputTokens} + ${r.usage.outputTokens}`,
+          cacheReadTokens: sql`${agentRuns.cacheReadTokens} + ${r.usage.cacheReadTokens}`,
+          cacheWriteTokens: sql`${agentRuns.cacheWriteTokens} + ${r.usage.cacheWriteTokens}`,
+        })
+        .where(eq(agentRuns.id, job.agentRunId));
+    }
+    await this.deps.enqueueAgent({ kind: 'run', orgId: job.orgId, taskId: job.taskId }, `job-${job.id}`);
+    await this.dispatchFor(builderId);
+    return job;
+  }
+
+  /** What the builder sent back for an agent job, or null while it is still running. */
+  async agentResult(job: BuilderJob): Promise<AgentJobResult | null> {
+    if (!job.resultHash) return null;
+    const raw = await this.deps.blobs.get(job.resultHash);
+    return raw ? (JSON.parse(raw.toString('utf8')) as AgentJobResult) : null;
   }
 
   /** A builder disconnected: re-queue what it was running and put the task back to waiting. */
@@ -261,10 +390,14 @@ export class BuilderJobs {
       .where(and(eq(builderJobs.taskId, taskId), inArray(builderJobs.status, ['queued', 'offered', 'running'])))
       .returning();
     for (const j of jobs) if (j.builderId) await this.deps.bus.send(j.builderId, { type: 'job.cancel', jobId: j.id });
+    // A run that was waiting for Claude Code on a builder ends with the job.
+    const runIds = jobs.filter((j) => j.kind === 'agent' && j.agentRunId).map((j) => j.agentRunId!);
+    if (runIds.length) await this.deps.sys.update(agentRuns).set({ status: 'cancelled', endedAt: new Date(), state: {} }).where(and(inArray(agentRuns.id, runIds), eq(agentRuns.status, 'running')));
   }
 
-  async latestForRun(runId: string) {
-    const [job] = await this.deps.sys.select().from(builderJobs).where(eq(builderJobs.agentRunId, runId)).orderBy(desc(builderJobs.queuedAt)).limit(1);
+  /** The run's latest test job (the default), or its latest agent job. */
+  async latestForRun(runId: string, kind: 'test' | 'agent' = 'test') {
+    const [job] = await this.deps.sys.select().from(builderJobs).where(and(eq(builderJobs.agentRunId, runId), eq(builderJobs.kind, kind))).orderBy(desc(builderJobs.queuedAt)).limit(1);
     return job ?? null;
   }
 

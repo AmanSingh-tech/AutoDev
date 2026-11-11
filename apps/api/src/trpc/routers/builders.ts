@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { presenceKey } from '@autodev/agent';
-import { and, asc, eq, inArray, isNull, or, schema, sql } from '@autodev/db';
+import { AGENT_ENGINES, agentEngine, and, asc, eq, inArray, isNull, or, schema, setAgentEngine, sql } from '@autodev/db';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { hashBuilderToken } from '../../services/builder-tokens';
@@ -17,7 +17,7 @@ export const buildersRouter = router({
   list: orgProcedure.query(async ({ ctx }) => {
     const rows = await ctx.inOrg((tx) =>
       tx
-        .select({ id: builders.id, name: builders.name, kind: builders.kind, allowShared: builders.allowShared, ownerUserId: builders.ownerUserId, ownerLogin: users.githubLogin, os: builders.os, arch: builders.arch, cliVersion: builders.cliVersion, dockerAvailable: builders.dockerAvailable, lastSeenAt: builders.lastSeenAt, createdAt: builders.createdAt })
+        .select({ id: builders.id, name: builders.name, kind: builders.kind, allowShared: builders.allowShared, ownerUserId: builders.ownerUserId, ownerLogin: users.githubLogin, os: builders.os, arch: builders.arch, cliVersion: builders.cliVersion, dockerAvailable: builders.dockerAvailable, claudeCode: builders.claudeCode, lastSeenAt: builders.lastSeenAt, createdAt: builders.createdAt })
         .from(builders)
         .innerJoin(users, eq(users.id, builders.ownerUserId))
         .where(and(eq(builders.orgId, ctx.orgId), isNull(builders.revokedAt), or(eq(builders.ownerUserId, ctx.userId), eq(builders.kind, 'team'))))
@@ -45,6 +45,17 @@ export const buildersRouter = router({
         runningJob: running.find((r) => r.builderId === b.id) ?? null,
       })),
     );
+  }),
+
+  /** What does the agent's work for this org's tasks: AutoDev's own agent with an API key, or each owner's Claude Code. */
+  engine: orgProcedure.query(async ({ ctx }) => ({ engine: await ctx.inOrg((tx) => agentEngine(tx, ctx.orgId)), canChange: roleAtLeast(ctx.role, 'admin') })),
+
+  setEngine: adminProcedure.input(z.object({ engine: z.enum(AGENT_ENGINES) })).mutation(async ({ ctx, input }) => {
+    await ctx.inOrg(async (tx) => {
+      await setAgentEngine(tx, ctx.orgId, input.engine);
+      await ctx.audit(tx, { action: 'agent_engine.changed', targetType: 'org', targetId: ctx.orgId, metadata: { engine: input.engine } });
+    });
+    return { engine: input.engine };
   }),
 
   /** The dashboard half of `autodev login`: approve the code the CLI shows. */
@@ -106,7 +117,7 @@ export const buildersRouter = router({
         .select({ repoId: builderJobs.repoId, fullName: repos.fullName, config: builderJobs.configSnapshot })
         .from(builderJobs)
         .innerJoin(repos, eq(repos.id, builderJobs.repoId))
-        .where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.status, 'queued'), sql`${builderJobs.consent} <> 'denied'`))
+        .where(and(eq(builderJobs.orgId, ctx.orgId), eq(builderJobs.kind, 'test'), eq(builderJobs.status, 'queued'), sql`${builderJobs.consent} <> 'denied'`))
         .orderBy(asc(builderJobs.queuedAt));
       const bound = await tx.select().from(builderRepoBindings).where(inArray(builderRepoBindings.builderId, mine.map((b) => b.id)));
       const out: { builderId: string; builderName: string; repoId: string; repoFullName: string; config: unknown }[] = [];

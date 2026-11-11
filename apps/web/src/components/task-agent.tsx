@@ -290,20 +290,26 @@ const PHASE = { plan: 'Planning', lld: 'Design', code: 'Coding', fix: 'Fixing' }
 
 /** Runs and tool calls, newest first. Truncated; the full transcript stays on the server. */
 export function ActivitySection({ task: t }: { task: Task }) {
-  const q = trpc.agent.activity.useQuery({ key: t.key }, { refetchInterval: 60_000 });
+  const q = trpc.agent.activity.useQuery({ key: t.key }, { refetchInterval: 15_000 });
   const [expanded, setExpanded] = useState(false);
   if (!q.data?.runs.length) return null;
   const steps = q.data.steps.filter((s) => s.kind === 'tool_call');
   return (
     <section className="space-y-3 rounded-xl border bg-card p-5 shadow-card">
       <h2 className="text-sm font-semibold">Agent runs</h2>
+      {q.data.claudeCode?.state === 'waiting_for_builder' && (
+        <Alert tone="warning">
+          Waiting for your builder. This task is done by the Claude Code on your own machine: start your builder there (<code className="font-mono">autodev start</code>) and the work begins.
+        </Alert>
+      )}
+      {q.data.claudeCode?.state === 'working' && <Alert>Claude Code is working on this on your builder. Its steps appear below.</Alert>}
       <ul className="space-y-1 text-sm">
         {q.data.runs.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium">{PHASE[r.phase]}</span>
             <Badge variant={r.status === 'failed' ? 'destructive' : 'outline'}>{r.status}</Badge>
             <span className="text-muted-foreground">
-              {r.turns} steps · {tokens(Number(r.inputTokens))} in / {tokens(Number(r.outputTokens))} out · {usd(r.costUsd)}
+              {r.turns} steps · {tokens(Number(r.inputTokens))} in / {tokens(Number(r.outputTokens))} out · {r.viaClaudeCode ? 'Claude Code, on your Claude plan' : usd(r.costUsd)}
             </span>
             {r.error && <span className="text-xs text-destructive">{r.error}</span>}
           </li>

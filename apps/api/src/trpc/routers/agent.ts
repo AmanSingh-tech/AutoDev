@@ -138,7 +138,19 @@ export const agentRouter = router({
         .where(eq(agentSteps.taskId, t.id))
         .orderBy(desc(agentSteps.createdAt))
         .limit(300);
-      return { runs, steps };
+      // Phases done by Claude Code on the owner's builder: which runs, and whether one is waiting or working now.
+      const agentJobs = await tx
+        .select({ runId: builderJobs.agentRunId, status: builderJobs.status })
+        .from(builderJobs)
+        .where(and(eq(builderJobs.taskId, t.id), eq(builderJobs.kind, 'agent')))
+        .orderBy(desc(builderJobs.queuedAt));
+      const viaClaudeCode = new Set(agentJobs.map((j) => j.runId));
+      const active = agentJobs.find((j) => ['queued', 'offered', 'running'].includes(j.status));
+      return {
+        runs: runs.map((r) => ({ ...r, viaClaudeCode: viaClaudeCode.has(r.id) })),
+        steps,
+        claudeCode: active ? { state: active.status === 'queued' ? ('waiting_for_builder' as const) : ('working' as const) } : null,
+      };
     }),
   ),
 
@@ -169,7 +181,7 @@ export const agentRouter = router({
         })
         .from(builderJobs)
         .leftJoin(builders, eq(builders.id, builderJobs.builderId))
-        .where(eq(builderJobs.taskId, t.id))
+        .where(and(eq(builderJobs.taskId, t.id), eq(builderJobs.kind, 'test')))
         .orderBy(desc(builderJobs.queuedAt));
     }),
   ),

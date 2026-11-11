@@ -1,4 +1,4 @@
-import { and, eq, isNull, or, schema, sql, type LlmUseCase, type SystemDb } from '@autodev/db';
+import { agentEngine, and, eq, isNull, or, schema, sql, type LlmUseCase, type SystemDb } from '@autodev/db';
 import { uuidv7 } from 'uuidv7';
 import { budgetStatus, groupAgentBudget, sendBudgetAlerts } from './budgets';
 import type { CredentialService } from './credentials';
@@ -99,7 +99,9 @@ export class LlmGateway {
    */
   async assertRunAllowed(orgId: string, userId: string | null, useCase: LlmUseCase = 'agent') {
     const policy = await this.policy(orgId, useCase);
-    if (!(await this.resolveCredential(orgId, userId, policy.provider))) {
+    // Tasks done by the owner's own Claude Code (on their builder) need no API key from the org.
+    const ownClaudeCode = useCase === 'agent' && (await agentEngine(this.deps.sys, orgId)) === 'claude_code';
+    if (!ownClaudeCode && !(await this.resolveCredential(orgId, userId, policy.provider))) {
       throw new LlmBlocked('no_credential', 'No working LLM key is configured for this organization.');
     }
     if (useCase === 'group_agent') await this.assertGroupAgentBudget(orgId);
